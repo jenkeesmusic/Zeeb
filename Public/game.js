@@ -17,6 +17,10 @@ const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
 
+// Sound effects
+const laserSound = new Audio("audio/pew.wav");
+laserSound.volume = 0.3; // Lower volume so it doesn't overpower music
+
 // Canvas dimensions from HTML attributes
 const W = canvas.width;
 const H = canvas.height;
@@ -593,6 +597,9 @@ window.addEventListener("keydown", (e) => {
       const { cx, cy } = rocket.center();
       lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
       lastShot = now;
+      // Play laser sound
+      laserSound.currentTime = 0;
+      laserSound.play().catch(e => console.log("Sound play failed:", e));
     }
     return;
   }
@@ -622,6 +629,19 @@ canvas.addEventListener("pointerdown", (e) => {
   moveStartTime = performance.now();
   shootOnRelease = true;
   updateTargetY(e);
+  
+  // Quick tap detection for shooting
+  if (state === "running" && performance.now() - moveStartTime < 50) {
+    const now = performance.now();
+    if (now - lastShot >= 250) {
+      const { cx, cy } = rocket.center();
+      lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
+      lastShot = now;
+      // Play laser sound
+      laserSound.currentTime = 0;
+      laserSound.play().catch(e => console.log("Sound play failed:", e));
+    }
+  }
 });
 
 canvas.addEventListener("pointermove", (e) => {
@@ -636,13 +656,16 @@ canvas.addEventListener("pointermove", (e) => {
 });
 
 window.addEventListener("pointerup", (e) => {
-  if (pointerActive && state === "running" && shootOnRelease) {
+  if (pointerActive && state === "running" && shootOnRelease && performance.now() - moveStartTime < 200) {
     // Quick tap = shoot laser
     const now = performance.now();
     if (now - lastShot >= 250) {
       const { cx, cy } = rocket.center();
       lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
       lastShot = now;
+      // Play laser sound
+      laserSound.currentTime = 0;
+      laserSound.play().catch(e => console.log("Sound play failed:", e));
     }
   }
   pointerActive = false;
