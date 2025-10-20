@@ -12,6 +12,7 @@ const startBtn = $("startBtn");
 const gameOverEl = $("gameOver");
 const restartBtn = $("restartBtn");
 const scoreEl = $("scoreEl");
+const coinsEl = $("coinsEl");
 const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 
@@ -24,6 +25,7 @@ const IMAGES = {
   rocket: new Image(),
   asteroids: [new Image(), new Image(), new Image()],
   crash: new Image(),
+  coin: new Image(),
 };
 
 IMAGES.rocket.src = "img/Rocket.png";
@@ -31,13 +33,16 @@ IMAGES.asteroids[0].src = "img/astroid1.png";
 IMAGES.asteroids[1].src = "img/astroid2.png";
 IMAGES.asteroids[2].src = "img/astroid3.png";
 IMAGES.crash.src = "img/crash.png";
+IMAGES.coin.src = "img/coin.png";
 
 // Game state
 let state = "ready"; // "ready" | "running" | "paused" | "crashing" | "over"
 let lastTs = 0;
 let score = 0;
+let coins = 0;
 let best = parseInt(localStorage.getItem("zeeb_best") || "0", 10);
 bestEl.textContent = best.toString();
+coinsEl.textContent = coins.toString();
 
 const keys = new Set();
 
@@ -175,6 +180,48 @@ class Asteroid {
   }
 }
 
+class Coin {
+  constructor() {
+    this.size = 32;
+    this.sprite = IMAGES.coin;
+    this.x = W + this.size + randRange(0, 100);
+    this.y = randRange(this.size, H - this.size);
+    this.vx = -200; // coins move slower than asteroids
+    this.r = this.size / 2; // collision radius
+    this.pulse = Math.random() * Math.PI * 2; // for scale animation
+  }
+
+  update(dt) {
+    this.x += this.vx * dt;
+    this.pulse += dt * 4; // pulse speed
+  }
+
+  draw() {
+    const scale = 1 + 0.15 * Math.sin(this.pulse);
+    const w = this.size * scale;
+    const h = this.size * scale;
+
+    if (this.sprite && this.sprite.complete) {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.drawImage(this.sprite, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    } else {
+      // Fallback: yellow circle
+      ctx.save();
+      ctx.fillStyle = "#ffd700";
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  offscreen() {
+    return this.x < -this.size;
+  }
+}
+
 // Utilities
 function randRange(min, max) {
   return Math.random() * (max - min) + min;
@@ -189,7 +236,9 @@ function dist(ax, ay, bx, by) {
 // Game world
 const rocket = new Rocket();
 let asteroids = [];
+let coins_arr = [];
 let spawnTimer = 0;
+let coinSpawnTimer = 0;
 let crashAnim = { active: false, t: 0, duration: 900, x: 0, y: 0 };
 let stars = [];
 
@@ -213,8 +262,11 @@ function spawnIntervalMs() {
 
 function resetGame() {
   asteroids = [];
+  coins_arr = [];
   score = 0;
+  coins = 0;
   spawnTimer = 0;
+  coinSpawnTimer = 0;
   crashAnim = { active: false, t: 0, duration: 900, x: 0, y: 0 };
   rocket.reset();
   initStars();
@@ -258,6 +310,7 @@ function togglePause() {
 
 function updateHud() {
   scoreEl.textContent = Math.floor(score).toString();
+  coinsEl.textContent = coins.toString();
   bestEl.textContent = Math.floor(best).toString();
 }
 
@@ -274,10 +327,13 @@ function update(dt) {
   rocket.update(dt);
 
   for (const a of asteroids) a.update(dt);
+  for (const c of coins_arr) c.update(dt);
+  
   // Remove offscreen
   asteroids = asteroids.filter((a) => !a.offscreen());
+  coins_arr = coins_arr.filter((c) => !c.offscreen());
 
-  // Spawn logic
+  // Spawn asteroids
   spawnTimer += dt * 1000;
   if (spawnTimer >= spawnIntervalMs()) {
     spawnTimer = 0;
@@ -292,12 +348,31 @@ function update(dt) {
     }
   }
 
+  // Spawn coins
+  coinSpawnTimer += dt * 1000;
+  if (coinSpawnTimer >= 2000) { // spawn a coin every 2 seconds
+    coinSpawnTimer = 0;
+    coins_arr.push(new Coin());
+  }
+
   // Collisions
   const { cx, cy } = rocket.center();
+  
+  // Check asteroid collisions
   for (const a of asteroids) {
     if (dist(cx, cy, a.x, a.y) <= rocket.r + a.r) {
       triggerCrash(cx, cy);
       return;
+    }
+  }
+
+  // Check coin collection
+  for (let i = coins_arr.length - 1; i >= 0; i--) {
+    const c = coins_arr[i];
+    if (dist(cx, cy, c.x, c.y) <= rocket.r + c.r) {
+      coins++;
+      coins_arr.splice(i, 1);
+      updateHud();
     }
   }
 
@@ -334,6 +409,7 @@ function draw() {
   // Draw entities
   rocket.draw();
   for (const a of asteroids) a.draw();
+  for (const c of coins_arr) c.draw();
 
   // Crash explosion effect
   if (state === "crashing" && IMAGES.crash && IMAGES.crash.complete && crashAnim.active) {
