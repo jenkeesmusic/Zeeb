@@ -15,6 +15,7 @@ const scoreEl = $("scoreEl");
 const coinsEl = $("coinsEl");
 const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
+const bgMusic = $("bgMusic");
 
 // Canvas dimensions from HTML attributes
 const W = canvas.width;
@@ -326,6 +327,8 @@ function startGame() {
   hide(overlay);
   hide(gameOverEl);
   state = "running";
+  // Start background music
+  bgMusic.play().catch(e => console.log("Audio play failed:", e));
 }
 
 function gameOver() {
@@ -337,6 +340,8 @@ function gameOver() {
   }
   updateHud();
   show(gameOverEl);
+  // Pause music on game over
+  bgMusic.pause();
 }
 
 function triggerCrash(cx, cy) {
@@ -350,9 +355,11 @@ function triggerCrash(cx, cy) {
 function togglePause() {
   if (state === "running") {
     state = "paused";
+    bgMusic.pause();
   } else if (state === "paused") {
     state = "running";
     lastTs = performance.now(); // reset timing delta
+    bgMusic.play().catch(e => console.log("Audio play failed:", e));
   }
 }
 
