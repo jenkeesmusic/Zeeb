@@ -87,11 +87,12 @@ class Rocket {
       this.vy = dir * this.speed;
       this.y += this.vy * dt;
     } else if (pointerActive) {
-      // Pointer drag smoothing
+      // Direct follow: rocket center follows finger immediately
       const centerY = this.y + this.h / 2;
       const diff = targetY - centerY;
-      // Smoothly move towards pointer target
-      this.y += diff * Math.min(1, dt * 8);
+      // Fast, direct movement for toddler-friendly control
+      this.y += diff * Math.min(1, dt * 16);
+      this.vy = diff; // track velocity for tilt
     } else {
       // No input: slight damping
       this.vy *= 0.9;
@@ -612,9 +613,31 @@ window.addEventListener("keyup", (e) => {
 });
 
 // Pointer controls on canvas (mouse/touch unified)
+let shootOnRelease = false;
+let moveStartTime = 0;
+
 canvas.addEventListener("pointerdown", (e) => {
-  if (state === "running") {
-    // Shoot laser on tap/click
+  e.preventDefault();
+  pointerActive = true;
+  moveStartTime = performance.now();
+  shootOnRelease = true;
+  updateTargetY(e);
+});
+
+canvas.addEventListener("pointermove", (e) => {
+  e.preventDefault();
+  if (pointerActive) {
+    updateTargetY(e);
+    // If user moves significantly, don't shoot on release
+    if (performance.now() - moveStartTime > 100) {
+      shootOnRelease = false;
+    }
+  }
+});
+
+window.addEventListener("pointerup", (e) => {
+  if (pointerActive && state === "running" && shootOnRelease) {
+    // Quick tap = shoot laser
     const now = performance.now();
     if (now - lastShot >= 250) {
       const { cx, cy } = rocket.center();
@@ -622,20 +645,16 @@ canvas.addEventListener("pointerdown", (e) => {
       lastShot = now;
     }
   }
-  pointerActive = true;
-  updateTargetY(e);
-});
-canvas.addEventListener("pointermove", (e) => {
-  if (pointerActive) updateTargetY(e);
-});
-window.addEventListener("pointerup", () => {
   pointerActive = false;
+  shootOnRelease = false;
 });
 
 function updateTargetY(e) {
   const rect = canvas.getBoundingClientRect();
   const y = e.clientY - rect.top;
-  targetY = y;
+  // Scale to actual canvas coordinates if canvas is scaled
+  const scaleY = H / rect.height;
+  targetY = y * scaleY;
 }
 
 // Start in "ready" state with overlay visible
