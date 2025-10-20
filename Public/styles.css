@@ -145,6 +145,80 @@ img { display: block; }
     width: 100vw;
     height: calc(100vw * (600 / 900));
   }
+  
+  .wrap {
+    padding: 8px;
+    gap: 6px;
+  }
+  
+  .title {
+    font-size: 22px;
+  }
+  
+  .hud {
+    top: 36px;
+    gap: 10px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  
+  .coin-icon {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .panel {
+    padding: 18px 16px;
+  }
+  
+  .panel h1 {
+    font-size: 24px;
+  }
+  
+  .subtitle {
+    font-size: 14px;
+  }
+  
+  .instructions {
+    font-size: 13px;
+  }
+  
+  .btn {
+    padding: 12px 20px;
+    font-size: 16px;
+  }
+  
+  .footer {
+    font-size: 11px;
+  }
+}
+
+/* Very small screens (phones in portrait) */
+@media (max-width: 480px) {
+  .title {
+    font-size: 18px;
+  }
+  
+  .hud {
+    top: 32px;
+    gap: 8px;
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+  
+  .coin-icon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .panel h1 {
+    font-size: 20px;
+  }
+  
+  .instructions {
+    font-size: 12px;
+    padding-left: 16px;
+  }
 }
 
 /* Prevent long-press context menus and selection on mobile */
