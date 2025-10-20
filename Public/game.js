@@ -29,7 +29,7 @@ const IMAGES = {
   laser: new Image(),
 };
 
-IMAGES.rocket.src = "img/Rocket.png";
+IMAGES.rocket.src = "img/Rocket2.png";
 IMAGES.asteroids[0].src = "img/astroid1.png";
 IMAGES.asteroids[1].src = "img/astroid2.png";
 IMAGES.asteroids[2].src = "img/astroid3.png";
@@ -421,6 +421,13 @@ function update(dt) {
       if (laser.hits(asteroid)) {
         // Destroy asteroid and laser
         explosions.push({ x: asteroid.x, y: asteroid.y, t: 0, duration: 400 });
+        
+        // Spawn a coin at the destroyed asteroid's location
+        const newCoin = new Coin();
+        newCoin.x = asteroid.x;
+        newCoin.y = asteroid.y;
+        coins_arr.push(newCoin);
+        
         asteroids.splice(j, 1);
         lasers.splice(i, 1);
         // Award points based on asteroid size
