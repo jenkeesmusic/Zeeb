@@ -1,0 +1,9 @@
+[build]
+  publish = "Public"
+  command = ""
+
+# In case you ever add client-side routing, this will serve index.html for any path.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

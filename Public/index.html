@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zeeb Rocket — Dodge the Astroids</title>
+  <link rel="preload" href="img/Rocket.png" as="image">
+  <link rel="preload" href="img/astroid1.png" as="image">
+  <link rel="preload" href="img/astroid2.png" as="image">
+  <link rel="preload" href="img/astroid3.png" as="image">
+  <link rel="preload" href="img/crash.png" as="image">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="title">Zeeb Rocket</header>
+
+    <canvas id="gameCanvas" width="900" height="600" aria-label="Game canvas"></canvas>
+
+    <div id="overlay" class="overlay">
+      <div class="panel">
+        <h1>Zeeb Rocket</h1>
+        <p class="subtitle">Dodge the astroids as long as you can.</p>
+        <ul class="instructions">
+          <li>Keyboard: W/S or Up/Down to move • P to pause</li>
+          <li>Mobile: Drag up/down on the screen</li>
+        </ul>
+        <button id="startBtn" class="btn">Start</button>
+      </div>
+    </div>
+
+    <div id="gameOver" class="overlay hidden">
+      <div class="panel">
+        <h2>Game Over</h2>
+        <p id="finalScore">Score: 0</p>
+        <button id="restartBtn" class="btn">Restart</button>
+      </div>
+    </div>
+
+    <div id="hud" class="hud">
+      <div>Score: <span id="scoreEl">0</span></div>
+      <div>Best: <span id="bestEl">0</span></div>
+    </div>
+
+    <footer class="footer">Images by Zeeb</footer>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
