@@ -657,11 +657,25 @@ function updateTargetY(e) {
   targetY = y * scaleY;
 }
 
+// Auto-hide mobile address bar on load
+function hideAddressBar() {
+  if (window.innerHeight !== window.outerHeight) {
+    // Scroll slightly to trigger address bar hiding
+    window.scrollTo(0, 1);
+    setTimeout(() => window.scrollTo(0, 0), 0);
+  }
+}
+
 // Start in "ready" state with overlay visible
 show(overlay);
 hide(gameOverEl);
 updateHud();
 initStars();
+
+// Hide address bar on mobile
+setTimeout(hideAddressBar, 100);
+window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 100));
+
 requestAnimationFrame((ts) => {
   lastTs = ts;
   requestAnimationFrame(loop);

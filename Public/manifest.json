@@ -1,0 +1,17 @@
+{
+  "name": "Zeeb's Astroid Dodger",
+  "short_name": "Zeeb Game",
+  "description": "Dodge asteroids, collect coins, and shoot lasers in this space shooter by Grace",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "img/Rocket2.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
