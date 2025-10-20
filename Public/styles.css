@@ -9,6 +9,12 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent mobile browser scrolling/bouncing */
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
 }
 img { display: block; }
 
@@ -45,6 +51,8 @@ img { display: block; }
   background: #000;
   box-shadow: none;
   image-rendering: auto;
+  /* Prevent touch gestures from triggering browser actions */
+  touch-action: none;
 }
 
 /* HUD */
@@ -226,4 +234,14 @@ body, button, canvas {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   user-select: none;
+}
+
+/* Lock viewport on mobile to prevent browser sliding */
+html {
+  touch-action: none;
+}
+
+.wrap {
+  touch-action: none;
+  overscroll-behavior: contain;
 }
