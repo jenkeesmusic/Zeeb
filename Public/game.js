@@ -182,7 +182,7 @@ class Asteroid {
 
 class Coin {
   constructor() {
-    this.size = 32;
+    this.size = 40;
     this.sprite = IMAGES.coin;
     this.x = W + this.size + randRange(0, 100);
     this.y = randRange(this.size, H - this.size);
