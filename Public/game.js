@@ -48,8 +48,8 @@ let targetY = H / 2;
 // Entities
 class Rocket {
   constructor() {
-    this.w = 70;
-    this.h = 70;
+    this.w = 105;
+    this.h = 105;
     this.x = 80;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
