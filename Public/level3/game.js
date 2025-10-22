@@ -557,12 +557,16 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Shoot
+  // Shoot (triple-shot)
   if (e.key === " " && state === "running") {
     const now = performance.now();
     if (now - lastShot >= 200) {
       const { cx, cy } = rocket.center();
-      lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
+      const x = cx + rocket.w / 2;
+      // three parallel lasers with slight vertical offsets
+      lasers.push(new Laser(x, cy - 16));
+      lasers.push(new Laser(x, cy - 4));
+      lasers.push(new Laser(x, cy + 8));
       lastShot = now;
       laserSound.currentTime = 0;
       laserSound.play().catch(() => {});
@@ -605,7 +609,10 @@ window.addEventListener("pointerup", () => {
     const now = performance.now();
     if (now - lastShot >= 200) {
       const { cx, cy } = rocket.center();
-      lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
+      const x = cx + rocket.w / 2;
+      lasers.push(new Laser(x, cy - 16));
+      lasers.push(new Laser(x, cy - 4));
+      lasers.push(new Laser(x, cy + 8));
       lastShot = now;
       laserSound.currentTime = 0;
       laserSound.play().catch(() => {});
