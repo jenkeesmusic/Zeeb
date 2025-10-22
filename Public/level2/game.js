@@ -1,5 +1,5 @@
-/* Zeeb Rocket — Dodge the Astroids
-   Canvas game with keyboard/touch controls, spawning asteroids, collisions, score + best
+/* Level 2 — Segmented from Level 1
+   Faster spawns, higher asteroid speeds, new ship & laser art, separate best score key
 */
 
 const $ = (id) => document.getElementById(id);
@@ -17,15 +17,15 @@ const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
 
-// Sound effects
-const laserSound = new Audio("audio/pew.wav");
-laserSound.volume = 0.3; // Lower volume so it doesn't overpower music
+// Sound effects (reuse L1 pew)
+const laserSound = new Audio("../audio/pew.wav");
+laserSound.volume = 0.35;
 
 // Canvas dimensions from HTML attributes
 const W = canvas.width;
 const H = canvas.height;
 
-// Assets
+// Assets (segmented art)
 const IMAGES = {
   rocket: new Image(),
   asteroids: [new Image(), new Image(), new Image()],
@@ -34,20 +34,22 @@ const IMAGES = {
   laser: new Image(),
 };
 
-IMAGES.rocket.src = "img/Rocket1.png";
-IMAGES.asteroids[0].src = "img/astroid1.png";
-IMAGES.asteroids[1].src = "img/astroid2.png";
-IMAGES.asteroids[2].src = "img/astroid3.png";
-IMAGES.crash.src = "img/crash.png";
-IMAGES.coin.src = "img/coin.png";
-IMAGES.laser.src = "img/laser.png";
+// New ship/laser + same asteroid, coin, crash sets
+IMAGES.rocket.src = "../img/spaceship3.png";
+IMAGES.asteroids[0].src = "../img/astroid1.png";
+IMAGES.asteroids[1].src = "../img/astroid2.png";
+IMAGES.asteroids[2].src = "../img/astroid3.png";
+IMAGES.crash.src = "../img/crash.png";
+IMAGES.coin.src = "../img/coin.png";
+IMAGES.laser.src = "../img/laser2.png";
 
 // Game state
 let state = "ready"; // "ready" | "running" | "paused" | "crashing" | "over"
 let lastTs = 0;
 let score = 0;
 let coins = 0;
-let best = parseInt(localStorage.getItem("zeeb_best") || "0", 10);
+// Separate best for Level 2
+let best = parseInt(localStorage.getItem("zeeb_best_l2") || "0", 10);
 bestEl.textContent = best.toString();
 coinsEl.textContent = coins.toString();
 
@@ -60,23 +62,22 @@ let targetY = H / 2;
 // Entities
 class Rocket {
   constructor() {
-    this.w = 105;
-    this.h = 105;
-    this.x = 80;
+    this.w = 100;
+    this.h = 100;
+    this.x = 84;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
-    this.speed = 320; // px/s for keyboard
+    this.speed = 360; // L2 keyboard speed bump
     this.sprite = IMAGES.rocket;
-    // Collision radius (approximate)
-    this.r = Math.max(this.w, this.h) * 0.4;
+    this.r = Math.max(this.w, this.h) * 0.38;
 
-    // Orientation: face right towards incoming asteroids
-    this.angle = Math.PI / 2; // 90° clockwise
-    this.tilt = 0; // slight up/down tilt based on vertical velocity
+    // Face right, mild tilt
+    this.angle = Math.PI / 2;
+    this.tilt = 0;
   }
 
   reset() {
-    this.x = 80;
+    this.x = 84;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
   }
@@ -91,23 +92,20 @@ class Rocket {
       this.vy = dir * this.speed;
       this.y += this.vy * dt;
     } else if (pointerActive) {
-      // Direct follow: rocket center follows finger immediately
       const centerY = this.y + this.h / 2;
       const diff = targetY - centerY;
-      // Fast, direct movement for toddler-friendly control
-      this.y += diff * Math.min(1, dt * 16);
-      this.vy = diff; // track velocity for tilt
+      // L2: even snappier finger follow
+      this.y += diff * Math.min(1, dt * 18);
+      this.vy = diff;
     } else {
-      // No input: slight damping
       this.vy *= 0.9;
       this.y += this.vy * dt;
     }
 
-    // Clamp to canvas
+    // Clamp
     if (this.y < 0) this.y = 0;
     if (this.y + this.h > H) this.y = H - this.h;
 
-    // Slight tilt based on vertical velocity (for polish)
     this.tilt = Math.max(-0.3, Math.min(0.3, -this.vy / 900));
   }
 
@@ -120,11 +118,10 @@ class Rocket {
       ctx.drawImage(this.sprite, -this.w / 2, -this.h / 2, this.w, this.h);
       ctx.restore();
     } else {
-      // Fallback: rotated placeholder triangle
       ctx.save();
       ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
       ctx.rotate(ang);
-      ctx.fillStyle = "#6cf";
+      ctx.fillStyle = "#8ff";
       ctx.beginPath();
       ctx.moveTo(-this.w * 0.4, -this.h * 0.4);
       ctx.lineTo(this.w * 0.5, 0);
@@ -142,17 +139,17 @@ class Rocket {
 
 class Asteroid {
   constructor() {
-    this.size = randRange(42, 96);
+    this.size = randRange(42, 90);
     this.sprite = IMAGES.asteroids[(Math.random() * IMAGES.asteroids.length) | 0];
-    this.x = W + this.size + randRange(0, 60);
+    this.x = W + this.size + randRange(0, 80);
     this.y = randRange(this.size * 0.5, H - this.size * 0.5);
-    // Speed increases with score
-    const base = 180;
-    const extra = Math.min(280, score * 1.5);
-    this.vx = -(base + extra + randRange(0, 120));
-    this.r = (this.size / 2) * 0.8; // collision radius
+    // L2: Faster base + harsher scaling
+    const base = 260;
+    const extra = Math.min(360, score * 2.2);
+    this.vx = -(base + extra + randRange(0, 160));
+    this.r = (this.size / 2) * 0.8;
     this.rotation = randRange(0, Math.PI * 2);
-    this.vr = randRange(-1.5, 1.5); // rotation speed
+    this.vr = randRange(-2.2, 2.2);
   }
 
   update(dt) {
@@ -173,9 +170,8 @@ class Asteroid {
       ctx.drawImage(this.sprite, -w / 2, -h / 2, w, h);
       ctx.restore();
     } else {
-      // Fallback: simple circle
       ctx.save();
-      ctx.fillStyle = "#999";
+      ctx.fillStyle = "#aaa";
       ctx.beginPath();
       ctx.arc(cx, cy, this.r, 0, Math.PI * 2);
       ctx.fill();
@@ -190,11 +186,11 @@ class Asteroid {
 
 class Laser {
   constructor(x, y) {
-    this.w = 60;
+    this.w = 64;
     this.h = 12;
     this.x = x;
     this.y = y;
-    this.vx = 800; // fast horizontal speed
+    this.vx = 900; // L2 a little faster
     this.sprite = IMAGES.laser;
   }
 
@@ -208,9 +204,8 @@ class Laser {
       ctx.drawImage(this.sprite, this.x, this.y, this.w, this.h);
       ctx.restore();
     } else {
-      // Fallback: bright rectangle
       ctx.save();
-      ctx.fillStyle = "#00ff00";
+      ctx.fillStyle = "#00ffaa";
       ctx.fillRect(this.x, this.y, this.w, this.h);
       ctx.restore();
     }
@@ -221,7 +216,6 @@ class Laser {
   }
 
   hits(asteroid) {
-    // Simple bounding box collision
     const laserCenterX = this.x + this.w / 2;
     const laserCenterY = this.y + this.h / 2;
     return dist(laserCenterX, laserCenterY, asteroid.x, asteroid.y) <= asteroid.r + this.h / 2;
@@ -232,16 +226,17 @@ class Coin {
   constructor() {
     this.size = 40;
     this.sprite = IMAGES.coin;
-    this.x = W + this.size + randRange(0, 100);
+    this.x = W + this.size + randRange(0, 120);
     this.y = randRange(this.size, H - this.size);
-    this.vx = -200; // coins move slower than asteroids
-    this.r = this.size / 2; // collision radius
-    this.pulse = Math.random() * Math.PI * 2; // for scale animation
+    // L2: coins drift faster too
+    this.vx = -270;
+    this.r = this.size / 2;
+    this.pulse = Math.random() * Math.PI * 2;
   }
 
   update(dt) {
     this.x += this.vx * dt;
-    this.pulse += dt * 4; // pulse speed
+    this.pulse += dt * 5;
   }
 
   draw() {
@@ -255,7 +250,6 @@ class Coin {
       ctx.drawImage(this.sprite, -w / 2, -h / 2, w, h);
       ctx.restore();
     } else {
-      // Fallback: yellow circle
       ctx.save();
       ctx.fillStyle = "#ffd700";
       ctx.beginPath();
@@ -281,7 +275,7 @@ function dist(ax, ay, bx, by) {
   return Math.hypot(dx, dy);
 }
 
-// Game world
+// World
 const rocket = new Rocket();
 let asteroids = [];
 let coins_arr = [];
@@ -291,23 +285,23 @@ let spawnTimer = 0;
 let coinSpawnTimer = 0;
 let crashAnim = { active: false, t: 0, duration: 900, x: 0, y: 0 };
 let stars = [];
-let lastShot = 0; // for rate limiting shots
+let lastShot = 0;
 
 function initStars() {
-  const COUNT = 120;
+  const COUNT = 140; // more stars for L2
   stars = Array.from({ length: COUNT }, () => ({
     x: Math.random() * W,
     y: Math.random() * H,
-    r: Math.random() * 1.2 + 0.3,
+    r: Math.random() * 1.3 + 0.3,
     tw: Math.random() * Math.PI * 2,
   }));
 }
 
 function spawnIntervalMs() {
-  // Faster spawns as score increases
-  const minMs = 450;
-  const maxMs = 1000;
-  const t = Math.min(1, score / 600); // ramp over time
+  // L2: faster spawn cadence
+  const minMs = 300;
+  const maxMs = 700;
+  const t = Math.min(1, score / 600);
   return Math.floor(maxMs - (maxMs - minMs) * t);
 }
 
@@ -332,8 +326,7 @@ function startGame() {
   hide(overlay);
   hide(gameOverEl);
   state = "running";
-  // Start background music
-  bgMusic.play().catch(e => console.log("Audio play failed:", e));
+  bgMusic.play().catch(() => {});
 }
 
 function gameOver() {
@@ -341,20 +334,17 @@ function gameOver() {
   finalScoreEl.textContent = `Score: ${Math.floor(score)}`;
   if (score > best) {
     best = Math.floor(score);
-    localStorage.setItem("zeeb_best", String(best));
+    localStorage.setItem("zeeb_best_l2", String(best));
   }
   updateHud();
   show(gameOverEl);
-  // Pause music on game over
   bgMusic.pause();
 }
 
 function triggerCrash(cx, cy) {
   crashAnim = { active: true, t: 0, duration: 900, x: cx, y: cy };
   state = "crashing";
-  try {
-    if (navigator.vibrate) navigator.vibrate(150);
-  } catch (_) {}
+  try { if (navigator.vibrate) navigator.vibrate(180); } catch (_) {}
 }
 
 function togglePause() {
@@ -363,8 +353,8 @@ function togglePause() {
     bgMusic.pause();
   } else if (state === "paused") {
     state = "running";
-    lastTs = performance.now(); // reset timing delta
-    bgMusic.play().catch(e => console.log("Audio play failed:", e));
+    lastTs = performance.now();
+    bgMusic.play().catch(() => {});
   }
 }
 
@@ -375,7 +365,6 @@ function updateHud() {
 }
 
 function update(dt) {
-  // Crash animation phase: wait briefly before showing Game Over
   if (state === "crashing") {
     crashAnim.t += dt * 1000;
     if (crashAnim.t >= crashAnim.duration) {
@@ -383,77 +372,64 @@ function update(dt) {
     }
     return;
   }
-  // Update entities
-  rocket.update(dt);
 
+  rocket.update(dt);
   for (const a of asteroids) a.update(dt);
   for (const c of coins_arr) c.update(dt);
   for (const l of lasers) l.update(dt);
-  
-  // Update explosions
+
   for (let i = explosions.length - 1; i >= 0; i--) {
     explosions[i].t += dt * 1000;
-    if (explosions[i].t >= explosions[i].duration) {
-      explosions.splice(i, 1);
-    }
+    if (explosions[i].t >= explosions[i].duration) explosions.splice(i, 1);
   }
-  
-  // Remove offscreen
+
+  // culling
   asteroids = asteroids.filter((a) => !a.offscreen());
   coins_arr = coins_arr.filter((c) => !c.offscreen());
   lasers = lasers.filter((l) => !l.offscreen());
 
-  // Spawn asteroids
+  // spawns
   spawnTimer += dt * 1000;
   if (spawnTimer >= spawnIntervalMs()) {
     spawnTimer = 0;
-
-    // Spawn 1 or sometimes 2 asteroids for variety
-    const burst = Math.random() < 0.12 ? 2 : 1;
+    const burst = Math.random() < 0.18 ? 2 : 1; // more doubles
     for (let i = 0; i < burst; i++) {
-      const newAst = new Asteroid();
-      // Slight vertical offset if double spawn
-      if (burst === 2) newAst.y = Math.max(30, Math.min(H - 30, newAst.y + (i === 0 ? -28 : 28)));
-      asteroids.push(newAst);
+      const a = new Asteroid();
+      if (burst === 2) a.y = Math.max(30, Math.min(H - 30, a.y + (i === 0 ? -26 : 26)));
+      asteroids.push(a);
     }
   }
 
-  // Spawn coins
   coinSpawnTimer += dt * 1000;
-  if (coinSpawnTimer >= 2000) { // spawn a coin every 2 seconds
+  if (coinSpawnTimer >= 1800) { // slightly faster coin spawns
     coinSpawnTimer = 0;
     coins_arr.push(new Coin());
   }
 
-  // Laser hits asteroids
+  // laser hits
   for (let i = lasers.length - 1; i >= 0; i--) {
     const laser = lasers[i];
     for (let j = asteroids.length - 1; j >= 0; j--) {
-      const asteroid = asteroids[j];
-      if (laser.hits(asteroid)) {
-        // Destroy asteroid and laser
-        explosions.push({ x: asteroid.x, y: asteroid.y, t: 0, duration: 400 });
-        
-        // Spawn a coin at the destroyed asteroid's location
-        const newCoin = new Coin();
-        newCoin.x = asteroid.x;
-        newCoin.y = asteroid.y;
-        coins_arr.push(newCoin);
-        
+      const a = asteroids[j];
+      if (laser.hits(a)) {
+        explosions.push({ x: a.x, y: a.y, t: 0, duration: 420 });
+        // Coin drop
+        const drop = new Coin();
+        drop.x = a.x;
+        drop.y = a.y;
+        coins_arr.push(drop);
+
         asteroids.splice(j, 1);
         lasers.splice(i, 1);
-        // Award points based on asteroid size
-        score += Math.floor(asteroid.size);
+        score += Math.floor(a.size * 1.15); // more points in L2
         updateHud();
         break;
       }
     }
   }
 
-  // Collisions
+  // collisions
   const { cx, cy } = rocket.center();
-  
-  // Check asteroid collisions
   for (const a of asteroids) {
     if (dist(cx, cy, a.x, a.y) <= rocket.r + a.r) {
       triggerCrash(cx, cy);
@@ -461,45 +437,33 @@ function update(dt) {
     }
   }
 
-  // Check coin collection
+  // coin collect
   for (let i = coins_arr.length - 1; i >= 0; i--) {
     const c = coins_arr[i];
     if (dist(cx, cy, c.x, c.y) <= rocket.r + c.r) {
       coins++;
       coins_arr.splice(i, 1);
       updateHud();
-
-      // Transition to Level 2 when player reaches 10 coins (trigger once)
-      if (!window.__level2Triggered && coins >= 10) {
-        window.__level2Triggered = true;
-        try { bgMusic.pause(); } catch (_) {}
-        // slight delay for feedback, then navigate
-        setTimeout(() => {
-          window.location.href = "level2/index.html";
-        }, 400);
-      }
     }
   }
 
-  // Score by survival time
-  score += dt * 10; // 10 pts per second
-  if (score > best) {
-    best = Math.floor(score);
-  }
+  // Score per time (slightly more)
+  score += dt * 12;
+  if (score > best) best = Math.floor(score);
   updateHud();
 }
 
 function drawBackground() {
-  // Pitch-black with minimal starfield
+  // Deeper teal starfield for L2
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, W, H);
 
   const t = performance.now() / 1000;
   ctx.save();
   for (const s of stars) {
-    const a = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 2 + s.tw));
+    const a = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * 2.2 + s.tw));
     ctx.globalAlpha = a;
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "#b0fff0";
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
     ctx.fill();
@@ -511,17 +475,15 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
 
-  // Draw entities
   rocket.draw();
   for (const a of asteroids) a.draw();
   for (const c of coins_arr) c.draw();
   for (const l of lasers) l.draw();
 
-  // Draw explosions
   for (const ex of explosions) {
     if (IMAGES.crash && IMAGES.crash.complete) {
       const p = Math.min(1, ex.t / ex.duration);
-      const size = 60 + 80 * p;
+      const size = 60 + 90 * p;
       ctx.save();
       ctx.globalAlpha = 1 - p;
       ctx.translate(ex.x, ex.y);
@@ -530,18 +492,16 @@ function draw() {
     }
   }
 
-  // Crash explosion effect
   if (state === "crashing" && IMAGES.crash && IMAGES.crash.complete && crashAnim.active) {
     const p = Math.min(1, crashAnim.t / crashAnim.duration);
-    const size = 120 + 140 * p;
+    const size = 130 + 150 * p;
     ctx.save();
     ctx.translate(crashAnim.x, crashAnim.y);
     ctx.drawImage(IMAGES.crash, -size / 2, -size / 2, size, size);
     ctx.restore();
 
-    // Slight screen flash
     ctx.save();
-    ctx.fillStyle = `rgba(255, 120, 80, ${0.25 * (1 - p)})`;
+    ctx.fillStyle = `rgba(120, 255, 210, ${0.18 * (1 - p)})`;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
@@ -550,7 +510,7 @@ function draw() {
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#cfe6ff";
+    ctx.fillStyle = "#d1fff5";
     ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
     ctx.textAlign = "center";
     ctx.fillText("Paused (press P to resume)", W / 2, H / 2);
@@ -560,7 +520,7 @@ function draw() {
 
 // Main loop
 function loop(ts) {
-  const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0); // cap large dt spikes
+  const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
   lastTs = ts;
 
   if (state === "running" || state === "crashing") {
@@ -571,15 +531,11 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-// Helpers: show/hide
-function show(el) {
-  el.classList.remove("hidden");
-}
-function hide(el) {
-  el.classList.add("hidden");
-}
+// Helpers
+function show(el) { el.classList.remove("hidden"); }
+function hide(el) { el.classList.add("hidden"); }
 
-// Event listeners
+// Events
 startBtn.addEventListener("click", () => {
   if (state === "ready" || state === "over") startGame();
 });
@@ -588,7 +544,6 @@ restartBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("keydown", (e) => {
-  // Prevent scrolling on arrow keys/space
   if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
 
   if (e.key === "p" || e.key === "P") {
@@ -600,16 +555,15 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Shoot laser with spacebar
+  // Shoot
   if (e.key === " " && state === "running") {
     const now = performance.now();
-    if (now - lastShot >= 250) { // rate limit: max 4 shots per second
+    if (now - lastShot >= 230) {
       const { cx, cy } = rocket.center();
       lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
       lastShot = now;
-      // Play laser sound
       laserSound.currentTime = 0;
-      laserSound.play().catch(e => console.log("Sound play failed:", e));
+      laserSound.play().catch(() => {});
     }
     return;
   }
@@ -617,19 +571,16 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") keys.add("ArrowUp") || keys.add("w");
   if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") keys.add("ArrowDown") || keys.add("s");
 });
-
 window.addEventListener("keyup", (e) => {
   if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
-    keys.delete("ArrowUp");
-    keys.delete("w");
+    keys.delete("ArrowUp"); keys.delete("w");
   }
   if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
-    keys.delete("ArrowDown");
-    keys.delete("s");
+    keys.delete("ArrowDown"); keys.delete("s");
   }
 });
 
-// Pointer controls on canvas (mouse/touch unified)
+// Pointer-controls (tap = shoot, drag = move)
 let shootOnRelease = false;
 let moveStartTime = 0;
 
@@ -639,43 +590,23 @@ canvas.addEventListener("pointerdown", (e) => {
   moveStartTime = performance.now();
   shootOnRelease = true;
   updateTargetY(e);
-  
-  // Quick tap detection for shooting
-  if (state === "running" && performance.now() - moveStartTime < 50) {
-    const now = performance.now();
-    if (now - lastShot >= 250) {
-      const { cx, cy } = rocket.center();
-      lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
-      lastShot = now;
-      // Play laser sound
-      laserSound.currentTime = 0;
-      laserSound.play().catch(e => console.log("Sound play failed:", e));
-    }
-  }
 });
-
 canvas.addEventListener("pointermove", (e) => {
   e.preventDefault();
   if (pointerActive) {
     updateTargetY(e);
-    // If user moves significantly, don't shoot on release
-    if (performance.now() - moveStartTime > 100) {
-      shootOnRelease = false;
-    }
+    if (performance.now() - moveStartTime > 100) shootOnRelease = false;
   }
 });
-
-window.addEventListener("pointerup", (e) => {
+window.addEventListener("pointerup", () => {
   if (pointerActive && state === "running" && shootOnRelease && performance.now() - moveStartTime < 200) {
-    // Quick tap = shoot laser
     const now = performance.now();
-    if (now - lastShot >= 250) {
+    if (now - lastShot >= 230) {
       const { cx, cy } = rocket.center();
       lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
       lastShot = now;
-      // Play laser sound
       laserSound.currentTime = 0;
-      laserSound.play().catch(e => console.log("Sound play failed:", e));
+      laserSound.play().catch(() => {});
     }
   }
   pointerActive = false;
@@ -685,29 +616,25 @@ window.addEventListener("pointerup", (e) => {
 function updateTargetY(e) {
   const rect = canvas.getBoundingClientRect();
   const y = e.clientY - rect.top;
-  // Scale to actual canvas coordinates if canvas is scaled
   const scaleY = H / rect.height;
   targetY = y * scaleY;
 }
 
-// Auto-hide mobile address bar on load
+// Auto-hide address bar on load/orientation change
 function hideAddressBar() {
   if (window.innerHeight !== window.outerHeight) {
-    // Scroll slightly to trigger address bar hiding
     window.scrollTo(0, 1);
     setTimeout(() => window.scrollTo(0, 0), 0);
   }
 }
+setTimeout(hideAddressBar, 100);
+window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 100));
 
-// Start in "ready" state with overlay visible
+// Boot
 show(overlay);
 hide(gameOverEl);
 updateHud();
 initStars();
-
-// Hide address bar on mobile
-setTimeout(hideAddressBar, 100);
-window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 100));
 
 requestAnimationFrame((ts) => {
   lastTs = ts;

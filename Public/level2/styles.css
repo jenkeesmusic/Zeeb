@@ -1,0 +1,177 @@
+/* Level 2 minimal UI styles (segmented from Level 1) */
+* { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #01030a;
+  color: #e8ecf1;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  overscroll-behavior: none;
+}
+
+/* Layout */
+.wrap {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  justify-items: center;
+  padding: 14px;
+}
+
+.title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #c9ffea;
+  text-shadow: 0 2px 10px rgba(0, 255, 200, 0.35);
+}
+
+.footer {
+  font-size: 12px;
+  color: #9fb3c8;
+  opacity: 0.85;
+}
+
+/* Canvas */
+#gameCanvas {
+  width: 900px;
+  height: 600px;
+  border-radius: 12px;
+  background: #000;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,255,200,0.06) inset;
+  image-rendering: auto;
+  touch-action: none;
+}
+
+/* HUD */
+.hud {
+  position: fixed;
+  top: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+  background: rgba(0, 30, 24, 0.6);
+  border: 1px solid rgba(0, 255, 200, 0.25);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-weight: 700;
+  color: #d9fff6;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+.coin-counter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.coin-icon {
+  width: 18px;
+  height: 18px;
+  image-rendering: auto;
+  vertical-align: middle;
+}
+
+/* Overlays */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, rgba(0, 10, 12, 0.72), rgba(0, 10, 12, 0.92));
+  z-index: 10;
+}
+
+.hidden { display: none; }
+
+.panel {
+  width: min(92vw, 520px);
+  padding: 22px 20px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(0, 18, 24, 0.92), rgba(0, 10, 12, 0.92));
+  border: 1px solid rgba(0, 255, 200, 0.25);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.55),
+    inset 0 0 60px rgba(0, 180, 140, 0.12);
+  text-align: center;
+}
+
+.panel h1, .panel h2 {
+  margin: 6px 0 10px 0;
+  color: #e9fff9;
+  letter-spacing: 0.3px;
+}
+.subtitle {
+  margin: 4px 0 14px 0;
+  color: #b9efe0;
+}
+.instructions {
+  margin: 0 0 16px 0;
+  padding-left: 18px;
+  text-align: left;
+  color: #b5e7de;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 255, 200, 0.55);
+  background: linear-gradient(180deg, #0b3a32, #062722);
+  color: #e8fff9;
+  font-weight: 800;
+  letter-spacing: 0.35px;
+  cursor: pointer;
+  transition: transform 0.05s ease, filter 0.1s ease, box-shadow 0.1s ease;
+  box-shadow: 0 6px 16px rgba(0, 180, 140, 0.35);
+}
+.btn:hover { filter: brightness(1.1); }
+.btn:active { transform: translateY(1px); }
+
+.btn.secondary {
+  border-color: rgba(0, 255, 200, 0.3);
+  color: #cffff3;
+  background: linear-gradient(180deg, #09221e, #061816);
+}
+
+/* Responsive: scale canvas keeping aspect */
+@media (max-width: 920px) {
+  #gameCanvas {
+    width: 100vw;
+    height: calc(100vw * (600 / 900));
+  }
+  .hud { top: 32px; font-size: 14px; }
+  .title { font-size: 22px; }
+}
+
+@media (max-width: 480px) {
+  .title { font-size: 18px; }
+  .hud { top: 28px; font-size: 12px; }
+}
+
+/* Prevent selection/context menus on mobile */
+body, button, canvas {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+html { touch-action: none; }
+.wrap { touch-action: none; overscroll-behavior: contain; }
