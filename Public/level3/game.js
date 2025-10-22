@@ -34,7 +34,7 @@ const IMAGES = {
   laser: new Image(),
 };
 
-IMAGES.rocket.src = "../img/Rocket-2.png";
+IMAGES.rocket.src = "../img/spaceship3.png";
 IMAGES.asteroids[0].src = "../img/astroid1.png";
 IMAGES.asteroids[1].src = "../img/astroid2.png";
 IMAGES.asteroids[2].src = "../img/astroid3.png";
