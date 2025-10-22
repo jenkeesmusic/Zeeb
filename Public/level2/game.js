@@ -185,17 +185,19 @@ class Asteroid {
 }
 
 class Laser {
-  constructor(x, y) {
+  constructor(x, y, vy = 0) {
     this.w = 64;
     this.h = 12;
     this.x = x;
     this.y = y;
     this.vx = 900; // L2 a little faster
+    this.vy = vy;  // vertical velocity for cone spread
     this.sprite = IMAGES.laser;
   }
 
   update(dt) {
     this.x += this.vx * dt;
+    this.y += this.vy * dt;
   }
 
   draw() {
@@ -565,12 +567,21 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Shoot
+  // Shoot (double-shot with cone spread)
   if (e.key === " " && state === "running") {
     const now = performance.now();
     if (now - lastShot >= 230) {
       const { cx, cy } = rocket.center();
-      lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
+      const x = cx + rocket.w / 2;
+      const vx = 900; // keep in sync with Laser.vx
+      const timeToEdge = Math.max(0.001, (W - x) / vx);
+      const spreadHalf = 54; // px half-spread at right edge (moderate cone)
+      const vyTop = -spreadHalf / timeToEdge;
+      const vyBottom = spreadHalf / timeToEdge;
+
+      lasers.push(new Laser(x, cy - 6, vyTop));
+      lasers.push(new Laser(x, cy + 6, vyBottom));
+
       lastShot = now;
       laserSound.currentTime = 0;
       laserSound.play().catch(() => {});
@@ -613,7 +624,16 @@ window.addEventListener("pointerup", () => {
     const now = performance.now();
     if (now - lastShot >= 230) {
       const { cx, cy } = rocket.center();
-      lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
+      const x = cx + rocket.w / 2;
+      const vx = 900;
+      const timeToEdge = Math.max(0.001, (W - x) / vx);
+      const spreadHalf = 54; // px half-spread at right edge
+      const vyTop = -spreadHalf / timeToEdge;
+      const vyBottom = spreadHalf / timeToEdge;
+
+      lasers.push(new Laser(x, cy - 6, vyTop));
+      lasers.push(new Laser(x, cy + 6, vyBottom));
+
       lastShot = now;
       laserSound.currentTime = 0;
       laserSound.play().catch(() => {});
