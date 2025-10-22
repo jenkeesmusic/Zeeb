@@ -184,17 +184,19 @@ class Asteroid {
 }
 
 class Laser {
-  constructor(x, y) {
+  constructor(x, y, vy = 0) {
     this.w = 66;
     this.h = 12;
     this.x = x;
     this.y = y;
     this.vx = 1000; // L3 faster
+    this.vy = vy;   // vertical velocity to create cone spread
     this.sprite = IMAGES.laser;
   }
 
   update(dt) {
     this.x += this.vx * dt;
+    this.y += this.vy * dt;
   }
 
   draw() {
@@ -557,16 +559,22 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Shoot (triple-shot)
+  // Shoot (triple-shot with cone spread)
   if (e.key === " " && state === "running") {
     const now = performance.now();
     if (now - lastShot >= 200) {
       const { cx, cy } = rocket.center();
       const x = cx + rocket.w / 2;
-      // three parallel lasers with slight vertical offsets
-      lasers.push(new Laser(x, cy - 16));
-      lasers.push(new Laser(x, cy - 4));
-      lasers.push(new Laser(x, cy + 8));
+      const vx = 1000; // keep in sync with Laser.vx
+      const timeToEdge = Math.max(0.001, (W - x) / vx);
+      const spreadHalf = 72; // px half-spread at right edge (~2-3x wider)
+      const vyTop = -spreadHalf / timeToEdge;
+      const vyBottom = spreadHalf / timeToEdge;
+
+      lasers.push(new Laser(x, cy - 8, vyTop));
+      lasers.push(new Laser(x, cy, 0));
+      lasers.push(new Laser(x, cy + 8, vyBottom));
+
       lastShot = now;
       laserSound.currentTime = 0;
       laserSound.play().catch(() => {});
@@ -610,9 +618,16 @@ window.addEventListener("pointerup", () => {
     if (now - lastShot >= 200) {
       const { cx, cy } = rocket.center();
       const x = cx + rocket.w / 2;
-      lasers.push(new Laser(x, cy - 16));
-      lasers.push(new Laser(x, cy - 4));
-      lasers.push(new Laser(x, cy + 8));
+      const vx = 1000;
+      const timeToEdge = Math.max(0.001, (W - x) / vx);
+      const spreadHalf = 72; // px half-spread at right edge
+      const vyTop = -spreadHalf / timeToEdge;
+      const vyBottom = spreadHalf / timeToEdge;
+
+      lasers.push(new Laser(x, cy - 8, vyTop));
+      lasers.push(new Laser(x, cy, 0));
+      lasers.push(new Laser(x, cy + 8, vyBottom));
+
       lastShot = now;
       laserSound.currentTime = 0;
       laserSound.play().catch(() => {});
