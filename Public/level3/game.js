@@ -1,5 +1,5 @@
-/* Level 2 — Segmented from Level 1
-   Faster spawns, higher asteroid speeds, new ship & laser art, separate best score key
+/* Level 3 — Segmented from Level 2
+   Even faster spawns, higher asteroid speeds, denser fields, separate best score key
 */
 
 const $ = (id) => document.getElementById(id);
@@ -17,15 +17,15 @@ const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
 
-// Sound effects (reuse L1 pew)
+// Sound effects (reuse pew)
 const laserSound = new Audio("../audio/pew.wav");
-laserSound.volume = 0.35;
+laserSound.volume = 0.38;
 
 // Canvas dimensions from HTML attributes
 const W = canvas.width;
 const H = canvas.height;
 
-// Assets (segmented art)
+// Assets (segmented art for L3)
 const IMAGES = {
   rocket: new Image(),
   asteroids: [new Image(), new Image(), new Image()],
@@ -34,22 +34,21 @@ const IMAGES = {
   laser: new Image(),
 };
 
-// New ship/laser + same asteroid, coin, crash sets
 IMAGES.rocket.src = "../img/Rocket-2.png";
 IMAGES.asteroids[0].src = "../img/astroid1.png";
 IMAGES.asteroids[1].src = "../img/astroid2.png";
 IMAGES.asteroids[2].src = "../img/astroid3.png";
 IMAGES.crash.src = "../img/crash.png";
 IMAGES.coin.src = "../img/coin.png";
-IMAGES.laser.src = "../img/laser2.png";
+IMAGES.laser.src = "../img/laser3.png";
 
 // Game state
 let state = "ready"; // "ready" | "running" | "paused" | "crashing" | "over"
 let lastTs = 0;
 let score = 0;
 let coins = 0;
-// Separate best for Level 2
-let best = parseInt(localStorage.getItem("zeeb_best_l2") || "0", 10);
+// Separate best for Level 3
+let best = parseInt(localStorage.getItem("zeeb_best_l3") || "0", 10);
 bestEl.textContent = best.toString();
 coinsEl.textContent = coins.toString();
 
@@ -64,10 +63,10 @@ class Rocket {
   constructor() {
     this.w = 105;
     this.h = 105;
-    this.x = 84;
+    this.x = 86;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
-    this.speed = 360; // L2 keyboard speed bump
+    this.speed = 400; // L3 keyboard speed bump
     this.sprite = IMAGES.rocket;
     this.r = Math.max(this.w, this.h) * 0.38;
 
@@ -77,7 +76,7 @@ class Rocket {
   }
 
   reset() {
-    this.x = 84;
+    this.x = 86;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
   }
@@ -94,8 +93,8 @@ class Rocket {
     } else if (pointerActive) {
       const centerY = this.y + this.h / 2;
       const diff = targetY - centerY;
-      // L2: even snappier finger follow
-      this.y += diff * Math.min(1, dt * 18);
+      // L3: snappiest finger follow
+      this.y += diff * Math.min(1, dt * 20);
       this.vy = diff;
     } else {
       this.vy *= 0.9;
@@ -121,7 +120,7 @@ class Rocket {
       ctx.save();
       ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
       ctx.rotate(ang);
-      ctx.fillStyle = "#8ff";
+      ctx.fillStyle = "#ffa870";
       ctx.beginPath();
       ctx.moveTo(-this.w * 0.4, -this.h * 0.4);
       ctx.lineTo(this.w * 0.5, 0);
@@ -139,17 +138,17 @@ class Rocket {
 
 class Asteroid {
   constructor() {
-    this.size = randRange(42, 90);
+    this.size = randRange(40, 86);
     this.sprite = IMAGES.asteroids[(Math.random() * IMAGES.asteroids.length) | 0];
-    this.x = W + this.size + randRange(0, 80);
+    this.x = W + this.size + randRange(0, 100);
     this.y = randRange(this.size * 0.5, H - this.size * 0.5);
-    // L2: Faster base + harsher scaling
-    const base = 260;
-    const extra = Math.min(360, score * 2.2);
-    this.vx = -(base + extra + randRange(0, 160));
+    // L3: Faster base + stronger scaling
+    const base = 320;
+    const extra = Math.min(480, score * 2.8);
+    this.vx = -(base + extra + randRange(0, 200));
     this.r = (this.size / 2) * 0.8;
     this.rotation = randRange(0, Math.PI * 2);
-    this.vr = randRange(-2.2, 2.2);
+    this.vr = randRange(-2.6, 2.6);
   }
 
   update(dt) {
@@ -171,7 +170,7 @@ class Asteroid {
       ctx.restore();
     } else {
       ctx.save();
-      ctx.fillStyle = "#aaa";
+      ctx.fillStyle = "#bbb";
       ctx.beginPath();
       ctx.arc(cx, cy, this.r, 0, Math.PI * 2);
       ctx.fill();
@@ -186,11 +185,11 @@ class Asteroid {
 
 class Laser {
   constructor(x, y) {
-    this.w = 64;
+    this.w = 66;
     this.h = 12;
     this.x = x;
     this.y = y;
-    this.vx = 900; // L2 a little faster
+    this.vx = 1000; // L3 faster
     this.sprite = IMAGES.laser;
   }
 
@@ -205,7 +204,7 @@ class Laser {
       ctx.restore();
     } else {
       ctx.save();
-      ctx.fillStyle = "#00ffaa";
+      ctx.fillStyle = "#ff7a30";
       ctx.fillRect(this.x, this.y, this.w, this.h);
       ctx.restore();
     }
@@ -226,17 +225,17 @@ class Coin {
   constructor() {
     this.size = 40;
     this.sprite = IMAGES.coin;
-    this.x = W + this.size + randRange(0, 120);
+    this.x = W + this.size + randRange(0, 140);
     this.y = randRange(this.size, H - this.size);
-    // L2: coins drift faster too
-    this.vx = -270;
+    // L3: coins drift faster
+    this.vx = -320;
     this.r = this.size / 2;
     this.pulse = Math.random() * Math.PI * 2;
   }
 
   update(dt) {
     this.x += this.vx * dt;
-    this.pulse += dt * 5;
+    this.pulse += dt * 5.5;
   }
 
   draw() {
@@ -288,19 +287,19 @@ let stars = [];
 let lastShot = 0;
 
 function initStars() {
-  const COUNT = 140; // more stars for L2
+  const COUNT = 160; // denser starfield for L3
   stars = Array.from({ length: COUNT }, () => ({
     x: Math.random() * W,
     y: Math.random() * H,
-    r: Math.random() * 1.3 + 0.3,
+    r: Math.random() * 1.35 + 0.35,
     tw: Math.random() * Math.PI * 2,
   }));
 }
 
 function spawnIntervalMs() {
-  // L2: faster spawn cadence
-  const minMs = 300;
-  const maxMs = 700;
+  // L3: even faster spawn cadence
+  const minMs = 240;
+  const maxMs = 600;
   const t = Math.min(1, score / 600);
   return Math.floor(maxMs - (maxMs - minMs) * t);
 }
@@ -334,7 +333,7 @@ function gameOver() {
   finalScoreEl.textContent = `Score: ${Math.floor(score)}`;
   if (score > best) {
     best = Math.floor(score);
-    localStorage.setItem("zeeb_best_l2", String(best));
+    localStorage.setItem("zeeb_best_l3", String(best));
   }
   updateHud();
   show(gameOverEl);
@@ -344,7 +343,7 @@ function gameOver() {
 function triggerCrash(cx, cy) {
   crashAnim = { active: true, t: 0, duration: 900, x: cx, y: cy };
   state = "crashing";
-  try { if (navigator.vibrate) navigator.vibrate(180); } catch (_) {}
+  try { if (navigator.vibrate) navigator.vibrate(200); } catch (_) {}
 }
 
 function togglePause() {
@@ -388,20 +387,23 @@ function update(dt) {
   coins_arr = coins_arr.filter((c) => !c.offscreen());
   lasers = lasers.filter((l) => !l.offscreen());
 
-  // spawns
+  // spawns (L3: chance for triple)
   spawnTimer += dt * 1000;
   if (spawnTimer >= spawnIntervalMs()) {
     spawnTimer = 0;
-    const burst = Math.random() < 0.18 ? 2 : 1; // more doubles
-    for (let i = 0; i < burst; i++) {
+    const r = Math.random();
+    let count = 1;
+    if (r < 0.12) count = 3;
+    else if (r < 0.34) count = 2;
+    for (let i = 0; i < count; i++) {
       const a = new Asteroid();
-      if (burst === 2) a.y = Math.max(30, Math.min(H - 30, a.y + (i === 0 ? -26 : 26)));
+      if (count >= 2) a.y = Math.max(30, Math.min(H - 30, a.y + (i === 0 ? -28 : i === 1 ? 0 : 28)));
       asteroids.push(a);
     }
   }
 
   coinSpawnTimer += dt * 1000;
-  if (coinSpawnTimer >= 1800) { // slightly faster coin spawns
+  if (coinSpawnTimer >= 1600) { // faster coin spawns
     coinSpawnTimer = 0;
     coins_arr.push(new Coin());
   }
@@ -412,7 +414,7 @@ function update(dt) {
     for (let j = asteroids.length - 1; j >= 0; j--) {
       const a = asteroids[j];
       if (laser.hits(a)) {
-        explosions.push({ x: a.x, y: a.y, t: 0, duration: 420 });
+        explosions.push({ x: a.x, y: a.y, t: 0, duration: 440 });
         // Coin drop
         const drop = new Coin();
         drop.x = a.x;
@@ -421,7 +423,7 @@ function update(dt) {
 
         asteroids.splice(j, 1);
         lasers.splice(i, 1);
-        score += Math.floor(a.size * 1.15); // more points in L2
+        score += Math.floor(a.size * 1.25); // more points in L3
         updateHud();
         break;
       }
@@ -444,36 +446,26 @@ function update(dt) {
       coins++;
       coins_arr.splice(i, 1);
       updateHud();
-
-      // Transition to Level 3 when player reaches 10 coins (trigger once)
-      if (!window.__level3Triggered && coins >= 10) {
-        window.__level3Triggered = true;
-        try { bgMusic.pause(); } catch (_) {}
-        setTimeout(() => {
-          // from /Public/level2/ to ../level3/
-          window.location.href = "../level3/index.html";
-        }, 400);
-      }
     }
   }
 
-  // Score per time (slightly more)
-  score += dt * 12;
+  // Score per time (more)
+  score += dt * 14;
   if (score > best) best = Math.floor(score);
   updateHud();
 }
 
 function drawBackground() {
-  // Deeper teal starfield for L2
+  // Warmer starfield for L3
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, W, H);
 
   const t = performance.now() / 1000;
   ctx.save();
   for (const s of stars) {
-    const a = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * 2.2 + s.tw));
+    const a = 0.5 + 0.5 * (0.5 + 0.5 * Math.sin(t * 2.4 + s.tw));
     ctx.globalAlpha = a;
-    ctx.fillStyle = "#b0fff0";
+    ctx.fillStyle = "#ffd0a8";
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
     ctx.fill();
@@ -493,7 +485,7 @@ function draw() {
   for (const ex of explosions) {
     if (IMAGES.crash && IMAGES.crash.complete) {
       const p = Math.min(1, ex.t / ex.duration);
-      const size = 60 + 90 * p;
+      const size = 60 + 96 * p;
       ctx.save();
       ctx.globalAlpha = 1 - p;
       ctx.translate(ex.x, ex.y);
@@ -504,14 +496,14 @@ function draw() {
 
   if (state === "crashing" && IMAGES.crash && IMAGES.crash.complete && crashAnim.active) {
     const p = Math.min(1, crashAnim.t / crashAnim.duration);
-    const size = 130 + 150 * p;
+    const size = 140 + 160 * p;
     ctx.save();
     ctx.translate(crashAnim.x, crashAnim.y);
     ctx.drawImage(IMAGES.crash, -size / 2, -size / 2, size, size);
     ctx.restore();
 
     ctx.save();
-    ctx.fillStyle = `rgba(120, 255, 210, ${0.18 * (1 - p)})`;
+    ctx.fillStyle = `rgba(255, 160, 80, ${0.18 * (1 - p)})`;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
@@ -520,7 +512,7 @@ function draw() {
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#d1fff5";
+    ctx.fillStyle = "#ffe7d2";
     ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
     ctx.textAlign = "center";
     ctx.fillText("Paused (press P to resume)", W / 2, H / 2);
@@ -568,7 +560,7 @@ window.addEventListener("keydown", (e) => {
   // Shoot
   if (e.key === " " && state === "running") {
     const now = performance.now();
-    if (now - lastShot >= 230) {
+    if (now - lastShot >= 200) {
       const { cx, cy } = rocket.center();
       lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
       lastShot = now;
@@ -611,7 +603,7 @@ canvas.addEventListener("pointermove", (e) => {
 window.addEventListener("pointerup", () => {
   if (pointerActive && state === "running" && shootOnRelease && performance.now() - moveStartTime < 200) {
     const now = performance.now();
-    if (now - lastShot >= 230) {
+    if (now - lastShot >= 200) {
       const { cx, cy } = rocket.center();
       lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
       lastShot = now;

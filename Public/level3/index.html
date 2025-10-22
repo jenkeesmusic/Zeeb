@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#000000" />
+  <title>Zeeb's Astroid Dodger — Level 3</title>
+  <link rel="manifest" href="../manifest.json" />
+  <!-- Level 3 assets -->
+  <link rel="preload" href="../img/Rocket-2.png" as="image" />
+  <link rel="preload" href="../img/astroid1.png" as="image" />
+  <link rel="preload" href="../img/astroid2.png" as="image" />
+  <link rel="preload" href="../img/astroid3.png" as="image" />
+  <link rel="preload" href="../img/crash.png" as="image" />
+  <link rel="preload" href="../img/coin.png" as="image" />
+  <link rel="preload" href="../img/laser3.png" as="image" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="title">Zeeb's Astroid Dodger — Level 3</header>
+
+    <canvas id="gameCanvas" width="900" height="600" aria-label="Game canvas"></canvas>
+
+    <div id="overlay" class="overlay">
+      <div class="panel">
+        <h1>Level 3: Meteor Gauntlet</h1>
+        <p class="subtitle">Blazing speeds, denser fields, and tighter dodges.</p>
+        <ul class="instructions">
+          <li>Keyboard: W/S or Up/Down to move • Spacebar to shoot • P to pause</li>
+          <li>Mobile: Drag up/down to move • Tap to shoot</li>
+        </ul>
+        <div class="actions">
+          <button id="startBtn" class="btn">Start Level 3</button>
+          <a class="btn secondary" href="../level2/index.html">Back to Level 2</a>
+          <a class="btn secondary" href="../index.html">Level 1</a>
+        </div>
+      </div>
+    </div>
+
+    <div id="gameOver" class="overlay hidden">
+      <div class="panel">
+        <h2>Level 3 Over</h2>
+        <p id="finalScore">Score: 0</p>
+        <div class="actions">
+          <button id="restartBtn" class="btn">Restart Level 3</button>
+          <a class="btn secondary" href="../level2/index.html">Back to Level 2</a>
+        </div>
+      </div>
+    </div>
+
+    <div id="hud" class="hud">
+      <div>Score: <span id="scoreEl">0</span></div>
+      <div class="coin-counter"><img src="../img/coin.png" alt="Coin" class="coin-icon"><span id="coinsEl">0</span></div>
+      <div>Best L3: <span id="bestEl">0</span></div>
+    </div>
+
+    <footer class="footer">Game by Grace</footer>
+  </div>
+
+  <audio id="bgMusic" src="../audio/zeeb_aoundtrack.m4a" loop preload="auto"></audio>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
