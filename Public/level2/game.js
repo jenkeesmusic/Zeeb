@@ -35,7 +35,7 @@ const IMAGES = {
 };
 
 // New ship/laser + same asteroid, coin, crash sets
-IMAGES.rocket.src = "../img/spaceship3.png";
+IMAGES.rocket.src = "../img/Rocket-2.png";
 IMAGES.asteroids[0].src = "../img/astroid1.png";
 IMAGES.asteroids[1].src = "../img/astroid2.png";
 IMAGES.asteroids[2].src = "../img/astroid3.png";
@@ -62,8 +62,8 @@ let targetY = H / 2;
 // Entities
 class Rocket {
   constructor() {
-    this.w = 100;
-    this.h = 100;
+    this.w = 105;
+    this.h = 105;
     this.x = 84;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
