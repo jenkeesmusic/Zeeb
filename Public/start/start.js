@@ -71,11 +71,20 @@
       }
 
       const wave = () => {
+        // simple, reliable re-trigger: remove class, force reflow, then add next frame
         title.classList.remove("title-wave");
-        // restart CSS animation
         // eslint-disable-next-line no-unused-expressions
         title.offsetWidth;
-        title.classList.add("title-wave");
+        requestAnimationFrame(() => {
+          title.classList.add("title-wave");
+          // ensure class is cleared only after the last letter finishes
+          const spans = title.querySelectorAll("span");
+          const count = spans.length || 1;
+          const stagger = 50;   // ms per char (must match CSS)
+          const duration = 600; // ms (matches @keyframes duration)
+          const total = duration + (count - 1) * stagger + 100; // small buffer
+          setTimeout(() => title.classList.remove("title-wave"), total);
+        });
       };
 
       planet.addEventListener("click", wave, { passive: true });
