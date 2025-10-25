@@ -16,6 +16,9 @@ const coinsEl = $("coinsEl");
 const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
+const winOverlay = $("winOverlay");
+const winVideo = $("winVideo");
+const replayL3 = $("replayL3");
 
 // Sound effects (reuse pew)
 const laserSound = new Audio("../audio/pew.wav");
@@ -448,6 +451,21 @@ function update(dt) {
       coins++;
       coins_arr.splice(i, 1);
       updateHud();
+
+      // Win condition: at 15 coins, show win overlay and play video once
+      if (!window.__winTriggered && coins >= 15) {
+        window.__winTriggered = true;
+        state = "paused";
+        try { bgMusic.pause(); } catch (_) {}
+        if (winOverlay) show(winOverlay);
+        if (winVideo) {
+          try {
+            winVideo.currentTime = 0;
+            const p = winVideo.play();
+            if (p && typeof p.catch === "function") p.catch(() => {});
+          } catch (_) {}
+        }
+      }
     }
   }
 
@@ -546,6 +564,18 @@ startBtn.addEventListener("click", () => {
 restartBtn.addEventListener("click", () => {
   if (state === "over") startGame();
 });
+
+// Replay Level 3 from win overlay
+if (typeof replayL3 !== "undefined" && replayL3) {
+  replayL3.addEventListener("click", () => {
+    if (winVideo) {
+      try { winVideo.pause(); winVideo.currentTime = 0; } catch (_) {}
+    }
+    if (winOverlay) hide(winOverlay);
+    window.__winTriggered = false;
+    startGame();
+  });
+}
 
 window.addEventListener("keydown", (e) => {
   if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();

@@ -52,6 +52,18 @@
       </div>
     </div>
 
+    <div id="winOverlay" class="overlay hidden">
+      <div class="panel">
+        <h2>You Win!</h2>
+        <video id="winVideo" src="../img/I.MOV" controls playsinline style="max-width: 86vw; max-height: 60vh; border-radius: 10px;"></video>
+        <div class="actions" style="margin-top: 10px;">
+          <a class="btn secondary" href="../index.html">Level 1</a>
+          <a class="btn secondary" href="../level2/index.html">Level 2</a>
+          <button id="replayL3" class="btn">Replay Level 3</button>
+        </div>
+      </div>
+    </div>
+
     <div id="hud" class="hud">
       <div>Score: <span id="scoreEl">0</span></div>
       <div class="coin-counter"><img src="../img/coin.png" alt="Coin" class="coin-icon"><span id="coinsEl">0</span></div>
