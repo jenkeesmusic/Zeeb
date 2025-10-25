@@ -23,6 +23,19 @@ const unmuteBtn = $("unmuteBtn");
 let winPlaying = false;
 let winEnded = false;
 let winBtnRect = null;
+
+// Robust music unlock for mobile autoplay
+let musicUnlocked = false;
+function unlockMusic() {
+  if (musicUnlocked) return;
+  try {
+    bgMusic.muted = false;
+    bgMusic.volume = 0.6;
+    const p = bgMusic.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (_) {}
+  musicUnlocked = true;
+}
 if (winVideo) {
   winVideo.addEventListener("ended", () => {
     winPlaying = false;
@@ -340,7 +353,12 @@ function startGame() {
   hide(overlay);
   hide(gameOverEl);
   state = "running";
-  bgMusic.play().catch(() => {});
+  try {
+    bgMusic.muted = false;
+    bgMusic.volume = 0.6;
+    const p = bgMusic.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (_) {}
 }
 
 function gameOver() {
@@ -368,7 +386,12 @@ function togglePause() {
   } else if (state === "paused") {
     state = "running";
     lastTs = performance.now();
-    bgMusic.play().catch(() => {});
+    try {
+      bgMusic.muted = false;
+      bgMusic.volume = 0.6;
+      const p = bgMusic.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (_) {}
   }
 }
 
@@ -645,6 +668,7 @@ function hide(el) { el.classList.add("hidden"); }
 
 // Events
 startBtn.addEventListener("click", () => {
+  unlockMusic();
   if (state === "ready" || state === "over") startGame();
 });
 restartBtn.addEventListener("click", () => {
@@ -678,6 +702,7 @@ if (typeof unmuteBtn !== "undefined" && unmuteBtn) {
 
 window.addEventListener("keydown", (e) => {
   if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
+  unlockMusic();
 
   if (e.key === "p" || e.key === "P") {
     togglePause();
@@ -729,6 +754,7 @@ let moveStartTime = 0;
 
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
+  unlockMusic();
 
   // Special handling in win mode: tap to unmute or to replay after video ends
   if (state === "win") {
