@@ -49,5 +49,25 @@
         zeeb.classList.remove("tickle");
       }
     });
+
+    // Planet Zeeb click animates the title (bop up/down)
+    const planet = document.querySelector(".planet-zeeb");
+    const title = document.getElementById("startTitle");
+    if (planet && title) {
+      const bop = () => {
+        title.classList.remove("title-bop");
+        // restart CSS animation
+        // eslint-disable-next-line no-unused-expressions
+        title.offsetWidth;
+        title.classList.add("title-bop");
+      };
+      planet.addEventListener("click", bop, { passive: true });
+      planet.addEventListener("touchstart", bop, { passive: true });
+      title.addEventListener("animationend", (e) => {
+        if (e.animationName === "title-bop") {
+          title.classList.remove("title-bop");
+        }
+      });
+    }
   }
 })();
