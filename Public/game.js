@@ -699,11 +699,49 @@ function hideAddressBar() {
   }
 }
 
-// Start in "ready" state with overlay visible
+/* Start in "ready" state with overlay visible */
 show(overlay);
 hide(gameOverEl);
 updateHud();
 initStars();
+
+/* Try to autoplay start screen music (fallback: start muted then auto-unmute when possible) */
+(function tryAutoplayMusic() {
+  try {
+    bgMusic.muted = false;
+    bgMusic.volume = 0.6;
+    const p = bgMusic.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        try {
+          // Fallback: start muted to satisfy autoplay, then try unmuting shortly after
+          bgMusic.muted = true;
+          const p2 = bgMusic.play();
+          if (p2 && typeof p2.catch === "function") p2.catch(() => {});
+          let attempts = 0;
+          const maxAttempts = 12; // ~12 seconds of retries
+          const unmuteTimer = setInterval(() => {
+            attempts++;
+            if (document.hidden) return; // only try when tab is visible
+            try {
+              bgMusic.muted = false;
+              bgMusic.volume = 0.6;
+              const p3 = bgMusic.play();
+              // If unmuted successfully, stop trying
+              if (!bgMusic.muted) clearInterval(unmuteTimer);
+              if (p3 && typeof p3.catch === "function") {
+                p3.catch(() => {
+                  // keep trying silently
+                });
+              }
+            } catch (_) {}
+            if (attempts >= maxAttempts) clearInterval(unmuteTimer);
+          }, 1000);
+        } catch (_) {}
+      });
+    }
+  } catch (_) {}
+})();
 
 // Hide address bar on mobile
 setTimeout(hideAddressBar, 100);
