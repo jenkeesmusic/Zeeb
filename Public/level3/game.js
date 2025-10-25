@@ -20,6 +20,14 @@ const winOverlay = $("winOverlay");
 const winVideo = $("winVideo");
 const replayL3 = $("replayL3");
 const unmuteBtn = $("unmuteBtn");
+let winPlaying = false;
+let winEnded = false;
+if (winVideo) {
+  winVideo.addEventListener("ended", () => {
+    winPlaying = false;
+    winEnded = true;
+  });
+}
 
 // Sound effects (reuse pew)
 const laserSound = new Audio("../audio/pew.wav");
@@ -453,16 +461,17 @@ function update(dt) {
       coins_arr.splice(i, 1);
       updateHud();
 
-      // Win condition: at 15 coins, show win overlay and play video once
+      // Win condition: at 15 coins, play video embedded into canvas
       if (!window.__winTriggered && coins >= 15) {
         window.__winTriggered = true;
-        state = "paused";
+        state = "win";
         try { bgMusic.pause(); } catch (_) {}
-        if (winOverlay) show(winOverlay);
+        if (winOverlay) { try { hide(winOverlay); } catch (_) {} }
         if (winVideo) {
           try {
-            // ensure muted for reliable autoplay, then attempt play
-            winVideo.muted = true;
+            winEnded = false;
+            winPlaying = true;
+            winVideo.muted = true; // reliable autoplay
             winVideo.currentTime = 0;
             const p = winVideo.play();
             if (p && typeof p.catch === "function") p.catch(() => {});
@@ -499,6 +508,60 @@ function drawBackground() {
 function draw() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
+
+  // Canvas-embedded win video mode
+  if (state === "win") {
+    const vw = (winVideo && winVideo.videoWidth) ? winVideo.videoWidth : 1280;
+    const vh = (winVideo && winVideo.videoHeight) ? winVideo.videoHeight : 720;
+
+    // Fit within canvas with margin
+    let maxW = Math.floor(W * 0.86);
+    let maxH = Math.floor(H * 0.66);
+    let drawW = maxW;
+    let drawH = Math.floor(drawW * (vh / vw));
+    if (drawH > maxH) {
+      drawH = maxH;
+      drawW = Math.floor(drawH * (vw / vh));
+    }
+    const dx = Math.floor((W - drawW) / 2);
+    const dy = Math.floor((H - drawH) / 2);
+
+    // Dim backdrop
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+
+    // Frame glow/border
+    ctx.save();
+    ctx.shadowColor = "#ffcf99";
+    ctx.shadowBlur = 24;
+    ctx.fillStyle = "rgba(255, 220, 180, 0.15)";
+    ctx.fillRect(dx - 8, dy - 8, drawW + 16, drawH + 16);
+    ctx.restore();
+
+    // Draw video frame
+    if (winVideo) {
+      try { ctx.drawImage(winVideo, dx, dy, drawW, drawH); } catch (_) {}
+    }
+
+    // Overlay text prompts
+    ctx.save();
+    ctx.fillStyle = "#ffe7d2";
+    ctx.textAlign = "center";
+    ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+    ctx.fillText("You Win!", W / 2, Math.max(40, dy - 20));
+    if (winVideo && winVideo.muted && !winEnded) {
+      ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      ctx.fillText("Tap for sound", W / 2, Math.min(H - 20, dy + drawH + 32));
+    } else if (winEnded) {
+      ctx.font = "bold 20px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      ctx.fillText("Video finished — tap to replay Level 3", W / 2, Math.min(H - 20, dy + drawH + 32));
+    }
+    ctx.restore();
+
+    return; // don't draw regular scene on win
+  }
 
   rocket.draw();
   for (const a of asteroids) a.draw();
@@ -646,6 +709,27 @@ let moveStartTime = 0;
 
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
+
+  // Special handling in win mode: tap to unmute or to replay after video ends
+  if (state === "win") {
+    if (winVideo) {
+      try {
+        if (winEnded) {
+          // Restart level on tap after video ends
+          try { winVideo.pause(); winVideo.currentTime = 0; } catch (_) {}
+          window.__winTriggered = false;
+          startGame();
+        } else {
+          // Unmute + play
+          winVideo.muted = false;
+          const p = winVideo.play();
+          if (p && typeof p.catch === "function") p.catch(() => {});
+        }
+      } catch (_) {}
+    }
+    return;
+  }
+
   pointerActive = true;
   moveStartTime = performance.now();
   shootOnRelease = true;
