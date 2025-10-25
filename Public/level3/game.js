@@ -19,6 +19,7 @@ const bgMusic = $("bgMusic");
 const winOverlay = $("winOverlay");
 const winVideo = $("winVideo");
 const replayL3 = $("replayL3");
+const unmuteBtn = $("unmuteBtn");
 
 // Sound effects (reuse pew)
 const laserSound = new Audio("../audio/pew.wav");
@@ -460,6 +461,8 @@ function update(dt) {
         if (winOverlay) show(winOverlay);
         if (winVideo) {
           try {
+            // ensure muted for reliable autoplay, then attempt play
+            winVideo.muted = true;
             winVideo.currentTime = 0;
             const p = winVideo.play();
             if (p && typeof p.catch === "function") p.catch(() => {});
@@ -565,7 +568,7 @@ restartBtn.addEventListener("click", () => {
   if (state === "over") startGame();
 });
 
-// Replay Level 3 from win overlay
+/* Replay Level 3 from win overlay */
 if (typeof replayL3 !== "undefined" && replayL3) {
   replayL3.addEventListener("click", () => {
     if (winVideo) {
@@ -574,6 +577,19 @@ if (typeof replayL3 !== "undefined" && replayL3) {
     if (winOverlay) hide(winOverlay);
     window.__winTriggered = false;
     startGame();
+  });
+}
+
+/* Unmute handler: enable audio after user intent */
+if (typeof unmuteBtn !== "undefined" && unmuteBtn) {
+  unmuteBtn.addEventListener("click", () => {
+    if (winVideo) {
+      try {
+        winVideo.muted = false;
+        const p = winVideo.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch (_) {}
+    }
   });
 }
 
