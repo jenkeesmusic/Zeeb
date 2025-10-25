@@ -54,12 +54,15 @@
     const planet = document.querySelector(".planet-zeeb");
     const title = document.getElementById("startTitle");
     if (planet && title) {
-      // One-time wrap of each character in spans with a --i index for staggered delay
-      if (!title.dataset.wrapped) {
-        const text = title.textContent || "";
+      // Store original text once, and define a wrapper to span-ify per letter
+      if (!title.dataset.original) {
+        title.dataset.original = title.textContent || "";
+      }
+      function wrapTitle() {
+        const text = title.dataset.original || "";
         const frag = document.createDocumentFragment();
         let idx = 0;
-        for (const ch of text) {
+        for (const ch of Array.from(text)) {
           const span = document.createElement("span");
           span.textContent = ch;
           span.style.setProperty("--i", String(idx++));
@@ -69,8 +72,17 @@
         title.appendChild(frag);
         title.dataset.wrapped = "true";
       }
+      // Initial wrap
+      if (!title.dataset.wrapped) wrapTitle();
 
       const wave = () => {
+        // Rebuild spans if the count doesn't match original text length for any reason
+        const original = title.dataset.original || "";
+        const currentSpans = title.querySelectorAll("span").length;
+        if (!title.dataset.wrapped || currentSpans !== Array.from(original).length) {
+          wrapTitle();
+        }
+
         // simple, reliable re-trigger: remove class, force reflow, then add next frame
         title.classList.remove("title-wave");
         // eslint-disable-next-line no-unused-expressions
@@ -90,11 +102,6 @@
       planet.addEventListener("click", wave, { passive: true });
       planet.addEventListener("touchstart", wave, { passive: true });
 
-      title.addEventListener("animationend", (e) => {
-        if (e.animationName === "title-wave") {
-          title.classList.remove("title-wave");
-        }
-      });
     }
   }
 })();
