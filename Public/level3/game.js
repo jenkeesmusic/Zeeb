@@ -22,6 +22,7 @@ const replayL3 = $("replayL3");
 const unmuteBtn = $("unmuteBtn");
 let winPlaying = false;
 let winEnded = false;
+let winBtnRect = null;
 if (winVideo) {
   winVideo.addEventListener("ended", () => {
     winPlaying = false;
@@ -555,8 +556,30 @@ function draw() {
       ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
       ctx.fillText("Tap for sound", W / 2, Math.min(H - 20, dy + drawH + 32));
     } else if (winEnded) {
+      // Draw a Restart (Level 1) button
+      const btnW = 260;
+      const btnH = 56;
+      const bx = Math.floor((W - btnW) / 2);
+      const by = Math.min(H - 20, dy + drawH + 60) - btnH; // ensure on screen
+      // button background
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 220, 180, 0.35)";
+      ctx.strokeStyle = "#ffcf99";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(bx, by, btnW, btnH);
+      ctx.fill();
+      ctx.stroke();
+      // label
+      ctx.fillStyle = "#2b1a0e";
       ctx.font = "bold 20px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-      ctx.fillText("Video finished — tap to replay Level 3", W / 2, Math.min(H - 20, dy + drawH + 32));
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Restart (Level 1)", bx + btnW / 2, by + btnH / 2);
+      ctx.restore();
+
+      // Save hitbox for pointer handling
+      winBtnRect = { x: bx, y: by, w: btnW, h: btnH };
     }
     ctx.restore();
 
@@ -715,12 +738,20 @@ canvas.addEventListener("pointerdown", (e) => {
     if (winVideo) {
       try {
         if (winEnded) {
-          // Restart level on tap after video ends
-          try { winVideo.pause(); winVideo.currentTime = 0; } catch (_) {}
-          window.__winTriggered = false;
-          startGame();
+          // If video finished, only navigate when tapping the Restart button
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = W / rect.width;
+          const scaleY = H / rect.height;
+          const px = (e.clientX - rect.left) * scaleX;
+          const py = (e.clientY - rect.top) * scaleY;
+
+          if (winBtnRect &&
+              px >= winBtnRect.x && px <= winBtnRect.x + winBtnRect.w &&
+              py >= winBtnRect.y && py <= winBtnRect.y + winBtnRect.h) {
+            window.location.href = "../index.html";
+          }
         } else {
-          // Unmute + play
+          // Unmute + continue playback
           winVideo.muted = false;
           const p = winVideo.play();
           if (p && typeof p.catch === "function") p.catch(() => {});
