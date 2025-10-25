@@ -353,11 +353,42 @@ function startGame() {
   hide(overlay);
   hide(gameOverEl);
   state = "running";
+  // Attempt autoplay with sound; if blocked, start muted then periodically try to unmute
   try {
     bgMusic.muted = false;
     bgMusic.volume = 0.6;
     const p = bgMusic.play();
-    if (p && typeof p.catch === "function") p.catch(() => {});
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        try {
+          // Fallback: start muted to satisfy autoplay, then try to unmute later
+          bgMusic.muted = true;
+          const p2 = bgMusic.play();
+          if (p2 && typeof p2.catch === "function") p2.catch(() => {});
+          // Try to unmute a few times in the background (no user tap)
+          let attempts = 0;
+          const maxAttempts = 12; // ~12s
+          const unmuteTimer = setInterval(() => {
+            attempts++;
+            if (document.hidden) return; // wait until tab visible
+            try {
+              bgMusic.muted = false;
+              bgMusic.volume = 0.6;
+              const p3 = bgMusic.play();
+              if (!bgMusic.muted) {
+                clearInterval(unmuteTimer);
+              }
+              if (p3 && typeof p3.catch === "function") {
+                p3.catch(() => {
+                  // keep trying
+                });
+              }
+            } catch (_) {}
+            if (attempts >= maxAttempts) clearInterval(unmuteTimer);
+          }, 1000);
+        } catch (_) {}
+      });
+    }
   } catch (_) {}
 }
 
@@ -838,11 +869,10 @@ function hideAddressBar() {
 setTimeout(hideAddressBar, 100);
 window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 100));
 
-// Boot
-show(overlay);
-hide(gameOverEl);
+/* Boot: auto-start Level 3 and attempt music autoplay */
 updateHud();
 initStars();
+startGame();
 
 requestAnimationFrame((ts) => {
   lastTs = ts;
