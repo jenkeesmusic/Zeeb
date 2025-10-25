@@ -17,6 +17,19 @@ const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
 
+// Robust music unlock for mobile autoplay
+let musicUnlocked = false;
+function unlockMusic() {
+  if (musicUnlocked) return;
+  try {
+    bgMusic.muted = false;
+    bgMusic.volume = 0.6;
+    const p = bgMusic.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (_) {}
+  musicUnlocked = true;
+}
+
 // Sound effects
 const laserSound = new Audio("audio/pew.wav");
 laserSound.volume = 0.3; // Lower volume so it doesn't overpower music
@@ -581,6 +594,7 @@ function hide(el) {
 
 // Event listeners
 startBtn.addEventListener("click", () => {
+  unlockMusic();
   if (state === "ready" || state === "over") startGame();
 });
 restartBtn.addEventListener("click", () => {
@@ -590,6 +604,7 @@ restartBtn.addEventListener("click", () => {
 window.addEventListener("keydown", (e) => {
   // Prevent scrolling on arrow keys/space
   if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
+  unlockMusic();
 
   if (e.key === "p" || e.key === "P") {
     togglePause();
@@ -635,6 +650,7 @@ let moveStartTime = 0;
 
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
+  unlockMusic();
   pointerActive = true;
   moveStartTime = performance.now();
   shootOnRelease = true;
