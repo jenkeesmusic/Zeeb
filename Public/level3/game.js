@@ -552,10 +552,7 @@ function draw() {
     ctx.textAlign = "center";
     ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
     ctx.fillText("You Win!", W / 2, Math.max(40, dy - 20));
-    if (winVideo && winVideo.muted && !winEnded) {
-      ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-      ctx.fillText("Tap for sound", W / 2, Math.min(H - 20, dy + drawH + 32));
-    } else if (winEnded) {
+    if (winEnded) {
       // Draw a Restart (Level 1) button
       const btnW = 260;
       const btnH = 56;
