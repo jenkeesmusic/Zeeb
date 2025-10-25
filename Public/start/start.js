@@ -50,22 +50,40 @@
       }
     });
 
-    // Planet Zeeb click animates the title (bop up/down)
+    // Planet Zeeb click animates the title with a simple per-letter wave
     const planet = document.querySelector(".planet-zeeb");
     const title = document.getElementById("startTitle");
     if (planet && title) {
-      const bop = () => {
-        title.classList.remove("title-bop");
+      // One-time wrap of each character in spans with a --i index for staggered delay
+      if (!title.dataset.wrapped) {
+        const text = title.textContent || "";
+        const frag = document.createDocumentFragment();
+        let idx = 0;
+        for (const ch of text) {
+          const span = document.createElement("span");
+          span.textContent = ch;
+          span.style.setProperty("--i", String(idx++));
+          frag.appendChild(span);
+        }
+        title.textContent = "";
+        title.appendChild(frag);
+        title.dataset.wrapped = "true";
+      }
+
+      const wave = () => {
+        title.classList.remove("title-wave");
         // restart CSS animation
         // eslint-disable-next-line no-unused-expressions
         title.offsetWidth;
-        title.classList.add("title-bop");
+        title.classList.add("title-wave");
       };
-      planet.addEventListener("click", bop, { passive: true });
-      planet.addEventListener("touchstart", bop, { passive: true });
+
+      planet.addEventListener("click", wave, { passive: true });
+      planet.addEventListener("touchstart", wave, { passive: true });
+
       title.addEventListener("animationend", (e) => {
-        if (e.animationName === "title-bop") {
-          title.classList.remove("title-bop");
+        if (e.animationName === "title-wave") {
+          title.classList.remove("title-wave");
         }
       });
     }
