@@ -187,7 +187,7 @@ class Asteroid {
 class Laser {
   constructor(x, y, vy = 0) {
     this.w = 60;
-    this.h = 12;
+    this.h = 6;
     this.x = x;
     this.y = y;
     this.vx = 900; // L2 a little faster
