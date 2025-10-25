@@ -1,0 +1,113 @@
+/* Start Screen Styles: Planet Zeeb + Zeeb Hero (isolated) */
+
+/* Layout container inside the start panel */
+.start-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Art stage area for planet + Zeeb */
+.start-scene .art {
+  position: relative;
+  width: min(560px, 82vw);
+  height: min(280px, 36vh);
+  margin: 2px auto 8px auto;
+}
+
+.start-scene h1 {
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+/* Planet Zeeb art */
+.planet-zeeb {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 48%;
+  max-width: 340px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 8px 28px rgba(100, 180, 255, 0.35))
+    drop-shadow(0 0 12px rgba(90, 140, 255, 0.25));
+  animation: zeeb-float 6.2s ease-in-out infinite;
+  transform-origin: 50% 60%;
+}
+
+/* Zeeb character art */
+.zeeb-hero {
+  position: absolute;
+  right: 2%;
+  bottom: 6%;
+  width: 34%;
+  max-width: 240px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 8px 24px rgba(255, 160, 80, 0.4))
+    drop-shadow(0 0 10px rgba(255, 200, 140, 0.25));
+  animation: zeeb-bob 3.1s ease-in-out infinite;
+  transform-origin: 50% 85%;
+}
+
+/* Gentle floating/orbit animations */
+@keyframes zeeb-float {
+  0% { transform: translateY(0) rotate(0.4deg); }
+  50% { transform: translateY(-8px) rotate(-0.6deg); }
+  100% { transform: translateY(0) rotate(0.4deg); }
+}
+
+@keyframes zeeb-bob {
+  0% { transform: translateY(0) rotate(-1.2deg) scale(1.02); }
+  50% { transform: translateY(-10px) rotate(1.1deg) scale(1.03); }
+  100% { transform: translateY(0) rotate(-1.2deg) scale(1.02); }
+}
+
+/* Start button polish on start screen */
+.start-scene .btn {
+  padding: 12px 22px;
+  font-size: 18px;
+  box-shadow: 0 10px 28px rgba(255, 170, 80, 0.25), 0 0 20px rgba(255, 210, 160, 0.12) inset;
+  background: linear-gradient(180deg, #2a1730, #1b0f22);
+  border-color: rgba(255, 190, 120, 0.6);
+}
+.start-scene .btn:hover {
+  filter: brightness(1.08) saturate(1.05);
+}
+
+/* Responsive tweaks for start scene */
+@media (max-width: 920px) {
+  .start-scene .art {
+    width: min(92vw, 640px);
+    height: min(300px, 38vh);
+  }
+  .zeeb-hero { right: 1.5%; bottom: 5%; }
+}
+@media (max-width: 480px) {
+  .start-scene .art {
+    width: 90vw;
+    height: 34vh;
+  }
+  .planet-zeeb { width: 56%; }
+  .zeeb-hero { width: 40%; }
+}
+
+/* Tickle animation for Zeeb when clicked */
+.zeeb-hero.tickle {
+  animation: zeeb-tickle 950ms ease-in-out 1;
+}
+
+@keyframes zeeb-tickle {
+  0% { transform: translateY(0) rotate(0deg) scale(1); }
+  10% { transform: translate(-2px, -3px) rotate(5deg) scale(1.02); }
+  20% { transform: translate(2px, -2px) rotate(-6deg) scale(1.02); }
+  30% { transform: translate(-3px, -1px) rotate(7deg) scale(1.03); }
+  40% { transform: translate(3px, 0) rotate(-8deg) scale(1.03); }
+  50% { transform: translate(-2px, 1px) rotate(8deg) scale(1.04); }
+  60% { transform: translate(2px, 0) rotate(-7deg) scale(1.03); }
+  70% { transform: translate(-1px, -1px) rotate(6deg) scale(1.02); }
+  80% { transform: translate(1px, -2px) rotate(-5deg) scale(1.01); }
+  90% { transform: translate(0, 0) rotate(2deg) scale(1.01); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}

@@ -30,28 +30,6 @@ function unlockMusic() {
   musicUnlocked = true;
 }
 
-/* Start-screen Zeeb: click to play music and do a tickle animation */
-const zeebHeroEl = document.getElementById("zeebHero");
-if (zeebHeroEl) {
-  zeebHeroEl.style.cursor = "pointer";
-  zeebHeroEl.addEventListener("click", () => {
-    try {
-      bgMusic.muted = false;
-      bgMusic.volume = 0.6;
-      const p = bgMusic.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    } catch (_) {}
-    // retrigger tickle animation
-    zeebHeroEl.classList.remove("tickle");
-    void zeebHeroEl.offsetWidth; // reflow to restart animation
-    zeebHeroEl.classList.add("tickle");
-  });
-  zeebHeroEl.addEventListener("animationend", (e) => {
-    if (e.animationName === "zeeb-tickle") {
-      zeebHeroEl.classList.remove("tickle");
-    }
-  });
-}
 
 // Sound effects
 const laserSound = new Audio("audio/pew.wav");
