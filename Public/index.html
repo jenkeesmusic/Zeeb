@@ -16,6 +16,8 @@
   <link rel="preload" href="img/crash.png" as="image">
   <link rel="preload" href="img/coin.png" as="image">
   <link rel="preload" href="img/laser.png" as="image">
+  <link rel="preload" href="img/plamet_zeeb.png" as="image">
+  <link rel="preload" href="img/zeeb.png" as="image">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -26,13 +28,19 @@
 
     <div id="overlay" class="overlay">
       <div class="panel">
-        <h1>Zeeb's Astroid Dodger</h1>
-        <p class="subtitle">Dodge the astroids as long as you can.</p>
-        <ul class="instructions">
-          <li>Keyboard: W/S or Up/Down to move • Spacebar to shoot • P to pause</li>
-          <li>Mobile: Drag up/down on the screen • Tap to shoot</li>
-        </ul>
-        <button id="startBtn" class="btn">Start</button>
+        <div class="start-scene">
+          <div class="art">
+            <img src="img/plamet_zeeb.png" alt="Planet Zeeb" class="planet-zeeb" />
+            <img src="img/zeeb.png" alt="Zeeb" class="zeeb-hero" />
+          </div>
+          <h1>Zeeb's Astroid Dodger</h1>
+          <p class="subtitle">Guide Zeeb’s rocket away from astroids and collect coins!</p>
+          <ul class="instructions">
+            <li>Keyboard: W/S or Up/Down to move • Spacebar to shoot • P to pause</li>
+            <li>Mobile: Drag up/down on the screen • Tap to shoot</li>
+          </ul>
+          <button id="startBtn" class="btn">Start Adventure</button>
+        </div>
       </div>
     </div>
 
