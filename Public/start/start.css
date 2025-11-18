@@ -13,14 +13,24 @@
   display: none;
 }
 
-/* Credits below the Start button */
+/* Credits now above the Start button (prominent position) */
 .start-scene .credits {
-  margin-top: 16px;
-  font-size: 14px;
-  color: rgba(255, 250, 240, 0.75);
+  margin-top: 8px;
+  margin-bottom: 12px;
+  font-size: 15px;
+  color: rgba(255, 250, 240, 0.85);
   font-style: italic;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
   text-align: center;
+}
+
+/* Subtitle now below the Start button (subtle position) */
+.start-scene .subtitle {
+  margin-top: 14px;
+  font-size: 13px;
+  color: rgba(255, 250, 240, 0.65);
+  text-align: center;
+  max-width: 400px;
 }
 
 /* Art stage area for planet + Zeeb */
