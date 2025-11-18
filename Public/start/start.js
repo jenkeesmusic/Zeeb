@@ -76,14 +76,6 @@
       if (!title.dataset.wrapped) wrapTitle();
 
       const wave = () => {
-        // Start music when clicking planet (same as clicking Zeeb)
-        try {
-          bgMusic.muted = false;
-          bgMusic.volume = 0.6;
-          const p = bgMusic.play();
-          if (p && typeof p.catch === "function") p.catch(() => {});
-        } catch (_) {}
-
         // Rebuild spans if the count doesn't match original text length for any reason
         const original = title.dataset.original || "";
         const currentSpans = title.querySelectorAll("span").length;
