@@ -8,6 +8,16 @@
   gap: 12px;
 }
 
+/* Credits below the Start button */
+.start-scene .credits {
+  margin-top: 16px;
+  font-size: 14px;
+  color: rgba(255, 250, 240, 0.75);
+  font-style: italic;
+  letter-spacing: 0.3px;
+  text-align: center;
+}
+
 /* Art stage area for planet + Zeeb */
 .start-scene .art {
   position: relative;
