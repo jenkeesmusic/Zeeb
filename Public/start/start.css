@@ -8,6 +8,11 @@
   gap: 12px;
 }
 
+/* Hide instructions on start screen */
+.start-scene .instructions {
+  display: none;
+}
+
 /* Credits below the Start button */
 .start-scene .credits {
   margin-top: 16px;
