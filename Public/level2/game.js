@@ -462,8 +462,8 @@ function update(dt) {
       coins_arr.splice(i, 1);
       updateHud();
 
-      // Transition to Level 3 when player reaches 10 coins (trigger once)
-      if (!window.__level3Triggered && coins >= 10) {
+      // Transition to Level 3 when player reaches 16 coins (trigger once)
+      if (!window.__level3Triggered && coins >= 16) {
         window.__level3Triggered = true;
         try { bgMusic.pause(); } catch (_) {}
         setTimeout(() => {
