@@ -890,10 +890,9 @@ function hideAddressBar() {
 setTimeout(hideAddressBar, 100);
 window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 100));
 
-/* Boot: auto-start Level 3 and attempt music autoplay */
+/* Boot: show title screen (don't auto-start) */
 updateHud();
 initStars();
-startGame();
 
 requestAnimationFrame((ts) => {
   lastTs = ts;
