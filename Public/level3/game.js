@@ -516,20 +516,24 @@ function update(dt) {
       coins_arr.splice(i, 1);
       updateHud();
 
-      // Win condition: at 15 coins, play video embedded into canvas
+      // Win condition: at 15 coins, show win overlay with button (no autoplay)
       if (!window.__winTriggered && coins >= 15) {
         window.__winTriggered = true;
-        state = "win";
+        state = "paused"; // pause game
         try { bgMusic.pause(); } catch (_) {}
-        if (winOverlay) { try { hide(winOverlay); } catch (_) {} }
+        // Show win overlay with "Play Victory Video" button
+        if (winOverlay) { 
+          try { 
+            show(winOverlay); 
+          } catch (_) {} 
+        }
+        // Reset video to beginning but don't play yet
         if (winVideo) {
           try {
             winEnded = false;
-            winPlaying = true;
-            winVideo.muted = true; // reliable autoplay
+            winPlaying = false;
+            winVideo.pause();
             winVideo.currentTime = 0;
-            const p = winVideo.play();
-            if (p && typeof p.catch === "function") p.catch(() => {});
           } catch (_) {}
         }
       }
