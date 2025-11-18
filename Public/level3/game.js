@@ -19,7 +19,7 @@ const bgMusic = $("bgMusic");
 const winOverlay = $("winOverlay");
 const winVideo = $("winVideo");
 const replayL3 = $("replayL3");
-const unmuteBtn = $("unmuteBtn");
+const playVideoBtn = $("playVideoBtn");
 let winPlaying = false;
 let winEnded = false;
 let winBtnRect = null;
@@ -718,16 +718,26 @@ if (typeof replayL3 !== "undefined" && replayL3) {
   });
 }
 
-/* Unmute handler: enable audio after user intent */
-if (typeof unmuteBtn !== "undefined" && unmuteBtn) {
-  unmuteBtn.addEventListener("click", () => {
+/* Play Video Button: enable video and music after user click */
+if (typeof playVideoBtn !== "undefined" && playVideoBtn) {
+  playVideoBtn.addEventListener("click", () => {
+    // Play video with sound
     if (winVideo) {
       try {
         winVideo.muted = false;
+        winVideo.volume = 1.0;
         const p = winVideo.play();
         if (p && typeof p.catch === "function") p.catch(() => {});
       } catch (_) {}
     }
+    // Also play background music
+    try {
+      bgMusic.muted = false;
+      bgMusic.volume = 0.6;
+      bgMusic.currentTime = 0; // restart from beginning
+      const p = bgMusic.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (_) {}
   });
 }
 
