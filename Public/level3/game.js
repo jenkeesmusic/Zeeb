@@ -573,9 +573,9 @@ function draw() {
     const vw = (winVideo && winVideo.videoWidth) ? winVideo.videoWidth : 1280;
     const vh = (winVideo && winVideo.videoHeight) ? winVideo.videoHeight : 720;
 
-    // Fit within canvas with margin
-    let maxW = Math.floor(W * 0.86);
-    let maxH = Math.floor(H * 0.66);
+    // Fit within canvas with margin - optimized for horizontal videos
+    let maxW = Math.floor(W * 0.94);
+    let maxH = Math.floor(H * 0.78);
     let drawW = maxW;
     let drawH = Math.floor(drawW * (vh / vw));
     if (drawH > maxH) {
@@ -725,11 +725,18 @@ if (typeof replayL3 !== "undefined" && replayL3) {
 /* Play Video Button: enable video and music after user click */
 if (typeof playVideoBtn !== "undefined" && playVideoBtn) {
   playVideoBtn.addEventListener("click", () => {
+    // Hide the overlay and transition to "win" state
+    if (winOverlay) hide(winOverlay);
+    state = "win";
+    winPlaying = true;
+    winEnded = false;
+    
     // Play video with sound
     if (winVideo) {
       try {
         winVideo.muted = false;
         winVideo.volume = 1.0;
+        winVideo.currentTime = 0;
         const p = winVideo.play();
         if (p && typeof p.catch === "function") p.catch(() => {});
       } catch (_) {}
