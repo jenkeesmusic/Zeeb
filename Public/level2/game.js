@@ -328,7 +328,15 @@ function startGame() {
   hide(overlay);
   hide(gameOverEl);
   state = "running";
-  bgMusic.play().catch(() => {});
+  // Start background music (ensure unmuted)
+  try {
+    bgMusic.muted = false;
+    bgMusic.volume = 0.6;
+    const p = bgMusic.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (e) {
+    console.log("Audio play failed:", e);
+  }
 }
 
 function gameOver() {
@@ -356,7 +364,14 @@ function togglePause() {
   } else if (state === "paused") {
     state = "running";
     lastTs = performance.now();
-    bgMusic.play().catch(() => {});
+    try {
+      bgMusic.muted = false;
+      bgMusic.volume = 0.6;
+      const p = bgMusic.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (e) {
+      console.log("Audio play failed:", e);
+    }
   }
 }
 
