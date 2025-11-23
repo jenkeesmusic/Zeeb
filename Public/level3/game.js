@@ -516,12 +516,12 @@ function update(dt) {
       coins_arr.splice(i, 1);
       updateHud();
 
-      // Win condition: at 15 coins, show win overlay with button (no autoplay)
+      // Boss briefing trigger: at 15 coins, show overlay with button (no autoplay)
       if (!window.__winTriggered && coins >= 15) {
         window.__winTriggered = true;
         state = "paused"; // pause game
         try { bgMusic.pause(); } catch (_) {}
-        // Show win overlay with "Play Victory Video" button
+        // Show overlay with "Play Boss Intro" button
         if (winOverlay) { 
           try { 
             show(winOverlay); 
@@ -568,7 +568,7 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
 
-  // Canvas-embedded win video mode
+  // Canvas-embedded boss-briefing video mode
   if (state === "win") {
     const vw = (winVideo && winVideo.videoWidth) ? winVideo.videoWidth : 1280;
     const vh = (winVideo && winVideo.videoHeight) ? winVideo.videoHeight : 720;
@@ -609,7 +609,7 @@ function draw() {
     ctx.fillStyle = "#ffe7d2";
     ctx.textAlign = "center";
     ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-    ctx.fillText("You Win!", W / 2, Math.max(40, dy - 20));
+    ctx.fillText("Boss Briefing", W / 2, Math.max(40, dy - 20));
     if (winEnded) {
       // Draw a Restart (Level 1) button
       const btnW = 260;
@@ -630,7 +630,7 @@ function draw() {
       ctx.font = "bold 20px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("Restart (Level 1)", bx + btnW / 2, by + btnH / 2);
+      ctx.fillText("Back to Level 1", bx + btnW / 2, by + btnH / 2);
       ctx.restore();
 
       // Save hitbox for pointer handling
@@ -808,7 +808,7 @@ canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   unlockMusic();
 
-  // Special handling in win mode: tap to unmute or to replay after video ends
+  // Special handling in briefing mode: tap to unmute or to replay after video ends
   if (state === "win") {
     if (winVideo) {
       try {
