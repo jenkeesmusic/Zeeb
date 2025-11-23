@@ -43,10 +43,12 @@ function unlockMusic() {
 
 // State
 let state = "ready"; // "ready" | "running" | "complete"
+let phase = 1; // 1 = bounce-off, 2 = falling asteroids ricochet
 let lastTs = 0;
 let hits = 0;
 let hp = 100;
 let lastShot = 0;
+let dropTimer = 0;
 
 const keys = new Set();
 let pointerActive = false;
@@ -213,6 +215,7 @@ const rocket = new Rocket();
 const cucumber = new CucumberTarget();
 const lasers = [];
 const sparks = [];
+const fallingAsteroids = [];
 
 function drawBackground(dt) {
   ctx.fillStyle = "#030a05";
@@ -271,7 +274,7 @@ function shoot() {
 
 function handleCollisions() {
   const rect = cucumber.rect();
-  const bounceChance = 0.82;
+  const bounceChance = phase === 2 ? 0.9 : 0.82;
   for (const l of lasers) {
     if (!l.active || !l.canDamage) continue;
     if (intersects(l.rect(), rect)) {
@@ -280,7 +283,9 @@ function handleCollisions() {
       hitsEl.textContent = hits.toString();
 
       const bounced = Math.random() < bounceChance;
-      const dmg = bounced ? randRange(0.05, 0.35) : randRange(0.5, 0.8);
+      const dmg = phase === 2
+        ? (bounced ? randRange(0.05, 0.15) : randRange(0.2, 0.35))
+        : (bounced ? randRange(0.05, 0.35) : randRange(0.5, 0.8));
       hp = Math.max(0, hp - dmg);
       hpEl.textContent = hp.toFixed(1);
       sparks.push({ x: l.x, y: l.y, t: 0 });
@@ -303,11 +308,101 @@ function handleCollisions() {
   }
 }
 
+class FallingAsteroid {
+  constructor() {
+    this.r = randRange(28, 46);
+    this.x = randRange(W * 0.36, W * 0.62);
+    this.y = -this.r - 20;
+    this.vx = 0;
+    this.vy = randRange(220, 320);
+    this.deflected = false;
+    this.active = true;
+  }
+  rect() {
+    return { x: this.x - this.r, y: this.y - this.r, w: this.r * 2, h: this.r * 2 };
+  }
+  update(dt) {
+    if (!this.active) return;
+    if (!this.deflected) {
+      this.vy += 60 * dt;
+    } else {
+      this.vx += 40 * dt; // slight acceleration forward
+      this.vy *= 0.99;
+    }
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+
+    if (this.y > H + 120 || this.x > W + 160) {
+      this.active = false;
+    }
+  }
+  draw() {
+    if (!this.active) return;
+    ctx.save();
+    ctx.fillStyle = this.deflected ? "#ffe6a8" : "#9fb0b8";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function handleAsteroidInteractions() {
+  for (const l of lasers) {
+    if (!l.active) continue;
+    for (const a of fallingAsteroids) {
+      if (!a.active) continue;
+      if (intersects(l.rect(), a.rect())) {
+        // Deflect asteroid forward; laser is spent
+        a.deflected = true;
+        a.vx = 900;
+        a.vy = randRange(-80, 80);
+        l.active = false;
+        sparks.push({ x: l.x, y: l.y, t: 0 });
+      }
+    }
+  }
+
+  const cucRect = cucumber.rect();
+  for (const a of fallingAsteroids) {
+    if (!a.active || !a.deflected) continue;
+    if (intersects(a.rect(), cucRect)) {
+      const dmg = randRange(6, 10);
+      hp = Math.max(0, hp - dmg);
+      hpEl.textContent = hp.toFixed(1);
+      a.active = false;
+      sparks.push({ x: cucRect.x + cucRect.w / 2, y: cucRect.y + cucRect.h / 2, t: 0 });
+      if (hp <= 0) {
+        winStage();
+        break;
+      }
+    }
+  }
+
+  // Cull inactive
+  for (let i = fallingAsteroids.length - 1; i >= 0; i--) {
+    if (!fallingAsteroids[i].active) fallingAsteroids.splice(i, 1);
+  }
+}
+
 function update(dt) {
   rocket.update(dt);
   cucumber.update(dt);
+  if (phase === 2) {
+    dropTimer -= dt;
+    if (dropTimer <= 0) {
+      fallingAsteroids.push(new FallingAsteroid());
+      dropTimer = randRange(0.8, 1.6);
+    }
+  }
   for (const l of lasers) l.update(dt);
   handleCollisions();
+  handleAsteroidInteractions();
+
+  if (phase === 1 && hp <= 20) {
+    phase = 2;
+    dropTimer = 0.2;
+  }
   // Remove inactive lasers
   for (let i = lasers.length - 1; i >= 0; i--) {
     if (!lasers[i].active) lasers.splice(i, 1);
@@ -326,7 +421,7 @@ function draw(dt) {
   drawPlanet();
 
   cucumber.draw();
-
+  for (const a of fallingAsteroids) a.draw();
   for (const l of lasers) l.draw();
 
   // Sparks
@@ -363,8 +458,11 @@ function loop(ts) {
 function resetStage() {
   hits = 0;
   hp = 100;
+  phase = 1;
+  dropTimer = 0;
   lasers.length = 0;
   sparks.length = 0;
+  fallingAsteroids.length = 0;
   hpEl.textContent = hp.toFixed(1);
   hitsEl.textContent = hits.toString();
   rocket.reset();
