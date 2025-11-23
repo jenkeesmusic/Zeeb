@@ -177,7 +177,7 @@ class CucumberTarget {
   constructor() {
     this.w = 160;
     this.h = 240;
-    this.baseX = W * 0.58;
+    this.baseX = W * 0.76; // anchor to right side above planet
     this.baseY = H - 120;
     this.t = 0;
     this.x = this.baseX;
@@ -236,10 +236,11 @@ function drawBackground(dt) {
 }
 
 function drawPlanet() {
-  const w = 520;
-  const h = 260;
-  const x = (W - w) / 2;
-  const y = H - h + 10;
+  // Right-side planet with proportional size
+  const w = Math.floor(W * 0.36);
+  const h = Math.floor(w * 0.55);
+  const x = W - w - 32;
+  const y = H - h + 12;
   if (IMAGES.planet && IMAGES.planet.complete) {
     ctx.drawImage(IMAGES.planet, x, y, w, h);
   } else {
@@ -346,7 +347,7 @@ function draw(dt) {
   ctx.save();
   ctx.fillStyle = "rgba(0,0,0,0.18)";
   ctx.beginPath();
-  ctx.ellipse(W * 0.58, H - 40, 160, 24, 0, 0, Math.PI * 2);
+  ctx.ellipse(W * 0.76, H - 38, 150, 22, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
