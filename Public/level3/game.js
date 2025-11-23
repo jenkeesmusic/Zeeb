@@ -516,7 +516,7 @@ function update(dt) {
       coins_arr.splice(i, 1);
       updateHud();
 
-      // Boss briefing trigger: at 15 coins, show overlay with button (no autoplay)
+      // Cucumber Battle (Level 4) briefing trigger: at 15 coins, show overlay with button (no autoplay)
       if (!window.__winTriggered && coins >= 15) {
         window.__winTriggered = true;
         state = "paused"; // pause game
@@ -609,7 +609,7 @@ function draw() {
     ctx.fillStyle = "#ffe7d2";
     ctx.textAlign = "center";
     ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-    ctx.fillText("Boss Briefing", W / 2, Math.max(40, dy - 20));
+    ctx.fillText("Cucumber Battle", W / 2, Math.max(40, dy - 20));
     if (winEnded) {
       // Draw a Restart (Level 1) button
       const btnW = 260;
