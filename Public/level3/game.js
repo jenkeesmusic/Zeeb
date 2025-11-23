@@ -730,6 +730,8 @@ if (typeof playVideoBtn !== "undefined" && playVideoBtn) {
     state = "win";
     winPlaying = true;
     winEnded = false;
+    // Keep background music silent during boss intro video
+    try { bgMusic.pause(); } catch (_) {}
     
     // Play video with sound
     if (winVideo) {
@@ -741,14 +743,6 @@ if (typeof playVideoBtn !== "undefined" && playVideoBtn) {
         if (p && typeof p.catch === "function") p.catch(() => {});
       } catch (_) {}
     }
-    // Also play background music
-    try {
-      bgMusic.muted = false;
-      bgMusic.volume = 0.6;
-      bgMusic.currentTime = 0; // restart from beginning
-      const p = bgMusic.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    } catch (_) {}
   });
 }
 
