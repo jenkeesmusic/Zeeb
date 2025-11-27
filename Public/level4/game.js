@@ -43,7 +43,7 @@ function unlockMusic() {
 
 // State
 let state = "ready"; // "ready" | "running" | "complete"
-let phase = 1; // 1 = bounce-off, 2 = falling asteroids ricochet
+let phase = 2; // single-phase battle (legacy var retained but not used for flow)
 let lastTs = 0;
 let hits = 0;
 let hp = 100;
@@ -290,7 +290,7 @@ function shoot() {
 
 function handleCollisions() {
   const rect = cucumber.rect();
-  const bounceChance = phase === 2 ? 0.9 : 0.82;
+  const bounceChance = 0.9;
   for (const l of lasers) {
     if (!l.active || !l.canDamage) continue;
     if (intersects(l.rect(), rect)) {
@@ -299,9 +299,8 @@ function handleCollisions() {
       hitsEl.textContent = hits.toString();
 
       const bounced = Math.random() < bounceChance;
-      const dmg = phase === 2
-        ? (bounced ? randRange(0.05, 0.15) : randRange(0.2, 0.35))
-        : (bounced ? randRange(0.05, 0.35) : randRange(0.5, 0.8));
+      // Lasers do minimal damage; main damage comes from ricocheted asteroids
+      const dmg = bounced ? randRange(0.05, 0.25) : randRange(0.35, 0.6);
       hp = Math.max(0, hp - dmg);
       hpEl.textContent = hp.toFixed(1);
       sparks.push({ x: l.x, y: l.y, t: 0 });
@@ -423,21 +422,16 @@ function spawnAsteroid() {
 function update(dt) {
   rocket.update(dt);
   cucumber.update(dt);
-  if (phase === 2) {
-    dropTimer -= dt;
-    if (dropTimer <= 0) {
-      spawnAsteroid();
-      dropTimer = randRange(0.8, 1.6);
-    }
+  // Single-phase battle: asteroids always spawn
+  dropTimer -= dt;
+  if (dropTimer <= 0) {
+    spawnAsteroid();
+    dropTimer = randRange(0.8, 1.6);
   }
   for (const l of lasers) l.update(dt);
   handleCollisions();
   handleAsteroidInteractions();
 
-  if (phase === 1 && hp <= 20) {
-    phase = 2;
-    dropTimer = 0.2;
-  }
   // Remove inactive lasers
   for (let i = lasers.length - 1; i >= 0; i--) {
     if (!lasers[i].active) lasers.splice(i, 1);
@@ -493,7 +487,6 @@ function loop(ts) {
 function resetStage() {
   hits = 0;
   hp = 100;
-  phase = 2;
   dropTimer = 0;
   lasers.length = 0;
   sparks.length = 0;
