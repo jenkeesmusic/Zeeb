@@ -22,7 +22,7 @@ html, body {
   gap: 10px;
   align-items: center;
   justify-items: center;
-  padding: 14px;
+  padding: calc(14px + env(safe-area-inset-top)) 14px calc(14px + env(safe-area-inset-bottom)) 14px;
 }
 
 .title {
@@ -51,7 +51,7 @@ html, body {
 
 .hud {
   position: fixed;
-  top: 42px;
+  top: calc(42px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -73,6 +73,7 @@ html, body {
   display: grid;
   place-items: center;
   background: radial-gradient(ellipse at center, rgba(6, 30, 12, 0.74), rgba(4, 18, 8, 0.92));
+  padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom) 10px;
   z-index: 10;
 }
 
@@ -124,6 +125,7 @@ html, body {
   cursor: pointer;
   transition: transform 0.05s ease, filter 0.1s ease, box-shadow 0.1s ease;
   box-shadow: 0 6px 16px rgba(100, 255, 140, 0.35);
+  min-height: 48px;
 }
 .btn:hover { filter: brightness(1.08); }
 .btn:active { transform: translateY(1px); }
@@ -139,13 +141,14 @@ html, body {
     width: 100vw;
     height: calc(100vw * (600 / 900));
   }
-  .hud { top: 32px; font-size: 14px; }
+  .hud { top: calc(32px + env(safe-area-inset-top)); font-size: 14px; }
   .title { font-size: 22px; }
 }
 
 @media (max-width: 480px) {
   .title { font-size: 18px; }
-  .hud { top: 28px; font-size: 12px; }
+  .hud { top: calc(28px + env(safe-area-inset-top)); font-size: 12px; }
+  .btn { padding: 14px 22px; font-size: 18px; }
 }
 
 body, button, canvas {

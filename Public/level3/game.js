@@ -20,9 +20,12 @@ const winOverlay = $("winOverlay");
 const winVideo = $("winVideo");
 const replayL3 = $("replayL3");
 const playVideoBtn = $("playVideoBtn");
+const skipIntroBtn = $("skipIntroBtn");
 let winPlaying = false;
 let winEnded = false;
 let winBtnRect = null;
+let winReplayRect = null;
+let winSkipRect = null;
 
 // Robust music unlock for mobile autoplay
 let musicUnlocked = false;
@@ -40,6 +43,7 @@ if (winVideo) {
   winVideo.addEventListener("ended", () => {
     winPlaying = false;
     winEnded = true;
+    try { if (skipIntroBtn) hide(skipIntroBtn); } catch (_) {}
   });
 }
 
@@ -611,30 +615,75 @@ function draw() {
     ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
     ctx.fillText("Cucumber Battle", W / 2, Math.max(40, dy - 20));
     if (winEnded) {
-      // Draw a Restart (Level 1) button
-      const btnW = 260;
+      // Draw action buttons: Continue to Battle + Replay Intro
+      const btnW = 300;
       const btnH = 56;
+      const gap = 12;
       const bx = Math.floor((W - btnW) / 2);
-      const by = Math.min(H - 20, dy + drawH + 60) - btnH; // ensure on screen
-      // button background
+      const baseY = Math.min(H - 20, dy + drawH + 70);
+      const by1 = baseY - (btnH * 2 + gap); // Continue on top
+      const by2 = by1 + btnH + gap;         // Replay below
+
+      // Continue to Battle (Level 4)
       ctx.save();
-      ctx.fillStyle = "rgba(255, 220, 180, 0.35)";
+      ctx.fillStyle = "rgba(255, 220, 180, 0.55)";
+      ctx.strokeStyle = "#ffcf99";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(bx, by1, btnW, btnH);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#2b1a0e";
+      ctx.font = "bold 22px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Continue to Battle", bx + btnW / 2, by1 + btnH / 2);
+      ctx.restore();
+
+      // Replay Intro
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 220, 180, 0.28)";
+      ctx.strokeStyle = "#ffcf99";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(bx, by2, btnW, btnH);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#2b1a0e";
+      ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Replay Intro", bx + btnW / 2, by2 + btnH / 2);
+      ctx.restore();
+
+      // Save hitboxes for pointer handling
+      winBtnRect = { x: bx, y: by1, w: btnW, h: btnH };
+      winReplayRect = { x: bx, y: by2, w: btnW, h: btnH };
+      winSkipRect = null;
+    } else {
+      // While video is playing, show a Skip Intro button (top-right)
+      const btnW = 160;
+      const btnH = 48;
+      const margin = 16;
+      const bx = Math.min(W - margin - btnW, dx + drawW - btnW);
+      const by = Math.max(margin, dy - margin - btnH);
+
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 220, 180, 0.45)";
       ctx.strokeStyle = "#ffcf99";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.rect(bx, by, btnW, btnH);
       ctx.fill();
       ctx.stroke();
-      // label
       ctx.fillStyle = "#2b1a0e";
-      ctx.font = "bold 20px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("Back to Level 1", bx + btnW / 2, by + btnH / 2);
+      ctx.fillText("Skip Intro", bx + btnW / 2, by + btnH / 2);
       ctx.restore();
 
-      // Save hitbox for pointer handling
-      winBtnRect = { x: bx, y: by, w: btnW, h: btnH };
+      winSkipRect = { x: bx, y: by, w: btnW, h: btnH };
     }
     ctx.restore();
 
@@ -730,6 +779,7 @@ if (typeof playVideoBtn !== "undefined" && playVideoBtn) {
     state = "win";
     winPlaying = true;
     winEnded = false;
+    try { if (skipIntroBtn) show(skipIntroBtn); } catch (_) {}
     // Keep background music silent during boss intro video
     try { bgMusic.pause(); } catch (_) {}
     
@@ -746,6 +796,14 @@ if (typeof playVideoBtn !== "undefined" && playVideoBtn) {
   });
 }
 
+if (typeof skipIntroBtn !== "undefined" && skipIntroBtn) {
+  skipIntroBtn.addEventListener("click", () => {
+    try { if (winVideo) winVideo.pause(); } catch (_) {}
+    try { hide(skipIntroBtn); } catch (_) {}
+    window.location.href = "../level4/index.html";
+  });
+}
+
 window.addEventListener("keydown", (e) => {
   if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
   unlockMusic();
@@ -756,6 +814,14 @@ window.addEventListener("keydown", (e) => {
   }
   if (e.key === " " && (state === "ready" || state === "over")) {
     startGame();
+    return;
+  }
+
+  // Allow skipping the boss intro while video is playing
+  if (state === "win" && !winEnded && (e.key === "Escape" || e.key === "s" || e.key === "S")) {
+    try { if (winVideo) winVideo.pause(); } catch (_) {}
+    try { if (skipIntroBtn) hide(skipIntroBtn); } catch (_) {}
+    window.location.href = "../level4/index.html";
     return;
   }
 
@@ -817,9 +883,38 @@ canvas.addEventListener("pointerdown", (e) => {
           if (winBtnRect &&
               px >= winBtnRect.x && px <= winBtnRect.x + winBtnRect.w &&
               py >= winBtnRect.y && py <= winBtnRect.y + winBtnRect.h) {
-            window.location.href = "../index.html";
+            window.location.href = "../level4/index.html";
+            return;
+          }
+          if (winReplayRect &&
+              px >= winReplayRect.x && px <= winReplayRect.x + winReplayRect.w &&
+              py >= winReplayRect.y && py <= winReplayRect.y + winReplayRect.h) {
+            try {
+              winEnded = false;
+              winPlaying = true;
+              winVideo.currentTime = 0;
+              const p = winVideo.play();
+              if (p && typeof p.catch === "function") p.catch(() => {});
+            } catch (_) {}
+            return;
           }
         } else {
+          // While playing: check for Skip button, otherwise unmute/continue
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = W / rect.width;
+          const scaleY = H / rect.height;
+          const px = (e.clientX - rect.left) * scaleX;
+          const py = (e.clientY - rect.top) * scaleY;
+
+          if (winSkipRect &&
+              px >= winSkipRect.x && px <= winSkipRect.x + winSkipRect.w &&
+              py >= winSkipRect.y && py <= winSkipRect.y + winSkipRect.h) {
+            try { winVideo.pause(); } catch (_) {}
+            try { if (skipIntroBtn) hide(skipIntroBtn); } catch (_) {}
+            window.location.href = "../level4/index.html";
+            return;
+          }
+
           // Unmute + continue playback
           winVideo.muted = false;
           const p = winVideo.play();
