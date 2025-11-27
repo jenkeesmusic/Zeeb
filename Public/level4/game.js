@@ -23,7 +23,7 @@ const IMAGES = {
 };
 IMAGES.rocket.src = "../img/Rocket1.png?v=20251024T201542";
 IMAGES.laser.src = "../img/laser3.png";
-IMAGES.cucumber.src = "../img/Cucumber2.png";
+IMAGES.cucumber.src = "../img/Cucumber2.png?v=20251127T0037";
 IMAGES.planet.src = "../img/plamet_zeeb.png";
 
 // Audio
