@@ -177,13 +177,28 @@ class Laser {
 
 class CucumberTarget {
   constructor() {
-    this.w = 160;
-    this.h = 240;
+    // Keep original aspect ratio of the image; no stretching
+    this.h = 240;      // target height (keeps same on-screen size as before)
+    this.w = 160;      // fallback width until image loads (will be recomputed)
     this.baseX = W * 0.76; // anchor to right side above planet
     this.baseY = H - 120;
     this.t = 0;
     this.x = this.baseX;
     this.y = this.baseY;
+
+    // After the image loads, recompute width based on natural aspect ratio
+    const updateAspect = () => {
+      const iw = IMAGES.cucumber.naturalWidth || IMAGES.cucumber.width || this.w;
+      const ih = IMAGES.cucumber.naturalHeight || IMAGES.cucumber.height || this.h;
+      if (iw && ih) {
+        this.w = Math.round(this.h * (iw / ih));
+      }
+    };
+    if (IMAGES.cucumber && IMAGES.cucumber.complete) {
+      updateAspect();
+    } else if (IMAGES.cucumber) {
+      IMAGES.cucumber.addEventListener("load", updateAspect, { once: true });
+    }
   }
   reset() {
     this.t = 0;
@@ -203,6 +218,7 @@ class CucumberTarget {
   draw() {
     const r = this.rect();
     if (IMAGES.cucumber && IMAGES.cucumber.complete) {
+      // Draw with maintained aspect ratio (w computed from image AR)
       ctx.drawImage(IMAGES.cucumber, r.x, r.y, this.w, this.h);
     } else {
       ctx.fillStyle = "#6cf582";
