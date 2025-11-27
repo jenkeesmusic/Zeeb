@@ -325,9 +325,12 @@ function handleCollisions() {
 }
 
 class FallingAsteroid {
-  constructor() {
+  constructor(spawnX) {
     this.r = randRange(28, 46);
-    this.x = randRange(W * 0.36, W * 0.62);
+    // Spawn between Zeeb and Planet Zeeb (left of cucumber), avoiding the rocket area
+    this.x = (typeof spawnX === "number")
+      ? spawnX
+      : randRange(W * 0.36, W * 0.62);
     this.y = -this.r - 20;
     this.vx = 0;
     this.vy = randRange(220, 320);
@@ -407,7 +410,14 @@ function update(dt) {
   if (phase === 2) {
     dropTimer -= dt;
     if (dropTimer <= 0) {
-      fallingAsteroids.push(new FallingAsteroid());
+      // Compute a safe horizontal spawn band between Zeeb and Planet Zeeb
+      const cucRect = cucumber.rect();
+      const rocketRight = rocket.x + rocket.w + 60;
+      const minX = Math.max(W * 0.35, rocketRight);
+      const maxX = Math.min(cucRect.x - 120, W * 0.78);
+      const spawnX = maxX > minX ? randRange(minX, maxX) : (minX + maxX) / 2;
+
+      fallingAsteroids.push(new FallingAsteroid(spawnX));
       dropTimer = randRange(0.8, 1.6);
     }
   }
@@ -474,7 +484,7 @@ function loop(ts) {
 function resetStage() {
   hits = 0;
   hp = 100;
-  phase = 1;
+  phase = 2;
   dropTimer = 0;
   lasers.length = 0;
   sparks.length = 0;
