@@ -404,20 +404,29 @@ function handleAsteroidInteractions() {
   }
 }
 
+// Spawn a falling asteroid in the corridor between the rocket and cucumber
+function spawnAsteroid() {
+  const cucRect = cucumber.rect();
+  const rocketRight = rocket.x + rocket.w + 60;
+  const minX = Math.max(W * 0.35, rocketRight);
+  const maxX = Math.min(cucRect.x - 120, W * 0.78);
+  let spawnX;
+  if (Number.isFinite(minX) && Number.isFinite(maxX) && maxX > minX) {
+    spawnX = randRange(minX, maxX);
+  } else {
+    // Fallback to a sensible mid-corridor spawn if band is invalid early on
+    spawnX = W * 0.55;
+  }
+  fallingAsteroids.push(new FallingAsteroid(spawnX));
+}
+
 function update(dt) {
   rocket.update(dt);
   cucumber.update(dt);
   if (phase === 2) {
     dropTimer -= dt;
     if (dropTimer <= 0) {
-      // Compute a safe horizontal spawn band between Zeeb and Planet Zeeb
-      const cucRect = cucumber.rect();
-      const rocketRight = rocket.x + rocket.w + 60;
-      const minX = Math.max(W * 0.35, rocketRight);
-      const maxX = Math.min(cucRect.x - 120, W * 0.78);
-      const spawnX = maxX > minX ? randRange(minX, maxX) : (minX + maxX) / 2;
-
-      fallingAsteroids.push(new FallingAsteroid(spawnX));
+      spawnAsteroid();
       dropTimer = randRange(0.8, 1.6);
     }
   }
@@ -503,6 +512,9 @@ function startStage() {
   resetStage();
   state = "running";
   lastTs = performance.now();
+  // Ensure asteroids are visible immediately
+  for (let i = 0; i < 2; i++) spawnAsteroid();
+  dropTimer = 0.8;
 }
 
 function winStage() {
