@@ -2,7 +2,23 @@
   publish = "Public"
   command = ""
 
-# In case you ever add client-side routing, this will serve index.html for any path.
+# Explicit passthrough for level pages and assets (serve real files first)
+[[redirects]]
+  from = "/level2/*"
+  to = "/level2/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/level3/*"
+  to = "/level3/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/level4/*"
+  to = "/level4/:splat"
+  status = 200
+
+# SPA fallback: for unknown routes, serve root index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"
