@@ -661,29 +661,8 @@ function draw() {
       winReplayRect = { x: bx, y: by2, w: btnW, h: btnH };
       winSkipRect = null;
     } else {
-      // While video is playing, show a Skip Intro button (top-right)
-      const btnW = 160;
-      const btnH = 48;
-      const margin = 16;
-      const bx = Math.min(W - margin - btnW, dx + drawW - btnW);
-      const by = Math.max(margin, dy - margin - btnH);
-
-      ctx.save();
-      ctx.fillStyle = "rgba(255, 220, 180, 0.45)";
-      ctx.strokeStyle = "#ffcf99";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.rect(bx, by, btnW, btnH);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#2b1a0e";
-      ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Skip Intro", bx + btnW / 2, by + btnH / 2);
-      ctx.restore();
-
-      winSkipRect = { x: bx, y: by, w: btnW, h: btnH };
+      // Use DOM skip button only; no canvas-drawn skip button
+      winSkipRect = null;
     }
     ctx.restore();
 
@@ -906,14 +885,6 @@ canvas.addEventListener("pointerdown", (e) => {
           const px = (e.clientX - rect.left) * scaleX;
           const py = (e.clientY - rect.top) * scaleY;
 
-          if (winSkipRect &&
-              px >= winSkipRect.x && px <= winSkipRect.x + winSkipRect.w &&
-              py >= winSkipRect.y && py <= winSkipRect.y + winSkipRect.h) {
-            try { winVideo.pause(); } catch (_) {}
-            try { if (skipIntroBtn) hide(skipIntroBtn); } catch (_) {}
-            window.location.href = "../level4/index.html";
-            return;
-          }
 
           // Unmute + continue playback
           winVideo.muted = false;
