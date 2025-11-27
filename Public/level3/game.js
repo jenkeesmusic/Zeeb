@@ -779,7 +779,7 @@ if (typeof skipIntroBtn !== "undefined" && skipIntroBtn) {
   skipIntroBtn.addEventListener("click", () => {
     try { if (winVideo) winVideo.pause(); } catch (_) {}
     try { hide(skipIntroBtn); } catch (_) {}
-    window.location.href = "../level4/index.html";
+    window.location.href = "../level4/index.html?autostart=1";
   });
 }
 
@@ -800,7 +800,7 @@ window.addEventListener("keydown", (e) => {
   if (state === "win" && !winEnded && (e.key === "Escape" || e.key === "s" || e.key === "S")) {
     try { if (winVideo) winVideo.pause(); } catch (_) {}
     try { if (skipIntroBtn) hide(skipIntroBtn); } catch (_) {}
-    window.location.href = "../level4/index.html";
+    window.location.href = "../level4/index.html?autostart=1";
     return;
   }
 
@@ -862,7 +862,7 @@ canvas.addEventListener("pointerdown", (e) => {
           if (winBtnRect &&
               px >= winBtnRect.x && px <= winBtnRect.x + winBtnRect.w &&
               py >= winBtnRect.y && py <= winBtnRect.y + winBtnRect.h) {
-            window.location.href = "../level4/index.html";
+            window.location.href = "../level4/index.html?autostart=1";
             return;
           }
           if (winReplayRect &&

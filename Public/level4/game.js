@@ -566,3 +566,13 @@ function show(el) { el.classList.remove("hidden"); }
 function hide(el) { el.classList.add("hidden"); }
 
 requestAnimationFrame(loop);
+
+// Autostart Stage 1 when navigated with ?autostart=1 (e.g., skipping intro)
+try {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("autostart") === "1") {
+    setTimeout(() => {
+      try { startStage(); } catch (_) {}
+    }, 50);
+  }
+} catch (_) {}
