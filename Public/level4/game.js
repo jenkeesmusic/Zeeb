@@ -409,15 +409,20 @@ function handleAsteroidInteractions() {
 function spawnAsteroid() {
   const cucRect = cucumber.rect();
   const rocketRight = rocket.x + rocket.w + 60;
-  const minX = Math.max(W * 0.35, rocketRight);
-  const maxX = Math.min(cucRect.x - 120, W * 0.78);
-  let spawnX;
-  if (Number.isFinite(minX) && Number.isFinite(maxX) && maxX > minX) {
-    spawnX = randRange(minX, maxX);
-  } else {
-    // Fallback to a sensible mid-corridor spawn if band is invalid early on
-    spawnX = W * 0.55;
+
+  // Primary corridor based on live positions
+  let minX = Math.max(W * 0.35, rocketRight);
+  let maxX = Math.min(cucRect.x - 120, W * 0.78);
+
+  // If band is too narrow or invalid early on, center-weight the spawn between rocket and cucumber
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !(maxX > minX) || (maxX - minX) < 80) {
+    const approxCucLeft = Math.max(W * 0.60, cucRect.x);
+    const center = (rocketRight + approxCucLeft) / 2;
+    minX = Math.max(W * 0.45, center - 70);
+    maxX = Math.min(W * 0.70, center + 70);
   }
+
+  const spawnX = randRange(minX, maxX);
   fallingAsteroids.push(new FallingAsteroid(spawnX));
 }
 
@@ -509,8 +514,8 @@ function startStage() {
   state = "running";
   lastTs = performance.now();
   // Ensure asteroids are visible immediately
-  for (let i = 0; i < 2; i++) spawnAsteroid();
-  dropTimer = 0.8;
+  for (let i = 0; i < 3; i++) spawnAsteroid();
+  dropTimer = 0.6;
 }
 
 function winStage() {
