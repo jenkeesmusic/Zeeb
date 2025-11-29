@@ -437,6 +437,7 @@ function update(dt) {
     dropTimer = randRange(1.0, 1.8);
   }
   for (const l of lasers) l.update(dt);
+  for (const a of fallingAsteroids) a.update(dt);
   handleCollisions();
   handleAsteroidInteractions();
 
