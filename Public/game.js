@@ -49,9 +49,9 @@ const IMAGES = {
 };
 
 IMAGES.rocket.src = "img/Rocket1.png?v=20251024T201542";
-IMAGES.asteroids[0].src = "img/astroid1.png";
-IMAGES.asteroids[1].src = "img/astroid2.png";
-IMAGES.asteroids[2].src = "img/astroid3.png";
+IMAGES.asteroids[0].src = "../img/astroid1.png";
+IMAGES.asteroids[1].src = "../img/astroid2.png";
+IMAGES.asteroids[2].src = "../img/astroid3.png";
 IMAGES.crash.src = "img/crash.png";
 IMAGES.coin.src = "img/coin.png";
 IMAGES.laser.src = "img/laser.png";
