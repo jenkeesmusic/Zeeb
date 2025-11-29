@@ -332,7 +332,8 @@ class FallingAsteroid {
       : randRange(W * 0.36, W * 0.62);
     this.y = -this.r - 20;
     this.vx = 0;
-    this.vy = randRange(220, 320);
+    // Slower straight-down fall until deflected
+    this.vy = randRange(120, 180);
     this.deflected = false;
     this.active = true;
   }
@@ -342,7 +343,8 @@ class FallingAsteroid {
   update(dt) {
     if (!this.active) return;
     if (!this.deflected) {
-      this.vy += 60 * dt;
+      // Gentle acceleration while falling straight down
+      this.vy += 35 * dt;
     } else {
       this.vx += 40 * dt; // slight acceleration forward
       this.vy *= 0.99;
@@ -426,7 +428,8 @@ function update(dt) {
   dropTimer -= dt;
   if (dropTimer <= 0) {
     spawnAsteroid();
-    dropTimer = randRange(0.8, 1.6);
+    // Slightly slower cadence to keep asteroids readable
+    dropTimer = randRange(1.0, 1.8);
   }
   for (const l of lasers) l.update(dt);
   handleCollisions();
@@ -598,12 +601,24 @@ function hide(el) { el.classList.add("hidden"); }
 
 requestAnimationFrame(loop);
 
-// Autostart Stage 1 when navigated with ?autostart=1 (e.g., skipping intro)
+/**
+ * Autostart battle:
+ * - If ?autostart=1, start immediately (used by Level 3 skip).
+ * - Otherwise, fall back to starting shortly after load so asteroids begin without manual click.
+ *   (Audio may remain muted until user interaction on some mobile browsers.)
+ */
 try {
   const params = new URLSearchParams(window.location.search);
   if (params.get("autostart") === "1") {
     setTimeout(() => {
       try { startStage(); } catch (_) {}
     }, 50);
+  } else {
+    // Start automatically after a short delay if still on the title overlay
+    setTimeout(() => {
+      try {
+        if (state === "ready") startStage();
+      } catch (_) {}
+    }, 800);
   }
 } catch (_) {}
