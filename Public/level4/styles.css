@@ -81,7 +81,7 @@ html, body {
 }
 
 .zeeb-bar .hp-label {
-  color: #7cf;
+  color: #a24bf3;
 }
 
 .cucumber-bar .hp-label {
@@ -105,8 +105,8 @@ html, body {
 }
 
 .zeeb-fill {
-  background: linear-gradient(180deg, #7cf, #4a8fcc);
-  box-shadow: 0 0 8px rgba(120, 200, 255, 0.5);
+  background: linear-gradient(180deg, #a24bf3, #7a2bc0);
+  box-shadow: 0 0 8px rgba(162, 75, 243, 0.5);
 }
 
 .cucumber-fill {
