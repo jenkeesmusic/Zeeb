@@ -608,7 +608,12 @@ class FallingAsteroid {
       // Gentle acceleration while falling straight down
       this.vy += 35 * dt;
     } else {
-      this.vx += 40 * dt; // slight acceleration forward
+      // Hostile asteroids accelerate toward player, normal ones toward cucumber
+      if (this.isHostile) {
+        this.vx -= 30 * dt; // Accelerate left toward player
+      } else {
+        this.vx += 40 * dt; // Accelerate right toward cucumber
+      }
       this.vy *= 0.99;
       // Spin faster when deflected
       this.rotationSpeed = this.rotationSpeed * 1.01;
@@ -618,8 +623,15 @@ class FallingAsteroid {
     // Rotate asteroid
     this.rotation += this.rotationSpeed * dt;
 
-    if (this.y > H + 120 || this.x > W + 160) {
-      this.active = false;
+    // Different bounds for hostile vs normal asteroids
+    if (this.isHostile) {
+      if (this.y > H + 120 || this.x < -160) {
+        this.active = false;
+      }
+    } else {
+      if (this.y > H + 120 || this.x > W + 160) {
+        this.active = false;
+      }
     }
   }
   draw() {
@@ -633,13 +645,14 @@ class FallingAsteroid {
       const halfSize = this.size / 2;
       // Add glow effect when deflected
       if (this.deflected) {
-        ctx.shadowColor = "#ffe6a8";
-        ctx.shadowBlur = 15;
+        // Red hostile glow when going toward player, yellow when toward cucumber
+        ctx.shadowColor = this.isHostile ? "#ff4444" : "#ffe6a8";
+        ctx.shadowBlur = this.isHostile ? 20 : 15;
       }
       ctx.drawImage(this.image, -halfSize, -halfSize, this.size, this.size);
     } else {
       // Fallback to circle if image not loaded
-      ctx.fillStyle = this.deflected ? "#ffe6a8" : "#9fb0b8";
+      ctx.fillStyle = this.isHostile ? "#ff6666" : (this.deflected ? "#ffe6a8" : "#9fb0b8");
       ctx.beginPath();
       ctx.arc(0, 0, this.size / 2, 0, Math.PI * 2);
       ctx.fill();
@@ -654,10 +667,20 @@ function handleAsteroidInteractions() {
     for (const a of fallingAsteroids) {
       if (!a.active) continue;
       if (intersects(l.rect(), a.rect())) {
-        // Deflect asteroid forward; laser is spent
         a.deflected = true;
-        a.vx = 900;
-        a.vy = randRange(-80, 80);
+        
+        // Check if laser is bounced (going left) - asteroid goes toward player!
+        if (l.bounced || l.vx < 0) {
+          // Deflect asteroid LEFT toward the player rocket - danger!
+          a.vx = -700;
+          a.vy = randRange(-100, 100);
+          a.isHostile = true; // Mark as dangerous to player
+        } else {
+          // Normal deflection - asteroid goes right toward cucumber
+          a.vx = 900;
+          a.vy = randRange(-80, 80);
+        }
+        
         l.active = false;
         sparks.push({ x: l.x, y: l.y, t: 0 });
       }
@@ -689,6 +712,33 @@ function handleAsteroidInteractions() {
         winStage();
         break;
       }
+    }
+  }
+
+  // Check for hostile asteroids hitting the player rocket!
+  const rocketRect = {
+    x: rocket.x + 15, // Tighter hitbox
+    y: rocket.y + 15,
+    w: rocket.w - 30,
+    h: rocket.h - 30
+  };
+  for (const a of fallingAsteroids) {
+    if (!a.active || !a.isHostile) continue;
+    if (intersects(a.rect(), rocketRect)) {
+      // Player got hit by ricocheted asteroid!
+      a.active = false;
+      
+      // Visual feedback - sparks at rocket
+      for (let i = 0; i < 8; i++) {
+        sparks.push({ 
+          x: rocket.x + rocket.w / 2 + randRange(-20, 20), 
+          y: rocket.y + rocket.h / 2 + randRange(-20, 20), 
+          t: 0 
+        });
+      }
+      
+      // Flash the screen red briefly (could add screen shake too)
+      // For now just a visual warning
     }
   }
 
