@@ -1164,8 +1164,7 @@ requestAnimationFrame(loop);
 /**
  * Autostart battle:
  * - If ?autostart=1, start immediately (used by Level 3 skip).
- * - Otherwise, fall back to starting shortly after load so asteroids begin without manual click.
- *   (Audio may remain muted until user interaction on some mobile browsers.)
+ * - Otherwise, wait for user to click Start button.
  */
 try {
   const params = new URLSearchParams(window.location.search);
@@ -1173,12 +1172,6 @@ try {
     setTimeout(() => {
       try { startStage(); } catch (_) {}
     }, 50);
-  } else {
-    // Start automatically after a short delay if still on the title overlay
-    setTimeout(() => {
-      try {
-        if (state === "ready") startStage();
-      } catch (_) {}
-    }, 800);
   }
+  // If no autostart param, wait for user to click Start button
 } catch (_) {}
