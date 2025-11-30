@@ -205,6 +205,15 @@ class CucumberTarget {
     this.flashAlpha = 0;
     this.wobbleAngle = 0;
     this.painExpressionTimer = 0;
+    
+    // Dodge state
+    this.isDodging = false;
+    this.dodgeTimer = 0;
+    this.dodgeDirection = 0; // -1 left, 1 right
+    this.dodgeOffset = 0;
+    this.lookingUp = false;
+    this.panicTimer = 0;
+    this.sweatDrops = [];
 
     // After the image loads, recompute width based on natural aspect ratio
     const updateAspect = () => {
@@ -233,6 +242,13 @@ class CucumberTarget {
     this.flashAlpha = 0;
     this.wobbleAngle = 0;
     this.painExpressionTimer = 0;
+    this.isDodging = false;
+    this.dodgeTimer = 0;
+    this.dodgeDirection = 0;
+    this.dodgeOffset = 0;
+    this.lookingUp = false;
+    this.panicTimer = 0;
+    this.sweatDrops = [];
   }
   
   // Called when asteroid hits
@@ -245,10 +261,83 @@ class CucumberTarget {
     this.painExpressionTimer = 0.8;
   }
   
+  // Check for incoming overhead asteroids and dodge
+  checkForOverheadAsteroids(asteroids) {
+    if (this.isDodging || this.hitTimer > 0) return;
+    
+    for (const a of asteroids) {
+      if (!a.active || !a.isOverhead) continue;
+      
+      // Check if asteroid is above cucumber and close enough to react
+      const myX = this.baseX + Math.sin(this.t * 0.8) * 120; // Current sway position
+      const distX = Math.abs(a.x - myX);
+      const distY = a.y - (this.baseY - this.h);
+      
+      // If asteroid is overhead and getting close
+      if (distX < 80 && distY > -200 && distY < -50) {
+        this.lookingUp = true;
+        this.panicTimer = 0.8;
+        
+        // Add sweat drops when panicking
+        if (this.sweatDrops.length < 3) {
+          this.sweatDrops.push({
+            x: randRange(-15, 15),
+            y: randRange(-this.h * 0.8, -this.h * 0.5),
+            vy: 0,
+            life: 0.6
+          });
+        }
+      }
+      
+      // Dodge when asteroid is very close!
+      if (distX < 60 && distY > -80 && distY < 0) {
+        this.startDodge(a.x > myX ? -1 : 1);
+        break;
+      }
+    }
+  }
+  
+  startDodge(direction) {
+    this.isDodging = true;
+    this.dodgeTimer = 0.5;
+    this.dodgeDirection = direction;
+    this.lookingUp = false; // Stop looking up, focus on dodging
+  }
+  
   update(dt) {
     this.t += dt;
     const sway = Math.sin(this.t * 0.8) * 120;
     const bob = Math.sin(this.t * 2.2) * 6;
+    
+    // Update dodge
+    if (this.isDodging) {
+      this.dodgeTimer -= dt;
+      if (this.dodgeTimer > 0) {
+        // Quick sidestep with easing
+        const dodgeProgress = 1 - (this.dodgeTimer / 0.5);
+        const eased = Math.sin(dodgeProgress * Math.PI); // Smooth in-out
+        this.dodgeOffset = this.dodgeDirection * eased * 80;
+      } else {
+        this.isDodging = false;
+        this.dodgeOffset = 0;
+      }
+    }
+    
+    // Panic timer decay
+    if (this.panicTimer > 0) {
+      this.panicTimer -= dt;
+      if (this.panicTimer <= 0) {
+        this.lookingUp = false;
+      }
+    }
+    
+    // Update sweat drops
+    for (const drop of this.sweatDrops) {
+      drop.vy += 400 * dt;
+      drop.y += drop.vy * dt;
+      drop.life -= dt;
+    }
+    this.sweatDrops = this.sweatDrops.filter(d => d.life > 0);
     
     // Apply hit reaction effects
     if (this.hitTimer > 0) {
@@ -285,7 +374,7 @@ class CucumberTarget {
       this.painExpressionTimer -= dt;
     }
     
-    this.x = this.baseX + sway + this.shakeX + this.recoilX;
+    this.x = this.baseX + sway + this.shakeX + this.recoilX + this.dodgeOffset;
     this.y = this.baseY + bob + this.shakeY;
   }
   rect() {
@@ -358,6 +447,31 @@ class CucumberTarget {
         ctx.closePath();
         ctx.fill();
       }
+      ctx.globalAlpha = 1;
+    }
+    
+    // Draw sweat drops when panicking
+    for (const drop of this.sweatDrops) {
+      ctx.globalAlpha = Math.min(1, drop.life * 2);
+      ctx.fillStyle = "#88ddff";
+      ctx.beginPath();
+      // Teardrop shape
+      const dx = r.x + this.w / 2 + drop.x;
+      const dy = r.y + this.h + drop.y;
+      ctx.moveTo(dx, dy - 6);
+      ctx.quadraticCurveTo(dx + 4, dy, dx, dy + 6);
+      ctx.quadraticCurveTo(dx - 4, dy, dx, dy - 6);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    
+    // Draw "looking up" expression (exclamation mark) when noticing overhead asteroid
+    if (this.lookingUp && this.panicTimer > 0) {
+      ctx.globalAlpha = Math.min(1, this.panicTimer * 3);
+      ctx.fillStyle = "#ff4444";
+      ctx.font = "bold 24px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("!", r.x + this.w / 2, r.y - 30);
       ctx.globalAlpha = 1;
     }
     
@@ -457,17 +571,25 @@ function handleCollisions() {
 }
 
 class FallingAsteroid {
-  constructor(spawnX) {
+  constructor(spawnX, isOverhead = false) {
     // Scaled down size (was 28-46, now smaller)
     this.size = randRange(32, 52);
-    // Spawn between Zeeb and Planet Zeeb (left of cucumber), avoiding the rocket area
-    this.x = (typeof spawnX === "number")
-      ? spawnX
-      : randRange(W * 0.36, W * 0.62);
+    this.isOverhead = isOverhead;
+    
+    if (isOverhead) {
+      // Overhead asteroids spawn above the cucumber's area
+      this.x = spawnX;
+      this.size = randRange(28, 42); // Slightly smaller for overhead
+    } else {
+      // Spawn between Zeeb and Planet Zeeb (left of cucumber), avoiding the rocket area
+      this.x = (typeof spawnX === "number")
+        ? spawnX
+        : randRange(W * 0.36, W * 0.62);
+    }
     this.y = -this.size - 20;
     this.vx = 0;
     // Slower straight-down fall until deflected
-    this.vy = randRange(120, 180);
+    this.vy = isOverhead ? randRange(180, 260) : randRange(120, 180);
     this.deflected = false;
     this.active = true;
     // Random asteroid image selection
@@ -597,9 +719,24 @@ function spawnAsteroid() {
   fallingAsteroids.push(new FallingAsteroid(spawnX));
 }
 
+// Timer for overhead asteroid spawning
+let overheadTimer = 3.0;
+
+// Spawn an overhead asteroid that falls above the cucumber
+function spawnOverheadAsteroid() {
+  // Get cucumber's current and predicted position
+  const cucCurrentX = cucumber.x;
+  // Add some randomness to make it interesting - sometimes ahead, sometimes behind
+  const offset = randRange(-40, 40);
+  const spawnX = cucCurrentX + offset;
+  
+  fallingAsteroids.push(new FallingAsteroid(spawnX, true));
+}
+
 function update(dt) {
   rocket.update(dt);
   cucumber.update(dt);
+  
   // Single-phase battle: asteroids always spawn
   dropTimer -= dt;
   if (dropTimer <= 0) {
@@ -607,6 +744,18 @@ function update(dt) {
     // Slightly slower cadence to keep asteroids readable
     dropTimer = randRange(1.0, 1.8);
   }
+  
+  // Overhead asteroids spawn occasionally
+  overheadTimer -= dt;
+  if (overheadTimer <= 0) {
+    spawnOverheadAsteroid();
+    // Random interval between overhead asteroids (2.5 to 5 seconds)
+    overheadTimer = randRange(2.5, 5.0);
+  }
+  
+  // Let cucumber check for overhead asteroids and react
+  cucumber.checkForOverheadAsteroids(fallingAsteroids);
+  
   for (const l of lasers) l.update(dt);
   for (const a of fallingAsteroids) a.update(dt);
   handleCollisions();
@@ -668,6 +817,7 @@ function resetStage() {
   hits = 0;
   hp = 100;
   dropTimer = 0;
+  overheadTimer = 3.0; // First overhead asteroid after 3 seconds
   lasers.length = 0;
   sparks.length = 0;
   fallingAsteroids.length = 0;
