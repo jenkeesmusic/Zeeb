@@ -187,13 +187,24 @@ class Laser {
 class CucumberTarget {
   constructor() {
     // Keep original aspect ratio of the image; no stretching
-    this.h = 240;      // target height (keeps same on-screen size as before)
-    this.w = 160;      // fallback width until image loads (will be recomputed)
+    this.h = 160;      // smaller target height
+    this.w = 107;      // fallback width until image loads (will be recomputed)
     this.baseX = W * 0.76; // anchor to right side above planet
-    this.baseY = H - 120;
+    this.baseY = H - 100;
     this.t = 0;
     this.x = this.baseX;
     this.y = this.baseY;
+    
+    // Hit reaction state
+    this.hitTimer = 0;
+    this.hitIntensity = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
+    this.scaleBoost = 0;
+    this.recoilX = 0;
+    this.flashAlpha = 0;
+    this.wobbleAngle = 0;
+    this.painExpressionTimer = 0;
 
     // After the image loads, recompute width based on natural aspect ratio
     const updateAspect = () => {
@@ -213,26 +224,144 @@ class CucumberTarget {
     this.t = 0;
     this.x = this.baseX;
     this.y = this.baseY;
+    this.hitTimer = 0;
+    this.hitIntensity = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
+    this.scaleBoost = 0;
+    this.recoilX = 0;
+    this.flashAlpha = 0;
+    this.wobbleAngle = 0;
+    this.painExpressionTimer = 0;
   }
+  
+  // Called when asteroid hits
+  onHit(damage) {
+    this.hitTimer = 0.5; // Duration of hit reaction
+    this.hitIntensity = Math.min(1, damage / 10); // Scale based on damage
+    this.scaleBoost = 0.15 + this.hitIntensity * 0.1; // Squash effect
+    this.recoilX = -30 - this.hitIntensity * 20; // Knockback
+    this.flashAlpha = 0.8;
+    this.painExpressionTimer = 0.8;
+  }
+  
   update(dt) {
     this.t += dt;
     const sway = Math.sin(this.t * 0.8) * 120;
     const bob = Math.sin(this.t * 2.2) * 6;
-    this.x = this.baseX + sway;
-    this.y = this.baseY + bob;
+    
+    // Apply hit reaction effects
+    if (this.hitTimer > 0) {
+      this.hitTimer -= dt;
+      const progress = 1 - (this.hitTimer / 0.5);
+      
+      // Shake effect - rapid random displacement
+      const shakeStrength = (1 - progress) * 12 * this.hitIntensity;
+      this.shakeX = (Math.random() - 0.5) * shakeStrength * 2;
+      this.shakeY = (Math.random() - 0.5) * shakeStrength;
+      
+      // Scale bounce back (squash then stretch)
+      this.scaleBoost *= 0.85;
+      
+      // Recoil recovery
+      this.recoilX *= 0.88;
+      
+      // Flash fade
+      this.flashAlpha *= 0.9;
+      
+      // Wobble angle
+      this.wobbleAngle = Math.sin(this.t * 25) * (1 - progress) * 0.15;
+    } else {
+      this.shakeX = 0;
+      this.shakeY = 0;
+      this.scaleBoost = 0;
+      this.recoilX = 0;
+      this.flashAlpha = 0;
+      this.wobbleAngle = 0;
+    }
+    
+    // Pain expression decay
+    if (this.painExpressionTimer > 0) {
+      this.painExpressionTimer -= dt;
+    }
+    
+    this.x = this.baseX + sway + this.shakeX + this.recoilX;
+    this.y = this.baseY + bob + this.shakeY;
   }
   rect() {
     return { x: this.x - this.w / 2, y: this.y - this.h, w: this.w, h: this.h };
   }
   draw() {
     const r = this.rect();
+    
+    ctx.save();
+    
+    // Apply wobble rotation around base
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.wobbleAngle);
+    ctx.translate(-this.x, -this.y);
+    
+    // Apply squash/stretch scale
+    const scaleX = 1 + this.scaleBoost * 0.5;
+    const scaleY = 1 - this.scaleBoost * 0.3;
+    ctx.translate(r.x + this.w / 2, r.y + this.h);
+    ctx.scale(scaleX, scaleY);
+    ctx.translate(-(r.x + this.w / 2), -(r.y + this.h));
+    
     if (IMAGES.cucumber && IMAGES.cucumber.complete) {
       // Draw with maintained aspect ratio (w computed from image AR)
       ctx.drawImage(IMAGES.cucumber, r.x, r.y, this.w, this.h);
+      
+      // Flash overlay when hit
+      if (this.flashAlpha > 0.05) {
+        ctx.globalAlpha = this.flashAlpha;
+        ctx.fillStyle = "#ff6666";
+        ctx.fillRect(r.x, r.y, this.w, this.h);
+        ctx.globalAlpha = 1;
+      }
     } else {
       ctx.fillStyle = "#6cf582";
       ctx.fillRect(r.x, r.y, this.w, this.h);
     }
+    
+    // Draw pain stars/swirls when recently hit
+    if (this.painExpressionTimer > 0) {
+      const painAlpha = Math.min(1, this.painExpressionTimer * 2);
+      ctx.globalAlpha = painAlpha;
+      
+      // Draw spinning stars above head
+      const starY = r.y - 20;
+      const starX = r.x + this.w / 2;
+      const starCount = 3;
+      const starRadius = 30;
+      
+      for (let i = 0; i < starCount; i++) {
+        const angle = (this.t * 4) + (i * Math.PI * 2 / starCount);
+        const sx = starX + Math.cos(angle) * starRadius;
+        const sy = starY + Math.sin(angle) * 8;
+        
+        // Draw star
+        ctx.fillStyle = "#ffff77";
+        ctx.beginPath();
+        for (let j = 0; j < 5; j++) {
+          const a = (j * Math.PI * 2 / 5) - Math.PI / 2 + this.t * 3;
+          const outerR = 6;
+          const innerR = 3;
+          const ox = sx + Math.cos(a) * outerR;
+          const oy = sy + Math.sin(a) * outerR;
+          const ix = sx + Math.cos(a + Math.PI / 5) * innerR;
+          const iy = sy + Math.sin(a + Math.PI / 5) * innerR;
+          if (j === 0) ctx.moveTo(ox, oy);
+          else ctx.lineTo(ox, oy);
+          ctx.lineTo(ix, iy);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    
+    ctx.restore();
   }
 }
 
@@ -426,7 +555,19 @@ function handleAsteroidInteractions() {
       hp = Math.max(0, hp - dmg);
       hpEl.textContent = hp.toFixed(1);
       a.active = false;
-      sparks.push({ x: cucRect.x + cucRect.w / 2, y: cucRect.y + cucRect.h / 2, t: 0 });
+      
+      // Trigger hit reaction on cucumber
+      cucumber.onHit(dmg);
+      
+      // More dramatic sparks for asteroid impact
+      for (let i = 0; i < 5; i++) {
+        sparks.push({ 
+          x: cucRect.x + cucRect.w / 2 + randRange(-20, 20), 
+          y: cucRect.y + cucRect.h / 2 + randRange(-30, 30), 
+          t: 0 
+        });
+      }
+      
       if (hp <= 0) {
         winStage();
         break;
