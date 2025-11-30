@@ -62,6 +62,7 @@ let hits = 0;
 const INTRO_DURATION = 5.0; // 5 seconds
 let introTimer = 0;
 let introPhase = 0; // 0-1 progress through intro
+let introShown = false; // Only show intro once per page load
 let hp = 200; // Cucumber HP (doubled for longer battle)
 let zeebHp = 150; // Player HP (increased for boss battle survivability)
 const MAX_CUCUMBER_HP = 200;
@@ -1556,9 +1557,17 @@ function startStage() {
   completeOverlay.querySelector(".subtitle").textContent = "Nice ricochets. Cucumber has been defeated!";
   completeOverlay.querySelector("#restartBtn").textContent = "Play Again";
   resetStage();
-  // Start with intro sequence
-  state = "intro";
-  introTimer = 0;
+  // Start with intro sequence only on first play
+  if (!introShown) {
+    state = "intro";
+    introTimer = 0;
+    introShown = true;
+  } else {
+    state = "running";
+    // Spawn initial asteroids
+    for (let i = 0; i < 3; i++) spawnAsteroid();
+    dropTimer = 0.6;
+  }
   lastTs = performance.now();
 }
 

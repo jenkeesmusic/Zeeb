@@ -85,6 +85,7 @@ coinsEl.textContent = coins.toString();
 // Intro sequence state
 const INTRO_DURATION = 4.0; // 4 seconds
 let introTimer = 0;
+let introShown = false; // Only show intro once per page load
 
 const keys = new Set();
 
@@ -365,9 +366,14 @@ function startGame() {
   resetGame();
   hide(overlay);
   hide(gameOverEl);
-  // Start with intro sequence
-  state = "intro";
-  introTimer = 0;
+  // Start with intro sequence only on first play
+  if (!introShown) {
+    state = "intro";
+    introTimer = 0;
+    introShown = true;
+  } else {
+    state = "running";
+  }
   lastTs = performance.now();
   // Attempt autoplay with sound; if blocked, start muted then periodically try to unmute
   try {
