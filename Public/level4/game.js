@@ -20,11 +20,17 @@ const IMAGES = {
   laser: new Image(),
   cucumber: new Image(),
   planet: new Image(),
+  asteroid1: new Image(),
+  asteroid2: new Image(),
+  asteroid3: new Image(),
 };
 IMAGES.rocket.src = "../img/Rocket1.png?v=20251024T201542";
 IMAGES.laser.src = "../img/laser3.png";
 IMAGES.cucumber.src = "../img/Cucumber2.png?v=20251127T0037";
 IMAGES.planet.src = "../img/plamet_zeeb.png";
+IMAGES.asteroid1.src = "../img/astroid1.png";
+IMAGES.asteroid2.src = "../img/astroid2.png";
+IMAGES.asteroid3.src = "../img/astroid3.png";
 
 // Audio
 const laserSound = new Audio("../audio/pew.wav");
@@ -325,7 +331,7 @@ function handleCollisions() {
 
 class FallingAsteroid {
   constructor(spawnX) {
-    this.r = randRange(28, 46);
+    this.r = randRange(22, 36); // Smaller size for better scalability
     // Spawn between Zeeb and Planet Zeeb (left of cucumber), avoiding the rocket area
     this.x = (typeof spawnX === "number")
       ? spawnX
@@ -336,6 +342,8 @@ class FallingAsteroid {
     this.vy = randRange(120, 180);
     this.deflected = false;
     this.active = true;
+    // Randomly select one of the three asteroid images
+    this.imageKey = ["asteroid1", "asteroid2", "asteroid3"][Math.floor(Math.random() * 3)];
   }
   rect() {
     return { x: this.x - this.r, y: this.y - this.r, w: this.r * 2, h: this.r * 2 };
@@ -359,10 +367,27 @@ class FallingAsteroid {
   draw() {
     if (!this.active) return;
     ctx.save();
-    ctx.fillStyle = this.deflected ? "#ffe6a8" : "#9fb0b8";
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-    ctx.fill();
+    const img = IMAGES[this.imageKey];
+    if (img && img.complete) {
+      // Draw the asteroid image
+      const size = this.r * 2;
+      ctx.drawImage(img, this.x - this.r, this.y - this.r, size, size);
+      // Optional: Add a tint when deflected
+      if (this.deflected) {
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = "#ffe6a8";
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      // Fallback to circles if images haven't loaded
+      ctx.fillStyle = this.deflected ? "#ffe6a8" : "#9fb0b8";
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 }
