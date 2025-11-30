@@ -55,16 +55,84 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 14px;
-  padding: 8px 12px;
-  background: rgba(6, 26, 12, 0.7);
+  gap: 24px;
+  padding: 12px 18px;
+  background: rgba(6, 26, 12, 0.85);
   border: 1px solid rgba(100, 255, 140, 0.3);
-  border-radius: 10px;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   font-weight: 800;
   color: #e6ffe2;
   text-shadow: 0 1px 2px rgba(0,0,0,0.65);
+}
+
+.hp-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hp-label {
+  font-size: 13px;
+  font-weight: 900;
+  min-width: 70px;
+  text-align: right;
+}
+
+.zeeb-bar .hp-label {
+  color: #7cf;
+}
+
+.cucumber-bar .hp-label {
+  color: #7cff9f;
+}
+
+.hp-bar {
+  width: 120px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.hp-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.2s ease-out, background-color 0.3s;
+}
+
+.zeeb-fill {
+  background: linear-gradient(180deg, #7cf, #4a8fcc);
+  box-shadow: 0 0 8px rgba(120, 200, 255, 0.5);
+}
+
+.cucumber-fill {
+  background: linear-gradient(180deg, #7cff9f, #4acc6a);
+  box-shadow: 0 0 8px rgba(120, 255, 160, 0.5);
+}
+
+.hp-value {
+  font-size: 13px;
+  min-width: 32px;
+  text-align: left;
+}
+
+/* Low HP warning colors */
+.hp-fill.low {
+  background: linear-gradient(180deg, #ffcc44, #cc8800) !important;
+}
+
+.hp-fill.critical {
+  background: linear-gradient(180deg, #ff4444, #cc2222) !important;
+  animation: pulse-critical 0.5s ease-in-out infinite;
+}
+
+@keyframes pulse-critical {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .overlay {

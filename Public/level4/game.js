@@ -9,8 +9,10 @@ const completeOverlay = $("completeOverlay");
 const startBtn = $("startBtn");
 const restartBtn = $("restartBtn");
 const bgMusic = $("bgMusic");
-const hitsEl = $("hitsEl");
 const hpEl = $("hpEl");
+const zeebHpEl = $("zeebHpEl");
+const zeebHpBar = $("zeebHpBar");
+const cucumberHpBar = $("cucumberHpBar");
 
 const W = canvas.width;
 const H = canvas.height;
@@ -51,11 +53,14 @@ function unlockMusic() {
 }
 
 // State
-let state = "ready"; // "ready" | "running" | "complete"
+let state = "ready"; // "ready" | "running" | "complete" | "gameover"
 let phase = 2; // single-phase battle (legacy var retained but not used for flow)
 let lastTs = 0;
 let hits = 0;
-let hp = 100;
+let hp = 200; // Cucumber HP (doubled for longer battle)
+let zeebHp = 100; // Player HP
+const MAX_CUCUMBER_HP = 200;
+const MAX_ZEEB_HP = 100;
 let lastShot = 0;
 let dropTimer = 0;
 
@@ -543,13 +548,12 @@ function handleCollisions() {
     if (intersects(l.rect(), rect)) {
       l.canDamage = false;
       hits += 1;
-      hitsEl.textContent = hits.toString();
 
       const bounced = Math.random() < bounceChance;
       // Lasers do minimal damage; main damage comes from ricocheted asteroids
-      const dmg = bounced ? randRange(0.05, 0.25) : randRange(0.35, 0.6);
+      const dmg = bounced ? randRange(0.1, 0.5) : randRange(0.7, 1.2);
       hp = Math.max(0, hp - dmg);
-      hpEl.textContent = hp.toFixed(1);
+      updateHpDisplays();
       sparks.push({ x: l.x, y: l.y, t: 0 });
 
       if (bounced) {
@@ -690,10 +694,12 @@ function handleAsteroidInteractions() {
   const cucRect = cucumber.rect();
   for (const a of fallingAsteroids) {
     if (!a.active || !a.deflected) continue;
+    // Only non-hostile asteroids damage cucumber
+    if (a.isHostile) continue;
     if (intersects(a.rect(), cucRect)) {
-      const dmg = randRange(6, 10);
+      const dmg = randRange(8, 14); // Increased damage range for longer battle
       hp = Math.max(0, hp - dmg);
-      hpEl.textContent = hp.toFixed(1);
+      updateHpDisplays();
       a.active = false;
       
       // Trigger hit reaction on cucumber
@@ -726,6 +732,9 @@ function handleAsteroidInteractions() {
     if (!a.active || !a.isHostile) continue;
     if (intersects(a.rect(), rocketRect)) {
       // Player got hit by ricocheted asteroid!
+      const dmg = randRange(12, 20);
+      zeebHp = Math.max(0, zeebHp - dmg);
+      updateHpDisplays();
       a.active = false;
       
       // Visual feedback - sparks at rocket
@@ -737,8 +746,11 @@ function handleAsteroidInteractions() {
         });
       }
       
-      // Flash the screen red briefly (could add screen shake too)
-      // For now just a visual warning
+      // Check if player is defeated
+      if (zeebHp <= 0) {
+        loseStage();
+        break;
+      }
     }
   }
 
@@ -863,16 +875,47 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
+// Update HP bar displays
+function updateHpDisplays() {
+  // Update text values
+  hpEl.textContent = Math.ceil(hp);
+  zeebHpEl.textContent = Math.ceil(zeebHp);
+  
+  // Update bar widths
+  const cucumberPercent = (hp / MAX_CUCUMBER_HP) * 100;
+  const zeebPercent = (zeebHp / MAX_ZEEB_HP) * 100;
+  
+  cucumberHpBar.style.width = cucumberPercent + "%";
+  zeebHpBar.style.width = zeebPercent + "%";
+  
+  // Update bar colors based on HP level
+  // Cucumber bar
+  cucumberHpBar.classList.remove("low", "critical");
+  if (cucumberPercent <= 20) {
+    cucumberHpBar.classList.add("critical");
+  } else if (cucumberPercent <= 40) {
+    cucumberHpBar.classList.add("low");
+  }
+  
+  // Zeeb bar
+  zeebHpBar.classList.remove("low", "critical");
+  if (zeebPercent <= 20) {
+    zeebHpBar.classList.add("critical");
+  } else if (zeebPercent <= 40) {
+    zeebHpBar.classList.add("low");
+  }
+}
+
 function resetStage() {
   hits = 0;
-  hp = 100;
+  hp = MAX_CUCUMBER_HP;
+  zeebHp = MAX_ZEEB_HP;
   dropTimer = 0;
   overheadTimer = 3.0; // First overhead asteroid after 3 seconds
   lasers.length = 0;
   sparks.length = 0;
   fallingAsteroids.length = 0;
-  hpEl.textContent = hp.toFixed(1);
-  hitsEl.textContent = hits.toString();
+  updateHpDisplays();
   rocket.reset();
   cucumber.reset();
   state = "ready";
@@ -882,6 +925,10 @@ function startStage() {
   unlockMusic();
   hide(overlay);
   hide(completeOverlay);
+  // Reset overlay text in case it was changed by loseStage
+  completeOverlay.querySelector("h2").textContent = "Battle Complete";
+  completeOverlay.querySelector(".subtitle").textContent = "Nice ricochets. Cucumber took serious damage.";
+  completeOverlay.querySelector("#restartBtn").textContent = "Replay Stage 1";
   resetStage();
   state = "running";
   lastTs = performance.now();
@@ -892,6 +939,15 @@ function startStage() {
 
 function winStage() {
   state = "complete";
+  show(completeOverlay);
+}
+
+function loseStage() {
+  state = "gameover";
+  // Reuse complete overlay but change the message
+  completeOverlay.querySelector("h2").textContent = "Zeeb Defeated!";
+  completeOverlay.querySelector(".subtitle").textContent = "The cucumber's ricocheted asteroids got you. Try again!";
+  completeOverlay.querySelector("#restartBtn").textContent = "Try Again";
   show(completeOverlay);
 }
 

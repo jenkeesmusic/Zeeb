@@ -50,8 +50,20 @@
     </div>
 
     <div id="hud" class="hud">
-      <div>Hits: <span id="hitsEl">0</span></div>
-      <div>Cucumber Shield: <span id="hpEl">100.0</span>%</div>
+      <div class="hp-bar-container zeeb-bar">
+        <span class="hp-label">Zeeb</span>
+        <div class="hp-bar">
+          <div id="zeebHpBar" class="hp-fill zeeb-fill" style="width: 100%"></div>
+        </div>
+        <span id="zeebHpEl" class="hp-value">100</span>
+      </div>
+      <div class="hp-bar-container cucumber-bar">
+        <span class="hp-label">Cucumber</span>
+        <div class="hp-bar">
+          <div id="cucumberHpBar" class="hp-fill cucumber-fill" style="width: 100%"></div>
+        </div>
+        <span id="hpEl" class="hp-value">200</span>
+      </div>
     </div>
 
     <footer class="footer">Cucumber Battle</footer>
