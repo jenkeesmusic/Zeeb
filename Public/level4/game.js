@@ -1020,6 +1020,9 @@ function spawnAsteroid() {
 // Timer for overhead asteroid spawning
 let overheadTimer = 3.0;
 
+// Timer for fiery horizontal asteroid spawning
+let fieryTimer = 5.0;
+
 // Spawn an overhead asteroid that falls above the cucumber
 function spawnOverheadAsteroid() {
   // Get cucumber's current and predicted position
@@ -1029,6 +1032,163 @@ function spawnOverheadAsteroid() {
   const spawnX = cucCurrentX + offset;
   
   fallingAsteroids.push(new FallingAsteroid(spawnX, true));
+}
+
+// Fiery asteroid class - horizontal attack from the right
+class FieryAsteroid {
+  constructor() {
+    this.size = randRange(38, 55);
+    // Spawn from right side, random Y position in playable area
+    this.x = W + this.size;
+    this.y = randRange(80, H - 80);
+    // Move left toward Zeeb
+    this.vx = -randRange(380, 520);
+    this.vy = randRange(-30, 30); // Slight vertical drift
+    this.active = true;
+    // Random asteroid image
+    this.image = ASTEROID_IMAGES[Math.floor(Math.random() * ASTEROID_IMAGES.length)];
+    this.rotation = Math.random() * Math.PI * 2;
+    this.rotationSpeed = (Math.random() - 0.5) * 4; // Fast spin
+    // Fire trail particles
+    this.trail = [];
+    this.trailTimer = 0;
+  }
+  
+  rect() {
+    const halfSize = this.size / 2;
+    return { x: this.x - halfSize, y: this.y - halfSize, w: this.size, h: this.size };
+  }
+  
+  update(dt) {
+    if (!this.active) return;
+    
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.rotation += this.rotationSpeed * dt;
+    
+    // Add fire trail particles
+    this.trailTimer -= dt;
+    if (this.trailTimer <= 0) {
+      this.trail.push({
+        x: this.x + randRange(-8, 8),
+        y: this.y + randRange(-8, 8),
+        size: randRange(8, 16),
+        life: 0.4,
+        alpha: 1
+      });
+      this.trailTimer = 0.03; // Spawn trail particle every 30ms
+    }
+    
+    // Update trail particles
+    for (const p of this.trail) {
+      p.life -= dt;
+      p.alpha = p.life / 0.4;
+      p.size *= 0.96;
+    }
+    this.trail = this.trail.filter(p => p.life > 0);
+    
+    // Deactivate when off left edge
+    if (this.x < -this.size - 50) {
+      this.active = false;
+    }
+  }
+  
+  draw() {
+    if (!this.active) return;
+    
+    // Draw fire trail
+    for (const p of this.trail) {
+      ctx.save();
+      ctx.globalAlpha = p.alpha * 0.8;
+      // Fire gradient - orange to red
+      const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+      gradient.addColorStop(0, '#ffff44');
+      gradient.addColorStop(0.3, '#ff8800');
+      gradient.addColorStop(0.7, '#ff3300');
+      gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    
+    // Draw fiery glow around asteroid
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    
+    // Outer glow
+    ctx.shadowColor = "#ff4400";
+    ctx.shadowBlur = 25;
+    
+    if (this.image && this.image.complete) {
+      const halfSize = this.size / 2;
+      ctx.drawImage(this.image, -halfSize, -halfSize, this.size, this.size);
+      
+      // Orange tint overlay
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = "#ff6600";
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#ff6633";
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+const fieryAsteroids = [];
+
+function spawnFieryAsteroid() {
+  fieryAsteroids.push(new FieryAsteroid());
+}
+
+function handleFieryAsteroidCollisions() {
+  const rocketHitbox = {
+    x: rocket.x + 18,
+    y: rocket.y + 18,
+    w: rocket.w - 36,
+    h: rocket.h - 36
+  };
+  
+  for (const f of fieryAsteroids) {
+    if (!f.active) continue;
+    
+    if (intersects(f.rect(), rocketHitbox)) {
+      // Fiery asteroid hit - extra damage!
+      const dmg = randRange(18, 28);
+      zeebHp = Math.max(0, zeebHp - dmg);
+      updateHpDisplays();
+      f.active = false;
+      
+      // Big visual feedback
+      rocket.onHit(dmg);
+      
+      // Extra sparks for fiery impact
+      for (let i = 0; i < 15; i++) {
+        sparks.push({ 
+          x: rocket.x + rocket.w / 2 + randRange(-35, 35), 
+          y: rocket.y + rocket.h / 2 + randRange(-35, 35), 
+          t: 0 
+        });
+      }
+      
+      if (zeebHp <= 0) {
+        loseStage();
+        break;
+      }
+    }
+  }
+  
+  // Cull inactive
+  for (let i = fieryAsteroids.length - 1; i >= 0; i--) {
+    if (!fieryAsteroids[i].active) fieryAsteroids.splice(i, 1);
+  }
 }
 
 function update(dt) {
@@ -1056,6 +1216,18 @@ function update(dt) {
     // Planet reacts more to overhead asteroids
     planet.onAsteroidNear(0.6);
   }
+  
+  // Fiery asteroids spawn occasionally (not too much!)
+  fieryTimer -= dt;
+  if (fieryTimer <= 0) {
+    spawnFieryAsteroid();
+    // Random interval between fiery asteroids (6 to 10 seconds) - infrequent but dangerous
+    fieryTimer = randRange(6.0, 10.0);
+  }
+  
+  // Update fiery asteroids
+  for (const f of fieryAsteroids) f.update(dt);
+  handleFieryAsteroidCollisions();
   
   // Check for asteroids passing near the planet and make it react
   for (const a of fallingAsteroids) {
@@ -1100,6 +1272,7 @@ function draw(dt) {
 
   cucumber.draw();
   for (const a of fallingAsteroids) a.draw();
+  for (const f of fieryAsteroids) f.draw();
   for (const l of lasers) l.draw();
 
   // Sparks
@@ -1175,9 +1348,11 @@ function resetStage() {
   zeebHp = MAX_ZEEB_HP;
   dropTimer = 0;
   overheadTimer = 3.0; // First overhead asteroid after 3 seconds
+  fieryTimer = 5.0; // First fiery asteroid after 5 seconds
   lasers.length = 0;
   sparks.length = 0;
   fallingAsteroids.length = 0;
+  fieryAsteroids.length = 0;
   updateHpDisplays();
   rocket.reset();
   cucumber.reset();
