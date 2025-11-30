@@ -62,6 +62,8 @@ const IMAGES = {
   crash: new Image(),
   coin: new Image(),
   laser: new Image(),
+  planet: new Image(),
+  cucumber: new Image(),
 };
 
 IMAGES.rocket.src = "../img/spaceship3.png?v=20251024T201542";
@@ -71,6 +73,8 @@ IMAGES.asteroids[2].src = "../img/astroid3.png";
 IMAGES.crash.src = "../img/crash.png";
 IMAGES.coin.src = "../img/coin.png";
 IMAGES.laser.src = "../img/laser3.png";
+IMAGES.planet.src = "../img/plamet_zeeb.png";
+IMAGES.cucumber.src = "../img/Cucumber.png";
 
 // Game state
 let state = "ready"; // "ready" | "intro" | "running" | "paused" | "crashing" | "over" | "win"
@@ -583,6 +587,52 @@ function drawBackground() {
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
+  
+  // Draw distant Planet Zeeb with Cucumber in upper right (we're getting close!)
+  drawDistantPlanet(t);
+}
+
+function drawDistantPlanet(t) {
+  const planetSize = 55; // Very small - distant in space
+  const planetX = W - 80;
+  const planetY = 60;
+  
+  // Gentle floating motion
+  const floatX = Math.sin(t * 0.3) * 3;
+  const floatY = Math.cos(t * 0.25) * 2;
+  
+  ctx.save();
+  ctx.globalAlpha = 0.7; // Slightly transparent - far away
+  
+  // Draw planet
+  if (IMAGES.planet && IMAGES.planet.complete) {
+    ctx.drawImage(
+      IMAGES.planet, 
+      planetX + floatX - planetSize / 2, 
+      planetY + floatY - planetSize / 2, 
+      planetSize, 
+      planetSize
+    );
+  } else {
+    // Fallback circle
+    ctx.fillStyle = "#3a7d44";
+    ctx.beginPath();
+    ctx.arc(planetX + floatX, planetY + floatY, planetSize / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Draw tiny cucumber on top of planet
+  if (IMAGES.cucumber && IMAGES.cucumber.complete) {
+    const cucH = 18; // Very small cucumber
+    const iw = IMAGES.cucumber.naturalWidth || IMAGES.cucumber.width || 1;
+    const ih = IMAGES.cucumber.naturalHeight || IMAGES.cucumber.height || 1;
+    const cucW = Math.round(cucH * (iw / ih));
+    const cucX = planetX + floatX - cucW / 2;
+    const cucY = planetY + floatY - planetSize / 2 - cucH + 6; // Sitting on top of planet
+    ctx.drawImage(IMAGES.cucumber, cucX, cucY, cucW, cucH);
+  }
+  
   ctx.restore();
 }
 
