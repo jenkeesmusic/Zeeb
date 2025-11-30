@@ -192,9 +192,10 @@ class Laser {
 class CucumberTarget {
   constructor() {
     // Keep original aspect ratio of the image; no stretching
-    this.h = 160;      // smaller target height
-    this.w = 107;      // fallback width until image loads (will be recomputed)
-    this.baseX = W * 0.76; // anchor to right side above planet
+    this.h = 140;      // slightly smaller cucumber
+    this.w = 93;       // fallback width until image loads (will be recomputed)
+    // Position will be set relative to planet in updatePositionFromPlanet()
+    this.baseX = W * 0.76;
     this.baseY = H - 100;
     this.t = 0;
     this.x = this.baseX;
@@ -309,10 +310,24 @@ class CucumberTarget {
     this.lookingUp = false; // Stop looking up, focus on dodging
   }
   
-  update(dt) {
+  // Update cucumber position to stand on the planet
+  updatePositionFromPlanet(planetObj) {
+    // Position cucumber on top center of the planet
+    const planetCenterX = planetObj.baseX + planetObj.w / 2 + planetObj.offsetX;
+    const planetTopY = planetObj.baseY + planetObj.offsetY + 20; // Slightly into the planet surface
+    this.baseX = planetCenterX;
+    this.baseY = planetTopY;
+  }
+  
+  update(dt, planetObj) {
+    // Update position to follow planet
+    if (planetObj) {
+      this.updatePositionFromPlanet(planetObj);
+    }
+    
     this.t += dt;
-    const sway = Math.sin(this.t * 0.8) * 120;
-    const bob = Math.sin(this.t * 2.2) * 6;
+    const sway = Math.sin(this.t * 0.8) * 60; // Reduced sway since on planet
+    const bob = Math.sin(this.t * 2.2) * 4; // Reduced bob
     
     // Update dodge
     if (this.isDodging) {
@@ -527,8 +542,8 @@ const planet = {
   pulseScale: 1,
   
   init() {
-    // Calculate size maintaining aspect ratio from actual image
-    const targetWidth = Math.floor(W * 0.32);
+    // Calculate size maintaining aspect ratio from actual image (smaller planet)
+    const targetWidth = Math.floor(W * 0.20);
     if (IMAGES.planet && IMAGES.planet.complete) {
       const iw = IMAGES.planet.naturalWidth || IMAGES.planet.width;
       const ih = IMAGES.planet.naturalHeight || IMAGES.planet.height;
@@ -543,8 +558,9 @@ const planet = {
       this.w = targetWidth;
       this.h = targetWidth;
     }
-    this.baseX = W - this.w - 50;
-    this.baseY = H - this.h - 20;
+    // Position planet in lower right, partially off-screen
+    this.baseX = W - this.w - 30;
+    this.baseY = H - this.h + 30; // Slightly below screen edge
   },
   
   reset() {
@@ -897,8 +913,8 @@ function spawnOverheadAsteroid() {
 
 function update(dt) {
   rocket.update(dt);
-  cucumber.update(dt);
   planet.update(dt);
+  cucumber.update(dt, planet); // Pass planet so cucumber can stand on it
   
   // Single-phase battle: asteroids always spawn
   dropTimer -= dt;
@@ -973,14 +989,7 @@ function draw(dt) {
   }
 
   rocket.draw();
-
-  // Ground shadow
-  ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
-  ctx.beginPath();
-  ctx.ellipse(W * 0.76, H - 38, 150, 22, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  // Shadow removed - planet floats in space
 }
 
 function loop(ts) {
