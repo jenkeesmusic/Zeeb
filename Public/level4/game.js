@@ -305,7 +305,6 @@ class CucumberTarget {
     this.dodgeOffset = 0;
     this.lookingUp = false;
     this.panicTimer = 0;
-    this.sweatDrops = [];
 
     // After the image loads, recompute width based on natural aspect ratio
     const updateAspect = () => {
@@ -340,7 +339,6 @@ class CucumberTarget {
     this.dodgeOffset = 0;
     this.lookingUp = false;
     this.panicTimer = 0;
-    this.sweatDrops = [];
   }
   
   // Called when asteroid hits
@@ -369,16 +367,6 @@ class CucumberTarget {
       if (distX < 80 && distY > -200 && distY < -50) {
         this.lookingUp = true;
         this.panicTimer = 0.8;
-        
-        // Add sweat drops when panicking
-        if (this.sweatDrops.length < 3) {
-          this.sweatDrops.push({
-            x: randRange(-15, 15),
-            y: randRange(-this.h * 0.8, -this.h * 0.5),
-            vy: 0,
-            life: 0.6
-          });
-        }
       }
       
       // Dodge when asteroid is very close!
@@ -436,14 +424,6 @@ class CucumberTarget {
         this.lookingUp = false;
       }
     }
-    
-    // Update sweat drops
-    for (const drop of this.sweatDrops) {
-      drop.vy += 400 * dt;
-      drop.y += drop.vy * dt;
-      drop.life -= dt;
-    }
-    this.sweatDrops = this.sweatDrops.filter(d => d.life > 0);
     
     // Apply hit reaction effects
     if (this.hitTimer > 0) {
@@ -553,21 +533,6 @@ class CucumberTarget {
         ctx.closePath();
         ctx.fill();
       }
-      ctx.globalAlpha = 1;
-    }
-    
-    // Draw sweat drops when panicking
-    for (const drop of this.sweatDrops) {
-      ctx.globalAlpha = Math.min(1, drop.life * 2);
-      ctx.fillStyle = "#88ddff";
-      ctx.beginPath();
-      // Teardrop shape
-      const dx = r.x + this.w / 2 + drop.x;
-      const dy = r.y + this.h + drop.y;
-      ctx.moveTo(dx, dy - 6);
-      ctx.quadraticCurveTo(dx + 4, dy, dx, dy + 6);
-      ctx.quadraticCurveTo(dx - 4, dy, dx, dy - 6);
-      ctx.fill();
       ctx.globalAlpha = 1;
     }
     
