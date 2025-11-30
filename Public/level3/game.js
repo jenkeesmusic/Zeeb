@@ -602,21 +602,22 @@ function drawDistantPlanet(t) {
   const floatX = Math.sin(t * 0.3) * 3;
   const floatY = Math.cos(t * 0.25) * 2;
   
-  // Subtle pulsing glow effect
-  const pulsePhase = Math.sin(t * 1.2) * 0.5 + 0.5; // 0 to 1 pulse
-  const glowIntensity = 8 + pulsePhase * 12; // 8-20px glow radius
-  const glowAlpha = 0.25 + pulsePhase * 0.15; // 0.25-0.4 alpha
+  // Pulsing glow effect - more visible
+  const pulsePhase = Math.sin(t * 1.5) * 0.5 + 0.5; // 0 to 1 pulse (faster)
+  const glowIntensity = 15 + pulsePhase * 20; // 15-35px glow radius
+  const glowAlpha = 0.45 + pulsePhase * 0.35; // 0.45-0.8 alpha
   
   ctx.save();
   
   // Draw purple glow behind planet
   ctx.globalAlpha = glowAlpha;
   const gradient = ctx.createRadialGradient(
-    planetX + floatX, planetY + floatY, planetSize * 0.4,
+    planetX + floatX, planetY + floatY, planetSize * 0.3,
     planetX + floatX, planetY + floatY, planetSize * 0.5 + glowIntensity
   );
-  gradient.addColorStop(0, 'rgba(180, 100, 255, 0.6)');
-  gradient.addColorStop(0.5, 'rgba(140, 80, 220, 0.3)');
+  gradient.addColorStop(0, 'rgba(200, 120, 255, 0.9)');
+  gradient.addColorStop(0.4, 'rgba(160, 90, 240, 0.5)');
+  gradient.addColorStop(0.7, 'rgba(120, 70, 200, 0.25)');
   gradient.addColorStop(1, 'rgba(100, 60, 180, 0)');
   ctx.fillStyle = gradient;
   ctx.beginPath();
