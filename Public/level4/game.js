@@ -78,6 +78,39 @@ const stars = Array.from({ length: 50 }, () => ({
   size: 0.6 + Math.random() * 1.6,
 }));
 
+// Screen shake effect
+const screenShake = {
+  intensity: 0,
+  duration: 0,
+  offsetX: 0,
+  offsetY: 0,
+  
+  trigger(damage) {
+    this.intensity = Math.min(20, damage * 1.5);
+    this.duration = 0.4;
+  },
+  
+  update(dt) {
+    if (this.duration > 0) {
+      this.duration -= dt;
+      const progress = this.duration / 0.4;
+      const shake = this.intensity * progress;
+      this.offsetX = (Math.random() - 0.5) * shake * 2;
+      this.offsetY = (Math.random() - 0.5) * shake * 2;
+    } else {
+      this.offsetX = 0;
+      this.offsetY = 0;
+    }
+  },
+  
+  reset() {
+    this.intensity = 0;
+    this.duration = 0;
+    this.offsetX = 0;
+    this.offsetY = 0;
+  }
+};
+
 class Rocket {
   constructor() {
     this.w = 105;
@@ -88,11 +121,26 @@ class Rocket {
     this.speed = 340;
     this.angle = Math.PI / 2;
     this.tilt = 0;
+    // Damage visual feedback
+    this.hitTimer = 0;
+    this.flashAlpha = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
   }
   reset() {
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
     this.tilt = 0;
+    this.hitTimer = 0;
+    this.flashAlpha = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
+  }
+  onHit(damage) {
+    this.hitTimer = 0.6;
+    this.flashAlpha = 0.9;
+    // Trigger screen shake
+    screenShake.trigger(damage);
   }
   update(dt) {
     let dir = 0;
@@ -115,20 +163,47 @@ class Rocket {
     if (this.y < 0) this.y = 0;
     if (this.y + this.h > H) this.y = H - this.h;
     this.tilt = Math.max(-0.3, Math.min(0.3, -this.vy / 900));
+    
+    // Update hit visual effects
+    if (this.hitTimer > 0) {
+      this.hitTimer -= dt;
+      this.flashAlpha *= 0.88;
+      // Shake effect
+      const shakeStrength = (this.hitTimer / 0.6) * 8;
+      this.shakeX = (Math.random() - 0.5) * shakeStrength * 2;
+      this.shakeY = (Math.random() - 0.5) * shakeStrength;
+    } else {
+      this.shakeX = 0;
+      this.shakeY = 0;
+      this.flashAlpha = 0;
+    }
   }
   draw() {
     const ang = this.angle + (this.tilt || 0);
+    const drawX = this.x + this.shakeX;
+    const drawY = this.y + this.shakeY;
+    
     if (IMAGES.rocket && IMAGES.rocket.complete) {
       ctx.save();
-      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.translate(drawX + this.w / 2, drawY + this.h / 2);
       ctx.rotate(ang);
       ctx.drawImage(IMAGES.rocket, -this.w / 2, -this.h / 2, this.w, this.h);
+      
+      // Red flash overlay when hit
+      if (this.flashAlpha > 0.05) {
+        ctx.globalAlpha = this.flashAlpha;
+        ctx.fillStyle = "#ff3333";
+        ctx.beginPath();
+        ctx.arc(0, 0, this.w * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
     } else {
       ctx.save();
-      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.translate(drawX + this.w / 2, drawY + this.h / 2);
       ctx.rotate(ang);
-      ctx.fillStyle = "#7cf";
+      ctx.fillStyle = this.flashAlpha > 0.1 ? "#ff6666" : "#7cf";
       ctx.beginPath();
       ctx.moveTo(-this.w * 0.4, -this.h * 0.4);
       ctx.lineTo(this.w * 0.5, 0);
@@ -680,11 +755,14 @@ function handleCollisions() {
         updateHpDisplays();
         l.active = false;
         
-        // Visual feedback - sparks at rocket
-        for (let i = 0; i < 6; i++) {
+        // Visual feedback
+        rocket.onHit(dmg);
+        
+        // Sparks at rocket
+        for (let i = 0; i < 8; i++) {
           sparks.push({ 
-            x: rocket.x + rocket.w / 2 + randRange(-15, 15), 
-            y: rocket.y + rocket.h / 2 + randRange(-15, 15), 
+            x: rocket.x + rocket.w / 2 + randRange(-25, 25), 
+            y: rocket.y + rocket.h / 2 + randRange(-25, 25), 
             t: 0 
           });
         }
@@ -892,11 +970,14 @@ function handleAsteroidInteractions() {
       updateHpDisplays();
       a.active = false;
       
-      // Visual feedback - sparks at rocket
-      for (let i = 0; i < 8; i++) {
+      // Visual feedback
+      rocket.onHit(dmg);
+      
+      // More dramatic sparks for asteroid impact
+      for (let i = 0; i < 12; i++) {
         sparks.push({ 
-          x: rocket.x + rocket.w / 2 + randRange(-20, 20), 
-          y: rocket.y + rocket.h / 2 + randRange(-20, 20), 
+          x: rocket.x + rocket.w / 2 + randRange(-30, 30), 
+          y: rocket.y + rocket.h / 2 + randRange(-30, 30), 
           t: 0 
         });
       }
@@ -954,6 +1035,7 @@ function update(dt) {
   rocket.update(dt);
   planet.update(dt);
   cucumber.update(dt, planet); // Pass planet so cucumber can stand on it
+  screenShake.update(dt);
   
   // Single-phase battle: asteroids always spawn
   dropTimer -= dt;
@@ -1008,6 +1090,11 @@ function update(dt) {
 
 function draw(dt) {
   ctx.clearRect(0, 0, W, H);
+  
+  // Apply screen shake
+  ctx.save();
+  ctx.translate(screenShake.offsetX, screenShake.offsetY);
+  
   drawBackground(dt || 0);
   drawPlanet();
 
@@ -1028,7 +1115,19 @@ function draw(dt) {
   }
 
   rocket.draw();
-  // Shadow removed - planet floats in space
+  
+  // Red damage vignette when taking damage
+  if (screenShake.duration > 0) {
+    const vignetteAlpha = (screenShake.duration / 0.4) * 0.4;
+    const gradient = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W * 0.7);
+    gradient.addColorStop(0, 'rgba(255, 0, 0, 0)');
+    gradient.addColorStop(0.6, 'rgba(255, 0, 0, 0)');
+    gradient.addColorStop(1, `rgba(255, 0, 0, ${vignetteAlpha})`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+  }
+  
+  ctx.restore();
 }
 
 function loop(ts) {
@@ -1084,6 +1183,7 @@ function resetStage() {
   cucumber.reset();
   planet.reset();
   planet.init(); // Reinitialize planet position
+  screenShake.reset();
   state = "ready";
 }
 
