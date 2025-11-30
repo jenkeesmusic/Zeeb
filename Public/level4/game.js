@@ -1374,9 +1374,9 @@ function startStage() {
   hide(overlay);
   hide(completeOverlay);
   // Reset overlay text in case it was changed by loseStage
-  completeOverlay.querySelector("h2").textContent = "Battle Complete";
-  completeOverlay.querySelector(".subtitle").textContent = "Nice ricochets. Cucumber took serious damage.";
-  completeOverlay.querySelector("#restartBtn").textContent = "Replay Stage 1";
+  completeOverlay.querySelector("h2").textContent = "Victory!";
+  completeOverlay.querySelector(".subtitle").textContent = "Nice ricochets. Cucumber has been defeated!";
+  completeOverlay.querySelector("#restartBtn").textContent = "Play Again";
   resetStage();
   state = "running";
   lastTs = performance.now();
