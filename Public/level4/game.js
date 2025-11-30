@@ -558,9 +558,9 @@ const planet = {
       this.w = targetWidth;
       this.h = targetWidth;
     }
-    // Position planet in lower right, partially off-screen
-    this.baseX = W - this.w - 30;
-    this.baseY = H - this.h + 30; // Slightly below screen edge
+    // Position planet in lower right, fully visible
+    this.baseX = W - this.w - 40;
+    this.baseY = H - this.h - 15; // Fully in-frame with small margin
   },
   
   reset() {
