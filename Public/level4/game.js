@@ -649,35 +649,29 @@ const planet = {
     this.pulseScale = 1;
   },
   
-  // Called when an asteroid spawns or passes nearby
+  // Called when an asteroid spawns or passes nearby (minimal effect now)
   onAsteroidNear(intensity = 0.5) {
-    this.shakeTimer = 0.3;
-    this.pulseScale = 1 + intensity * 0.03;
+    // Very subtle pulse only, no shake
+    this.pulseScale = 1 + intensity * 0.01;
   },
   
   update(dt) {
     this.t += dt;
     
-    // Gentle floating motion - very slow and subtle
-    this.offsetX = Math.sin(this.t * 0.3) * 4 + Math.sin(this.t * 0.7) * 2;
-    this.offsetY = Math.cos(this.t * 0.25) * 5 + Math.sin(this.t * 0.5) * 3;
+    // Gentle floating motion - slow drifting in space
+    // Multiple sine waves at different frequencies for organic movement
+    this.offsetX = Math.sin(this.t * 0.15) * 8 + Math.sin(this.t * 0.08) * 4;
+    this.offsetY = Math.cos(this.t * 0.12) * 6 + Math.sin(this.t * 0.06) * 3;
     
-    // Very slow rotation
-    this.rotation = Math.sin(this.t * 0.15) * 0.02;
+    // Very slow rotation - barely perceptible
+    this.rotation = Math.sin(this.t * 0.08) * 0.015;
     
-    // Shake effect when asteroids pass
-    if (this.shakeTimer > 0) {
-      this.shakeTimer -= dt;
-      const shakeIntensity = this.shakeTimer / 0.3;
-      this.shakeX = (Math.random() - 0.5) * 4 * shakeIntensity;
-      this.shakeY = (Math.random() - 0.5) * 3 * shakeIntensity;
-    } else {
-      this.shakeX = 0;
-      this.shakeY = 0;
-    }
+    // No shake effect - removed vibration
+    this.shakeX = 0;
+    this.shakeY = 0;
     
-    // Pulse scale recovery
-    this.pulseScale += (1 - this.pulseScale) * 3 * dt;
+    // Pulse scale recovery (very slow)
+    this.pulseScale += (1 - this.pulseScale) * 1.5 * dt;
   },
   
   draw() {
