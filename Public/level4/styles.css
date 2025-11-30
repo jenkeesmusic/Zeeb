@@ -1,4 +1,6 @@
 /* Level 4: Cucumber Battle (Stage 1) */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap');
+
 * { box-sizing: border-box; }
 html, body {
   height: 100%;
@@ -6,7 +8,7 @@ html, body {
   padding: 0;
   background: radial-gradient(circle at 50% 20%, #083316, #021007 50%, #010604 100%);
   color: #e6ffe2;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Orbitron', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
@@ -118,6 +120,7 @@ html, body {
   font-size: 13px;
   min-width: 32px;
   text-align: left;
+  font-family: 'Space Mono', monospace;
 }
 
 /* Low HP warning colors */

@@ -1,4 +1,6 @@
 /* Level 2 minimal UI styles (segmented from Level 1) */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap');
+
 * { box-sizing: border-box; }
 html, body {
   height: 100%;
@@ -6,7 +8,7 @@ html, body {
   padding: 0;
   background: #01030a;
   color: #e8ecf1;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Orbitron', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
@@ -74,6 +76,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 4px;
+  font-family: 'Space Mono', monospace;
 }
 
 .coin-icon {
