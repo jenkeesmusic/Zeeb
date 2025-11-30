@@ -53,10 +53,15 @@ function unlockMusic() {
 }
 
 // State
-let state = "ready"; // "ready" | "running" | "complete" | "gameover"
+let state = "ready"; // "ready" | "intro" | "running" | "complete" | "gameover"
 let phase = 2; // single-phase battle (legacy var retained but not used for flow)
 let lastTs = 0;
 let hits = 0;
+
+// Intro sequence state
+const INTRO_DURATION = 5.0; // 5 seconds
+let introTimer = 0;
+let introPhase = 0; // 0-1 progress through intro
 let hp = 200; // Cucumber HP (doubled for longer battle)
 let zeebHp = 150; // Player HP (increased for boss battle survivability)
 const MAX_CUCUMBER_HP = 200;
@@ -178,36 +183,41 @@ class Rocket {
       this.flashAlpha = 0;
     }
   }
-  draw() {
+  draw(introScale = 1, introX = null, introY = null) {
     const ang = this.angle + (this.tilt || 0);
-    const drawX = this.x + this.shakeX;
-    const drawY = this.y + this.shakeY;
+    // Use intro position if provided, otherwise normal position
+    const baseX = introX !== null ? introX : this.x;
+    const baseY = introY !== null ? introY : this.y;
+    const drawX = baseX + this.shakeX;
+    const drawY = baseY + this.shakeY;
+    const drawW = this.w * introScale;
+    const drawH = this.h * introScale;
     
     if (IMAGES.rocket && IMAGES.rocket.complete) {
       ctx.save();
-      ctx.translate(drawX + this.w / 2, drawY + this.h / 2);
+      ctx.translate(drawX + drawW / 2, drawY + drawH / 2);
       ctx.rotate(ang);
-      ctx.drawImage(IMAGES.rocket, -this.w / 2, -this.h / 2, this.w, this.h);
+      ctx.drawImage(IMAGES.rocket, -drawW / 2, -drawH / 2, drawW, drawH);
       
       // Red flash overlay when hit
       if (this.flashAlpha > 0.05) {
         ctx.globalAlpha = this.flashAlpha;
         ctx.fillStyle = "#ff3333";
         ctx.beginPath();
-        ctx.arc(0, 0, this.w * 0.45, 0, Math.PI * 2);
+        ctx.arc(0, 0, drawW * 0.45, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
       }
       ctx.restore();
     } else {
       ctx.save();
-      ctx.translate(drawX + this.w / 2, drawY + this.h / 2);
+      ctx.translate(drawX + drawW / 2, drawY + drawH / 2);
       ctx.rotate(ang);
       ctx.fillStyle = this.flashAlpha > 0.1 ? "#ff6666" : "#7cf";
       ctx.beginPath();
-      ctx.moveTo(-this.w * 0.4, -this.h * 0.4);
-      ctx.lineTo(this.w * 0.5, 0);
-      ctx.lineTo(-this.w * 0.4, this.h * 0.4);
+      ctx.moveTo(-drawW * 0.4, -drawH * 0.4);
+      ctx.lineTo(drawW * 0.5, 0);
+      ctx.lineTo(-drawW * 0.4, drawH * 0.4);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
@@ -1267,7 +1277,149 @@ function update(dt) {
   }
 }
 
+function drawIntro(dt) {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground(dt || 0);
+  
+  // Calculate intro animation progress (0 to 1)
+  const progress = Math.min(1, introTimer / INTRO_DURATION);
+  
+  // Easing function for smooth animation
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+  const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  
+  // Phase 1 (0-0.4): Zeeb large and centered, title fades in
+  // Phase 2 (0.4-0.6): Title fully visible
+  // Phase 3 (0.6-1.0): Zeeb shrinks and moves to battle position, title fades out
+  
+  // Calculate Zeeb's scale and position
+  const startScale = 4.0; // 4x normal size
+  const endScale = 1.0;
+  const startX = W / 2 - (rocket.w * startScale) / 2;
+  const startY = H / 2 - (rocket.h * startScale) / 2;
+  const endX = rocket.x;
+  const endY = H / 2 - rocket.h / 2;
+  
+  let currentScale, currentX, currentY;
+  
+  if (progress < 0.4) {
+    // Phase 1: Stay large and centered
+    currentScale = startScale;
+    currentX = startX;
+    currentY = startY;
+  } else if (progress < 0.6) {
+    // Phase 2: Still large, maybe slight pulse
+    const pulsePhase = (progress - 0.4) / 0.2;
+    const pulse = 1 + Math.sin(pulsePhase * Math.PI * 2) * 0.05;
+    currentScale = startScale * pulse;
+    currentX = W / 2 - (rocket.w * currentScale) / 2;
+    currentY = H / 2 - (rocket.h * currentScale) / 2;
+  } else {
+    // Phase 3: Shrink and move to battle position
+    const shrinkProgress = (progress - 0.6) / 0.4;
+    const eased = easeOutCubic(shrinkProgress);
+    currentScale = startScale + (endScale - startScale) * eased;
+    currentX = startX + (endX - startX) * eased;
+    currentY = startY + (endY - startY) * eased;
+  }
+  
+  // Draw Zeeb at intro position/scale
+  rocket.draw(currentScale, currentX, currentY);
+  
+  // Draw title text
+  let titleAlpha = 0;
+  if (progress < 0.15) {
+    // Fade in
+    titleAlpha = progress / 0.15;
+  } else if (progress < 0.7) {
+    // Fully visible
+    titleAlpha = 1;
+  } else {
+    // Fade out
+    titleAlpha = 1 - (progress - 0.7) / 0.3;
+  }
+  
+  if (titleAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = titleAlpha;
+    
+    // Title glow
+    ctx.shadowColor = "#00ff88";
+    ctx.shadowBlur = 30;
+    
+    // Main title
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 56px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("CUCUMBER BATTLE", W / 2, H / 2 - 180);
+    
+    // Subtitle
+    ctx.shadowBlur = 15;
+    ctx.font = "28px 'Segoe UI', Arial, sans-serif";
+    ctx.fillStyle = "#88ffaa";
+    ctx.fillText("Level 4", W / 2, H / 2 - 120);
+    
+    // "VS" text appears later
+    if (progress > 0.25) {
+      const vsAlpha = Math.min(1, (progress - 0.25) / 0.15);
+      ctx.globalAlpha = titleAlpha * vsAlpha;
+      ctx.font = "bold 72px 'Segoe UI', Arial, sans-serif";
+      ctx.fillStyle = "#ff6644";
+      ctx.shadowColor = "#ff4400";
+      ctx.shadowBlur = 25;
+      ctx.fillText("VS", W / 2 + 200, H / 2 + 50);
+      
+      // Cucumber name
+      ctx.font = "bold 36px 'Segoe UI', Arial, sans-serif";
+      ctx.fillStyle = "#66ff88";
+      ctx.shadowColor = "#00ff44";
+      ctx.fillText("THE CUCUMBER", W / 2 + 200, H / 2 + 110);
+    }
+    
+    ctx.restore();
+  }
+  
+  // Draw cucumber preview (fades in during intro)
+  if (progress > 0.3) {
+    const cucAlpha = Math.min(1, (progress - 0.3) / 0.2);
+    ctx.save();
+    ctx.globalAlpha = cucAlpha * 0.8;
+    
+    // Draw cucumber on the right side
+    if (IMAGES.cucumber && IMAGES.cucumber.complete) {
+      const cucW = 120;
+      const cucH = 180;
+      const cucX = W - 200;
+      const cucY = H / 2 - cucH / 2 + 30;
+      ctx.drawImage(IMAGES.cucumber, cucX, cucY, cucW, cucH);
+    }
+    
+    ctx.restore();
+  }
+  
+  // "GET READY" text near the end
+  if (progress > 0.85) {
+    const readyAlpha = (progress - 0.85) / 0.15;
+    ctx.save();
+    ctx.globalAlpha = readyAlpha;
+    ctx.fillStyle = "#ffff00";
+    ctx.font = "bold 32px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#ffaa00";
+    ctx.shadowBlur = 20;
+    ctx.fillText("GET READY!", W / 2, H - 80);
+    ctx.restore();
+  }
+}
+
 function draw(dt) {
+  // During intro, use special intro drawing
+  if (state === "intro") {
+    drawIntro(dt);
+    return;
+  }
+  
   ctx.clearRect(0, 0, W, H);
   
   // Apply screen shake
@@ -1310,9 +1462,32 @@ function draw(dt) {
   ctx.restore();
 }
 
+function updateIntro(dt) {
+  introTimer += dt;
+  
+  // Update background stars
+  for (const s of stars) {
+    s.x -= s.speed * dt * 0.5; // Slower during intro
+    if (s.x < -4) {
+      s.x = W + Math.random() * 40;
+      s.y = Math.random() * H * 0.9;
+    }
+  }
+  
+  // When intro is complete, transition to running state
+  if (introTimer >= INTRO_DURATION) {
+    state = "running";
+    introTimer = 0;
+    // Ensure asteroids are visible immediately
+    for (let i = 0; i < 3; i++) spawnAsteroid();
+    dropTimer = 0.6;
+  }
+}
+
 function loop(ts) {
   const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
   lastTs = ts;
+  if (state === "intro") updateIntro(dt);
   if (state === "running") update(dt);
   draw(dt);
   requestAnimationFrame(loop);
@@ -1378,11 +1553,10 @@ function startStage() {
   completeOverlay.querySelector(".subtitle").textContent = "Nice ricochets. Cucumber has been defeated!";
   completeOverlay.querySelector("#restartBtn").textContent = "Play Again";
   resetStage();
-  state = "running";
+  // Start with intro sequence
+  state = "intro";
+  introTimer = 0;
   lastTs = performance.now();
-  // Ensure asteroids are visible immediately
-  for (let i = 0; i < 3; i++) spawnAsteroid();
-  dropTimer = 0.6;
 }
 
 function winStage() {
