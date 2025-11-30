@@ -659,8 +659,46 @@ function shoot() {
 function handleCollisions() {
   const rect = cucumber.rect();
   const bounceChance = 0.9;
+  
+  // Player rocket hitbox (tighter than visual)
+  const rocketHitbox = {
+    x: rocket.x + 20,
+    y: rocket.y + 20,
+    w: rocket.w - 40,
+    h: rocket.h - 40
+  };
+  
   for (const l of lasers) {
-    if (!l.active || !l.canDamage) continue;
+    if (!l.active) continue;
+    
+    // Check if bounced laser hits the player rocket!
+    if (l.bounced && l.canDamagePlayer !== false) {
+      if (intersects(l.rect(), rocketHitbox)) {
+        // Player hit by their own reflected laser!
+        const dmg = randRange(8, 15);
+        zeebHp = Math.max(0, zeebHp - dmg);
+        updateHpDisplays();
+        l.active = false;
+        
+        // Visual feedback - sparks at rocket
+        for (let i = 0; i < 6; i++) {
+          sparks.push({ 
+            x: rocket.x + rocket.w / 2 + randRange(-15, 15), 
+            y: rocket.y + rocket.h / 2 + randRange(-15, 15), 
+            t: 0 
+          });
+        }
+        
+        // Check if player is defeated
+        if (zeebHp <= 0) {
+          loseStage();
+        }
+        continue;
+      }
+    }
+    
+    // Check laser hitting cucumber
+    if (!l.canDamage) continue;
     if (intersects(l.rect(), rect)) {
       l.canDamage = false;
       hits += 1;
@@ -674,9 +712,10 @@ function handleCollisions() {
 
       if (bounced) {
         l.bounced = true;
-        l.vx = -Math.abs(l.vx) * 0.55;
-        l.vy = (Math.random() * 2 - 1) * 240;
-        l.life = Math.min(l.life, 0.8);
+        l.canDamagePlayer = true; // Can now damage player
+        l.vx = -Math.abs(l.vx) * 0.65; // Faster bounce back
+        l.vy = (Math.random() * 2 - 1) * 280; // More spread
+        l.life = Math.min(l.life, 1.2); // Lives longer
         l.active = true;
       } else {
         l.active = false;
