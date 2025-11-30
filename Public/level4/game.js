@@ -1595,8 +1595,14 @@ restartBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("keydown", (e) => {
-  if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
+  if (["ArrowUp", "ArrowDown", " ", "Enter"].includes(e.key)) e.preventDefault();
   unlockMusic();
+
+  // Start game with Space or Enter from menu/game over
+  if ((e.key === " " || e.key === "Enter") && (state === "ready" || state === "complete" || state === "gameover")) {
+    startStage();
+    return;
+  }
 
   if (state === "running" && e.key === " ") {
     shoot();

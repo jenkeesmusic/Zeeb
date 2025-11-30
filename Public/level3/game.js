@@ -961,7 +961,7 @@ window.addEventListener("keydown", (e) => {
     togglePause();
     return;
   }
-  if (e.key === " " && (state === "ready" || state === "over")) {
+  if ((e.key === " " || e.key === "Enter") && (state === "ready" || state === "over")) {
     startGame();
     return;
   }
