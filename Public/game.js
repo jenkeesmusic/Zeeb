@@ -796,6 +796,11 @@ function hide(el) {
   el.classList.add("hidden");
 }
 
+// How to Play modal
+const howToPlayBtn = $("howToPlayBtn");
+const howToPlayOverlay = $("howToPlayOverlay");
+const closeHowToPlay = $("closeHowToPlay");
+
 // Event listeners
 startBtn.addEventListener("click", () => {
   if (state === "ready" || state === "over") startGame();
@@ -803,6 +808,31 @@ startBtn.addEventListener("click", () => {
 restartBtn.addEventListener("click", () => {
   if (state === "over") startGame();
 });
+
+// How to Play button handlers
+if (howToPlayBtn && howToPlayOverlay && closeHowToPlay) {
+  howToPlayBtn.addEventListener("click", () => {
+    howToPlayOverlay.classList.remove("hidden");
+  });
+  
+  closeHowToPlay.addEventListener("click", () => {
+    howToPlayOverlay.classList.add("hidden");
+  });
+  
+  // Close on clicking outside the panel
+  howToPlayOverlay.addEventListener("click", (e) => {
+    if (e.target === howToPlayOverlay) {
+      howToPlayOverlay.classList.add("hidden");
+    }
+  });
+  
+  // Close on Escape key
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !howToPlayOverlay.classList.contains("hidden")) {
+      howToPlayOverlay.classList.add("hidden");
+    }
+  });
+}
 
 window.addEventListener("keydown", (e) => {
   // Prevent scrolling on arrow keys/space

@@ -355,3 +355,118 @@ html {
   90% { transform: translate(0, 0) rotate(2deg) scale(1.01); }
   100% { transform: translateY(0) rotate(0deg) scale(1); }
 }
+
+/* Button row for multiple buttons side by side */
+.btn-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+/* Secondary button style */
+.btn.btn-secondary {
+  background: linear-gradient(180deg, #1a2a40, #0e1a28);
+  border-color: rgba(100, 150, 200, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 50, 120, 0.25);
+  font-size: 14px;
+  padding: 10px 16px;
+}
+.btn.btn-secondary:hover {
+  filter: brightness(1.15);
+}
+
+/* How to Play Panel */
+.how-to-play-panel {
+  width: min(94vw, 480px);
+  max-height: 85vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.how-to-play-panel h2 {
+  text-align: center;
+  font-size: 26px;
+  margin-bottom: 16px;
+  color: #ffd080;
+  text-shadow: 0 2px 8px rgba(255, 180, 80, 0.3);
+}
+
+.instructions-section {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: rgba(20, 40, 70, 0.4);
+  border-radius: 10px;
+  border: 1px solid rgba(100, 150, 220, 0.2);
+}
+
+.instructions-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  color: #a0d4ff;
+  font-weight: 700;
+}
+
+.instructions-section.tips {
+  background: rgba(50, 40, 20, 0.4);
+  border-color: rgba(255, 200, 100, 0.25);
+}
+
+.instructions-section.tips h3 {
+  color: #ffd080;
+}
+
+.how-to-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.how-to-list li {
+  padding: 6px 0;
+  font-size: 14px;
+  color: #c8ddf0;
+  line-height: 1.4;
+}
+
+.how-to-list li strong {
+  color: #fff;
+  font-weight: 700;
+}
+
+.how-to-play-panel .btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px;
+  font-size: 18px;
+}
+
+/* Mobile adjustments for How to Play */
+@media (max-width: 480px) {
+  .how-to-play-panel {
+    padding: 16px 14px;
+  }
+  
+  .how-to-play-panel h2 {
+    font-size: 22px;
+  }
+  
+  .instructions-section h3 {
+    font-size: 16px;
+  }
+  
+  .how-to-list li {
+    font-size: 13px;
+  }
+  
+  .btn-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .btn-row .btn {
+    width: 100%;
+  }
+}
