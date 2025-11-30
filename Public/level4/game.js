@@ -511,20 +511,120 @@ function drawBackground(dt) {
   }
 }
 
-function drawPlanet() {
-  // Right-side planet with proportional size
-  const w = Math.floor(W * 0.36);
-  const h = Math.floor(w * 0.55);
-  const x = W - w - 32;
-  const y = H - h + 12;
-  if (IMAGES.planet && IMAGES.planet.complete) {
-    ctx.drawImage(IMAGES.planet, x, y, w, h);
-  } else {
-    ctx.fillStyle = "#275a34";
-    ctx.beginPath();
-    ctx.ellipse(W / 2, y + h * 0.8, w * 0.5, h * 0.6, 0, 0, Math.PI * 2);
-    ctx.fill();
+// Planet state for floating animation and reactions
+const planet = {
+  baseX: 0,
+  baseY: 0,
+  w: 0,
+  h: 0,
+  t: 0,
+  offsetX: 0,
+  offsetY: 0,
+  rotation: 0,
+  shakeX: 0,
+  shakeY: 0,
+  shakeTimer: 0,
+  pulseScale: 1,
+  
+  init() {
+    // Calculate size maintaining aspect ratio from actual image
+    const targetWidth = Math.floor(W * 0.32);
+    if (IMAGES.planet && IMAGES.planet.complete) {
+      const iw = IMAGES.planet.naturalWidth || IMAGES.planet.width;
+      const ih = IMAGES.planet.naturalHeight || IMAGES.planet.height;
+      if (iw && ih) {
+        this.w = targetWidth;
+        this.h = Math.floor(targetWidth * (ih / iw));
+      } else {
+        this.w = targetWidth;
+        this.h = targetWidth; // Square fallback
+      }
+    } else {
+      this.w = targetWidth;
+      this.h = targetWidth;
+    }
+    this.baseX = W - this.w - 50;
+    this.baseY = H - this.h - 20;
+  },
+  
+  reset() {
+    this.t = 0;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.rotation = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
+    this.shakeTimer = 0;
+    this.pulseScale = 1;
+  },
+  
+  // Called when an asteroid spawns or passes nearby
+  onAsteroidNear(intensity = 0.5) {
+    this.shakeTimer = 0.3;
+    this.pulseScale = 1 + intensity * 0.03;
+  },
+  
+  update(dt) {
+    this.t += dt;
+    
+    // Gentle floating motion - very slow and subtle
+    this.offsetX = Math.sin(this.t * 0.3) * 4 + Math.sin(this.t * 0.7) * 2;
+    this.offsetY = Math.cos(this.t * 0.25) * 5 + Math.sin(this.t * 0.5) * 3;
+    
+    // Very slow rotation
+    this.rotation = Math.sin(this.t * 0.15) * 0.02;
+    
+    // Shake effect when asteroids pass
+    if (this.shakeTimer > 0) {
+      this.shakeTimer -= dt;
+      const shakeIntensity = this.shakeTimer / 0.3;
+      this.shakeX = (Math.random() - 0.5) * 4 * shakeIntensity;
+      this.shakeY = (Math.random() - 0.5) * 3 * shakeIntensity;
+    } else {
+      this.shakeX = 0;
+      this.shakeY = 0;
+    }
+    
+    // Pulse scale recovery
+    this.pulseScale += (1 - this.pulseScale) * 3 * dt;
+  },
+  
+  draw() {
+    const x = this.baseX + this.offsetX + this.shakeX;
+    const y = this.baseY + this.offsetY + this.shakeY;
+    
+    ctx.save();
+    
+    // Apply rotation around center
+    ctx.translate(x + this.w / 2, y + this.h / 2);
+    ctx.rotate(this.rotation);
+    ctx.scale(this.pulseScale, this.pulseScale);
+    ctx.translate(-(x + this.w / 2), -(y + this.h / 2));
+    
+    if (IMAGES.planet && IMAGES.planet.complete) {
+      // Draw with correct aspect ratio
+      ctx.drawImage(IMAGES.planet, x, y, this.w, this.h);
+    } else {
+      // Fallback
+      ctx.fillStyle = "#275a34";
+      ctx.beginPath();
+      ctx.ellipse(x + this.w / 2, y + this.h / 2, this.w / 2, this.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    ctx.restore();
   }
+};
+
+// Initialize planet when image loads
+if (IMAGES.planet.complete) {
+  planet.init();
+} else {
+  IMAGES.planet.addEventListener("load", () => planet.init(), { once: true });
+}
+
+function drawPlanet() {
+  planet.draw();
 }
 
 function shoot() {
@@ -798,6 +898,7 @@ function spawnOverheadAsteroid() {
 function update(dt) {
   rocket.update(dt);
   cucumber.update(dt);
+  planet.update(dt);
   
   // Single-phase battle: asteroids always spawn
   dropTimer -= dt;
@@ -805,6 +906,8 @@ function update(dt) {
     spawnAsteroid();
     // Slightly slower cadence to keep asteroids readable
     dropTimer = randRange(1.0, 1.8);
+    // Planet reacts slightly when asteroids spawn nearby
+    planet.onAsteroidNear(0.3);
   }
   
   // Overhead asteroids spawn occasionally
@@ -813,6 +916,19 @@ function update(dt) {
     spawnOverheadAsteroid();
     // Random interval between overhead asteroids (2.5 to 5 seconds)
     overheadTimer = randRange(2.5, 5.0);
+    // Planet reacts more to overhead asteroids
+    planet.onAsteroidNear(0.6);
+  }
+  
+  // Check for asteroids passing near the planet and make it react
+  for (const a of fallingAsteroids) {
+    if (!a.active) continue;
+    const planetCenterX = planet.baseX + planet.w / 2;
+    const planetCenterY = planet.baseY + planet.h / 2;
+    const dist = Math.hypot(a.x - planetCenterX, a.y - planetCenterY);
+    if (dist < 200 && a.y > H * 0.5) {
+      planet.onAsteroidNear(0.4);
+    }
   }
   
   // Let cucumber check for overhead asteroids and react
@@ -918,6 +1034,8 @@ function resetStage() {
   updateHpDisplays();
   rocket.reset();
   cucumber.reset();
+  planet.reset();
+  planet.init(); // Reinitialize planet position
   state = "ready";
 }
 
