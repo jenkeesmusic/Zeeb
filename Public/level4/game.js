@@ -1386,11 +1386,14 @@ function drawIntro(dt) {
     ctx.save();
     ctx.globalAlpha = cucAlpha * 0.8;
     
-    // Draw cucumber on the right side
+    // Draw cucumber on the right side with proper aspect ratio
     if (IMAGES.cucumber && IMAGES.cucumber.complete) {
-      const cucW = 120;
-      const cucH = 180;
-      const cucX = W - 200;
+      const imgW = IMAGES.cucumber.naturalWidth || IMAGES.cucumber.width;
+      const imgH = IMAGES.cucumber.naturalHeight || IMAGES.cucumber.height;
+      // Target height, calculate width from aspect ratio
+      const cucH = 200;
+      const cucW = imgW && imgH ? Math.round(cucH * (imgW / imgH)) : 120;
+      const cucX = W - 180 - cucW / 2;
       const cucY = H / 2 - cucH / 2 + 30;
       ctx.drawImage(IMAGES.cucumber, cucX, cucY, cucW, cucH);
     }
