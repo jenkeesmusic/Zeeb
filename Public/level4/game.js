@@ -28,7 +28,7 @@ const IMAGES = {
 };
 IMAGES.rocket.src = "../img/Rocket1.png?v=20251024T201542";
 IMAGES.laser.src = "../img/laser3.png";
-IMAGES.cucumber.src = "../img/Cucumber2.png?v=20251127T0037";
+IMAGES.cucumber.src = "../img/Cucumber.png?v=20251130T1340";
 IMAGES.planet.src = "../img/plamet_zeeb.png";
 IMAGES.asteroid1.src = "../img/astroid1.png";
 IMAGES.asteroid2.src = "../img/astroid2.png";
