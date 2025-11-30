@@ -58,9 +58,9 @@ let phase = 2; // single-phase battle (legacy var retained but not used for flow
 let lastTs = 0;
 let hits = 0;
 let hp = 200; // Cucumber HP (doubled for longer battle)
-let zeebHp = 100; // Player HP
+let zeebHp = 150; // Player HP (increased for boss battle survivability)
 const MAX_CUCUMBER_HP = 200;
-const MAX_ZEEB_HP = 100;
+const MAX_ZEEB_HP = 150;
 let lastShot = 0;
 let dropTimer = 0;
 
