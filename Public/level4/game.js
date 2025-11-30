@@ -20,11 +20,20 @@ const IMAGES = {
   laser: new Image(),
   cucumber: new Image(),
   planet: new Image(),
+  asteroid1: new Image(),
+  asteroid2: new Image(),
+  asteroid3: new Image(),
 };
 IMAGES.rocket.src = "../img/Rocket1.png?v=20251024T201542";
 IMAGES.laser.src = "../img/laser3.png";
 IMAGES.cucumber.src = "../img/Cucumber2.png?v=20251127T0037";
 IMAGES.planet.src = "../img/plamet_zeeb.png";
+IMAGES.asteroid1.src = "../img/astroid1.png";
+IMAGES.asteroid2.src = "../img/astroid2.png";
+IMAGES.asteroid3.src = "../img/astroid3.png";
+
+// Array of asteroid images for random selection
+const ASTEROID_IMAGES = [IMAGES.asteroid1, IMAGES.asteroid2, IMAGES.asteroid3];
 
 // Audio
 const laserSound = new Audio("../audio/pew.wav");
@@ -325,20 +334,27 @@ function handleCollisions() {
 
 class FallingAsteroid {
   constructor(spawnX) {
-    this.r = randRange(28, 46);
+    // Scaled down size (was 28-46, now smaller)
+    this.size = randRange(32, 52);
     // Spawn between Zeeb and Planet Zeeb (left of cucumber), avoiding the rocket area
     this.x = (typeof spawnX === "number")
       ? spawnX
       : randRange(W * 0.36, W * 0.62);
-    this.y = -this.r - 20;
+    this.y = -this.size - 20;
     this.vx = 0;
     // Slower straight-down fall until deflected
     this.vy = randRange(120, 180);
     this.deflected = false;
     this.active = true;
+    // Random asteroid image selection
+    this.image = ASTEROID_IMAGES[Math.floor(Math.random() * ASTEROID_IMAGES.length)];
+    // Random rotation for variety
+    this.rotation = Math.random() * Math.PI * 2;
+    this.rotationSpeed = (Math.random() - 0.5) * 2; // Random spin direction
   }
   rect() {
-    return { x: this.x - this.r, y: this.y - this.r, w: this.r * 2, h: this.r * 2 };
+    const halfSize = this.size / 2;
+    return { x: this.x - halfSize, y: this.y - halfSize, w: this.size, h: this.size };
   }
   update(dt) {
     if (!this.active) return;
@@ -348,9 +364,13 @@ class FallingAsteroid {
     } else {
       this.vx += 40 * dt; // slight acceleration forward
       this.vy *= 0.99;
+      // Spin faster when deflected
+      this.rotationSpeed = this.rotationSpeed * 1.01;
     }
     this.x += this.vx * dt;
     this.y += this.vy * dt;
+    // Rotate asteroid
+    this.rotation += this.rotationSpeed * dt;
 
     if (this.y > H + 120 || this.x > W + 160) {
       this.active = false;
@@ -359,10 +379,25 @@ class FallingAsteroid {
   draw() {
     if (!this.active) return;
     ctx.save();
-    ctx.fillStyle = this.deflected ? "#ffe6a8" : "#9fb0b8";
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    
+    if (this.image && this.image.complete) {
+      // Draw asteroid image centered and scaled
+      const halfSize = this.size / 2;
+      // Add glow effect when deflected
+      if (this.deflected) {
+        ctx.shadowColor = "#ffe6a8";
+        ctx.shadowBlur = 15;
+      }
+      ctx.drawImage(this.image, -halfSize, -halfSize, this.size, this.size);
+    } else {
+      // Fallback to circle if image not loaded
+      ctx.fillStyle = this.deflected ? "#ffe6a8" : "#9fb0b8";
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 }
