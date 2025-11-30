@@ -1,7 +1,3 @@
-/* Level 2 — Segmented from Level 1
-   Faster spawns, higher asteroid speeds, new ship & laser art, separate best score key
-*/
-
 const $ = (id) => document.getElementById(id);
 
 const canvas = $("gameCanvas");
@@ -17,15 +13,12 @@ const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
 
-// Sound effects (reuse L1 pew)
 const laserSound = new Audio("../audio/pew.wav");
 laserSound.volume = 0.35;
 
-// Canvas dimensions from HTML attributes
 const W = canvas.width;
 const H = canvas.height;
 
-// Assets (segmented art)
 const IMAGES = {
   rocket: new Image(),
   asteroids: [new Image(), new Image(), new Image()],
@@ -35,7 +28,6 @@ const IMAGES = {
   planet: new Image(),
 };
 
-// New ship/laser + same asteroid, coin, crash sets
 IMAGES.rocket.src = "../img/Rocket-2.png?v=20251024T201542";
 IMAGES.asteroids[0].src = "../img/astroid1.png";
 IMAGES.asteroids[1].src = "../img/astroid2.png";
@@ -45,28 +37,23 @@ IMAGES.coin.src = "../img/coin.png";
 IMAGES.laser.src = "../img/laser2.png";
 IMAGES.planet.src = "../img/plamet_zeeb.png";
 
-// Game state
-let state = "ready"; // "ready" | "intro" | "running" | "paused" | "crashing" | "over"
+let state = "ready";
 let lastTs = 0;
 let score = 0;
 let coins = 0;
-// Separate best for Level 2
 let best = parseInt(localStorage.getItem("zeeb_best_l2") || "0", 10);
 bestEl.textContent = best.toString();
 coinsEl.textContent = coins.toString();
 
-// Intro sequence state
-const INTRO_DURATION = 4.0; // 4 seconds
+const INTRO_DURATION = 4.0;
 let introTimer = 0;
-let introShown = false; // Only show intro once per page load
+let introShown = false;
 
 const keys = new Set();
 
-// Pointer/touch control
 let pointerActive = false;
 let targetY = H / 2;
 
-// Entities
 class Rocket {
   constructor() {
     this.w = 105;
@@ -74,11 +61,10 @@ class Rocket {
     this.x = 84;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
-    this.speed = 360; // L2 keyboard speed bump
+    this.speed = 360;
     this.sprite = IMAGES.rocket;
     this.r = Math.max(this.w, this.h) * 0.38;
 
-    // Face right, mild tilt
     this.angle = Math.PI / 2;
     this.tilt = 0;
   }
@@ -90,7 +76,6 @@ class Rocket {
   }
 
   update(dt) {
-    // Keyboard control
     let dir = 0;
     if (keys.has("ArrowUp") || keys.has("w")) dir -= 1;
     if (keys.has("ArrowDown") || keys.has("s")) dir += 1;
@@ -101,7 +86,6 @@ class Rocket {
     } else if (pointerActive) {
       const centerY = this.y + this.h / 2;
       const diff = targetY - centerY;
-      // L2: even snappier finger follow
       this.y += diff * Math.min(1, dt * 18);
       this.vy = diff;
     } else {
@@ -109,7 +93,6 @@ class Rocket {
       this.y += this.vy * dt;
     }
 
-    // Clamp
     if (this.y < 0) this.y = 0;
     if (this.y + this.h > H) this.y = H - this.h;
 
@@ -155,7 +138,6 @@ class Asteroid {
     this.sprite = IMAGES.asteroids[(Math.random() * IMAGES.asteroids.length) | 0];
     this.x = W + this.size + randRange(0, 80);
     this.y = randRange(this.size * 0.5, H - this.size * 0.5);
-    // L2: Faster base + harsher scaling
     const base = 260;
     const extra = Math.min(360, score * 2.2);
     this.vx = -(base + extra + randRange(0, 160));
@@ -202,8 +184,8 @@ class Laser {
     this.h = 6;
     this.x = x;
     this.y = y;
-    this.vx = 900; // L2 a little faster
-    this.vy = vy;  // vertical velocity for cone spread
+    this.vx = 900;
+    this.vy = vy;
     this.sprite = IMAGES.laser;
   }
 
@@ -242,7 +224,6 @@ class Coin {
     this.sprite = IMAGES.coin;
     this.x = W + this.size + randRange(0, 120);
     this.y = randRange(this.size, H - this.size);
-    // L2: coins drift faster too
     this.vx = -270;
     this.r = this.size / 2;
     this.pulse = Math.random() * Math.PI * 2;
@@ -278,7 +259,6 @@ class Coin {
   }
 }
 
-// Utilities
 function randRange(min, max) {
   return Math.random() * (max - min) + min;
 }
@@ -289,7 +269,6 @@ function dist(ax, ay, bx, by) {
   return Math.hypot(dx, dy);
 }
 
-// World
 const rocket = new Rocket();
 let asteroids = [];
 let coins_arr = [];
@@ -302,7 +281,7 @@ let stars = [];
 let lastShot = 0;
 
 function initStars() {
-  const COUNT = 140; // more stars for L2
+  const COUNT = 140;
   stars = Array.from({ length: COUNT }, () => ({
     x: Math.random() * W,
     y: Math.random() * H,
@@ -312,8 +291,7 @@ function initStars() {
 }
 
 function spawnIntervalMs() {
-  // L2: faster spawn cadence
-  const minMs = 300;
+   const minMs = 300;
   const maxMs = 700;
   const t = Math.min(1, score / 600);
   return Math.floor(maxMs - (maxMs - minMs) * t);
@@ -339,7 +317,6 @@ function startGame() {
   resetGame();
   hide(overlay);
   hide(gameOverEl);
-  // Start with intro sequence only on first play
   if (!introShown) {
     state = "intro";
     introTimer = 0;
@@ -348,7 +325,6 @@ function startGame() {
     state = "running";
   }
   lastTs = performance.now();
-  // Start background music (ensure unmuted)
   try {
     bgMusic.muted = false;
     bgMusic.volume = 0.6;
@@ -420,16 +396,14 @@ function update(dt) {
     if (explosions[i].t >= explosions[i].duration) explosions.splice(i, 1);
   }
 
-  // culling
   asteroids = asteroids.filter((a) => !a.offscreen());
   coins_arr = coins_arr.filter((c) => !c.offscreen());
   lasers = lasers.filter((l) => !l.offscreen());
 
-  // spawns
   spawnTimer += dt * 1000;
   if (spawnTimer >= spawnIntervalMs()) {
     spawnTimer = 0;
-    const burst = Math.random() < 0.18 ? 2 : 1; // more doubles
+    const burst = Math.random() < 0.18 ? 2 : 1;
     for (let i = 0; i < burst; i++) {
       const a = new Asteroid();
       if (burst === 2) a.y = Math.max(30, Math.min(H - 30, a.y + (i === 0 ? -26 : 26)));
@@ -438,19 +412,17 @@ function update(dt) {
   }
 
   coinSpawnTimer += dt * 1000;
-  if (coinSpawnTimer >= 1800) { // slightly faster coin spawns
+  if (coinSpawnTimer >= 1800) {
     coinSpawnTimer = 0;
     coins_arr.push(new Coin());
   }
 
-  // laser hits
   for (let i = lasers.length - 1; i >= 0; i--) {
     const laser = lasers[i];
     for (let j = asteroids.length - 1; j >= 0; j--) {
       const a = asteroids[j];
       if (laser.hits(a)) {
         explosions.push({ x: a.x, y: a.y, t: 0, duration: 420 });
-        // Coin drop
         const drop = new Coin();
         drop.x = a.x;
         drop.y = a.y;
@@ -458,14 +430,13 @@ function update(dt) {
 
         asteroids.splice(j, 1);
         lasers.splice(i, 1);
-        score += Math.floor(a.size * 1.15); // more points in L2
+        score += Math.floor(a.size * 1.15);
         updateHud();
         break;
       }
     }
   }
 
-  // collisions
   const { cx, cy } = rocket.center();
   for (const a of asteroids) {
     if (dist(cx, cy, a.x, a.y) <= rocket.r + a.r) {
@@ -474,7 +445,6 @@ function update(dt) {
     }
   }
 
-  // coin collect
   for (let i = coins_arr.length - 1; i >= 0; i--) {
     const c = coins_arr[i];
     if (dist(cx, cy, c.x, c.y) <= rocket.r + c.r) {
@@ -482,27 +452,23 @@ function update(dt) {
       coins_arr.splice(i, 1);
       updateHud();
 
-      // Transition to Level 3 when player reaches 16 coins (trigger once)
       if (!window.__level3Triggered && coins >= 16) {
         window.__level3Triggered = true;
         try { bgMusic.pause(); } catch (_) {}
         setTimeout(() => {
-          // from /Public/level2/ to ../level3/
           window.location.href = "../level3/index.html";
         }, 400);
       }
     }
   }
 
-  // Score per time (slightly more)
   score += dt * 12;
   if (score > best) best = Math.floor(score);
   updateHud();
 }
 
 function drawBackground() {
-  // Deeper teal starfield for L2
-  ctx.fillStyle = "#000";
+   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, W, H);
 
   const t = performance.now() / 1000;
@@ -517,27 +483,23 @@ function drawBackground() {
   }
   ctx.restore();
   
-  // Draw distant Planet Zeeb (medium size - getting closer on Level 2)
   drawDistantPlanet(t);
 }
 
 function drawDistantPlanet(t) {
-  const planetSize = 40; // Medium - closer than Level 1
-  const planetX = W - 70;
-  const planetY = 55;
-  
-  // Gentle floating motion
-  const floatX = Math.sin(t * 0.3) * 2.5;
-  const floatY = Math.cos(t * 0.25) * 2;
-  
-  // Pulsing glow effect
-  const pulsePhase = Math.sin(t * 1.3) * 0.5 + 0.5;
+   const planetSize = 40;
+   const planetX = W - 70;
+   const planetY = 55;
+   
+   const floatX = Math.sin(t * 0.3) * 2.5;
+   const floatY = Math.cos(t * 0.25) * 2;
+   
+   const pulsePhase = Math.sin(t * 1.3) * 0.5 + 0.5;
   const glowIntensity = 10 + pulsePhase * 14;
   const glowAlpha = 0.3 + pulsePhase * 0.2;
   
   ctx.save();
   
-  // Draw purple glow behind planet
   ctx.globalAlpha = glowAlpha;
   const gradient = ctx.createRadialGradient(
     planetX + floatX, planetY + floatY, planetSize * 0.3,
@@ -552,8 +514,7 @@ function drawDistantPlanet(t) {
   ctx.arc(planetX + floatX, planetY + floatY, planetSize * 0.5 + glowIntensity, 0, Math.PI * 2);
   ctx.fill();
   
-  // Draw planet
-  ctx.globalAlpha = 0.6 + pulsePhase * 0.1; // More visible than Level 1
+  ctx.globalAlpha = 0.6 + pulsePhase * 0.1;
   
   if (IMAGES.planet && IMAGES.planet.complete) {
     ctx.drawImage(
@@ -564,7 +525,6 @@ function drawDistantPlanet(t) {
       planetSize
     );
   } else {
-    // Fallback circle
     ctx.fillStyle = "#3a7d44";
     ctx.beginPath();
     ctx.arc(planetX + floatX, planetY + floatY, planetSize / 2, 0, Math.PI * 2);
@@ -623,13 +583,13 @@ function drawIntro() {
     ctx.shadowBlur = 30;
     
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 52px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 48px 'Audiowide', 'Orbitron', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("ZEEB'S ASTROID DODGER", W / 2, H / 2 - 160);
     
     ctx.shadowBlur = 15;
-    ctx.font = "28px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "26px 'Audiowide', 'Orbitron', sans-serif";
     ctx.fillStyle = "#88ffcc";
     ctx.fillText("Level 2", W / 2, H / 2 - 100);
     
@@ -641,7 +601,7 @@ function drawIntro() {
     ctx.save();
     ctx.globalAlpha = readyAlpha;
     ctx.fillStyle = "#ffff00";
-    ctx.font = "bold 32px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 30px 'Audiowide', 'Orbitron', sans-serif";
     ctx.textAlign = "center";
     ctx.shadowColor = "#ffaa00";
     ctx.shadowBlur = 20;
@@ -710,7 +670,6 @@ function updateIntro(dt) {
   }
 }
 
-// Main loop
 function loop(ts) {
   const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
   lastTs = ts;
@@ -726,11 +685,9 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-// Helpers
 function show(el) { el.classList.remove("hidden"); }
 function hide(el) { el.classList.add("hidden"); }
 
-// Events
 startBtn.addEventListener("click", () => {
   if (state === "ready" || state === "over") startGame();
 });
@@ -750,15 +707,14 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Shoot (double-shot with cone spread)
   if (e.key === " " && state === "running") {
     const now = performance.now();
     if (now - lastShot >= 230) {
       const { cx, cy } = rocket.center();
       const x = cx + rocket.w / 2;
-      const vx = 900; // keep in sync with Laser.vx
+      const vx = 900;
       const timeToEdge = Math.max(0.001, (W - x) / vx);
-      const spreadHalf = 54; // px half-spread at right edge (moderate cone)
+      const spreadHalf = 54;
       const vyTop = -spreadHalf / timeToEdge;
       const vyBottom = spreadHalf / timeToEdge;
 
@@ -784,7 +740,6 @@ window.addEventListener("keyup", (e) => {
   }
 });
 
-// Pointer-controls (tap = shoot, drag = move)
 let shootOnRelease = false;
 let moveStartTime = 0;
 
@@ -810,7 +765,7 @@ window.addEventListener("pointerup", () => {
       const x = cx + rocket.w / 2;
       const vx = 900;
       const timeToEdge = Math.max(0.001, (W - x) / vx);
-      const spreadHalf = 54; // px half-spread at right edge
+      const spreadHalf = 54;
       const vyTop = -spreadHalf / timeToEdge;
       const vyBottom = spreadHalf / timeToEdge;
 
@@ -833,7 +788,6 @@ function updateTargetY(e) {
   targetY = y * scaleY;
 }
 
-// Auto-hide address bar on load/orientation change
 function hideAddressBar() {
   if (window.innerHeight !== window.outerHeight) {
     window.scrollTo(0, 1);
@@ -843,7 +797,6 @@ function hideAddressBar() {
 setTimeout(hideAddressBar, 100);
 window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 100));
 
-// Boot
 show(overlay);
 hide(gameOverEl);
 updateHud();

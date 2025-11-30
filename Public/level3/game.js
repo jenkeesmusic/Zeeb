@@ -695,13 +695,13 @@ function drawIntro() {
     ctx.shadowBlur = 30;
     
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 52px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 48px 'Audiowide', 'Orbitron', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("ZEEB'S ASTROID DODGER", W / 2, H / 2 - 160);
     
     ctx.shadowBlur = 15;
-    ctx.font = "28px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "26px 'Audiowide', 'Orbitron', sans-serif";
     ctx.fillStyle = "#ffcc88";
     ctx.fillText("Level 3", W / 2, H / 2 - 100);
     
@@ -713,7 +713,7 @@ function drawIntro() {
     ctx.save();
     ctx.globalAlpha = readyAlpha;
     ctx.fillStyle = "#ffff00";
-    ctx.font = "bold 32px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 30px 'Audiowide', 'Orbitron', sans-serif";
     ctx.textAlign = "center";
     ctx.shadowColor = "#ffaa00";
     ctx.shadowBlur = 20;

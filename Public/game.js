@@ -1,7 +1,3 @@
-/* Zeeb Rocket — Dodge the Astroids
-   Canvas game with keyboard/touch controls, spawning asteroids, collisions, score + best
-*/
-
 const $ = (id) => document.getElementById(id);
 
 const canvas = $("gameCanvas");
@@ -17,7 +13,6 @@ const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
 
-// Robust music unlock for mobile autoplay
 let musicUnlocked = false;
 function unlockMusic() {
   if (musicUnlocked) return;
@@ -31,15 +26,12 @@ function unlockMusic() {
 }
 
 
-// Sound effects
 const laserSound = new Audio("audio/pew.wav");
-laserSound.volume = 0.3; // Lower volume so it doesn't overpower music
+laserSound.volume = 0.3;
 
-// Canvas dimensions from HTML attributes
 const W = canvas.width;
 const H = canvas.height;
 
-// Assets
 const IMAGES = {
   rocket: new Image(),
   asteroids: [new Image(), new Image(), new Image()],
@@ -58,8 +50,7 @@ IMAGES.coin.src = "img/coin.png";
 IMAGES.laser.src = "img/laser.png";
 IMAGES.planet.src = "img/plamet_zeeb.png";
 
-// Game state
-let state = "ready"; // "ready" | "intro" | "running" | "paused" | "crashing" | "over"
+let state = "ready";
 let lastTs = 0;
 let score = 0;
 let coins = 0;
@@ -67,18 +58,15 @@ let best = parseInt(localStorage.getItem("zeeb_best") || "0", 10);
 bestEl.textContent = best.toString();
 coinsEl.textContent = coins.toString();
 
-// Intro sequence state
-const INTRO_DURATION = 4.0; // 4 seconds for level 1 (shorter than boss)
+const INTRO_DURATION = 4.0;
 let introTimer = 0;
 let introShown = false; // Only show intro once per page load
 
 const keys = new Set();
 
-// Pointer/touch control
 let pointerActive = false;
 let targetY = H / 2;
 
-// Entities
 class Rocket {
   constructor() {
     this.w = 105;
@@ -86,14 +74,12 @@ class Rocket {
     this.x = 80;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
-    this.speed = 320; // px/s for keyboard
+    this.speed = 320;
     this.sprite = IMAGES.rocket;
-    // Collision radius (approximate)
     this.r = Math.max(this.w, this.h) * 0.4;
 
-    // Orientation: face right towards incoming asteroids
-    this.angle = Math.PI / 2; // 90° clockwise
-    this.tilt = 0; // slight up/down tilt based on vertical velocity
+    this.angle = Math.PI / 2;
+    this.tilt = 0;
   }
 
   reset() {
@@ -103,7 +89,6 @@ class Rocket {
   }
 
   update(dt) {
-    // Keyboard control
     let dir = 0;
     if (keys.has("ArrowUp") || keys.has("w")) dir -= 1;
     if (keys.has("ArrowDown") || keys.has("s")) dir += 1;
@@ -112,29 +97,23 @@ class Rocket {
       this.vy = dir * this.speed;
       this.y += this.vy * dt;
     } else if (pointerActive) {
-      // Direct follow: rocket center follows finger immediately
       const centerY = this.y + this.h / 2;
       const diff = targetY - centerY;
-      // Fast, direct movement for toddler-friendly control
       this.y += diff * Math.min(1, dt * 16);
       this.vy = diff; // track velocity for tilt
     } else {
-      // No input: slight damping
       this.vy *= 0.9;
       this.y += this.vy * dt;
     }
 
-    // Clamp to canvas
     if (this.y < 0) this.y = 0;
     if (this.y + this.h > H) this.y = H - this.h;
 
-    // Slight tilt based on vertical velocity (for polish)
     this.tilt = Math.max(-0.3, Math.min(0.3, -this.vy / 900));
   }
 
   draw(introScale = 1, introX = null, introY = null) {
     const ang = this.angle + (this.tilt || 0);
-    // Use intro position if provided, otherwise normal position
     const baseX = introX !== null ? introX : this.x;
     const baseY = introY !== null ? introY : this.y;
     const drawW = this.w * introScale;
@@ -147,7 +126,6 @@ class Rocket {
       ctx.drawImage(this.sprite, -drawW / 2, -drawH / 2, drawW, drawH);
       ctx.restore();
     } else {
-      // Fallback: rotated placeholder triangle
       ctx.save();
       ctx.translate(baseX + drawW / 2, baseY + drawH / 2);
       ctx.rotate(ang);
@@ -173,7 +151,6 @@ class Asteroid {
     this.sprite = IMAGES.asteroids[(Math.random() * IMAGES.asteroids.length) | 0];
     this.x = W + this.size + randRange(0, 60);
     this.y = randRange(this.size * 0.5, H - this.size * 0.5);
-    // Speed increases with score
     const base = 180;
     const extra = Math.min(280, score * 1.5);
     this.vx = -(base + extra + randRange(0, 120));
@@ -200,7 +177,6 @@ class Asteroid {
       ctx.drawImage(this.sprite, -w / 2, -h / 2, w, h);
       ctx.restore();
     } else {
-      // Fallback: simple circle
       ctx.save();
       ctx.fillStyle = "#999";
       ctx.beginPath();
@@ -248,7 +224,6 @@ class Laser {
   }
 
   hits(asteroid) {
-    // Simple bounding box collision
     const laserCenterX = this.x + this.w / 2;
     const laserCenterY = this.y + this.h / 2;
     return dist(laserCenterX, laserCenterY, asteroid.x, asteroid.y) <= asteroid.r + this.h / 2;
@@ -282,7 +257,6 @@ class Coin {
       ctx.drawImage(this.sprite, -w / 2, -h / 2, w, h);
       ctx.restore();
     } else {
-      // Fallback: yellow circle
       ctx.save();
       ctx.fillStyle = "#ffd700";
       ctx.beginPath();
@@ -297,7 +271,6 @@ class Coin {
   }
 }
 
-// Utilities
 function randRange(min, max) {
   return Math.random() * (max - min) + min;
 }
@@ -308,7 +281,6 @@ function dist(ax, ay, bx, by) {
   return Math.hypot(dx, dy);
 }
 
-// Game world
 const rocket = new Rocket();
 let asteroids = [];
 let coins_arr = [];
@@ -424,22 +396,19 @@ function updateHud() {
 }
 
 function update(dt) {
-  // Crash animation phase: wait briefly before showing Game Over
-  if (state === "crashing") {
+   if (state === "crashing") {
     crashAnim.t += dt * 1000;
     if (crashAnim.t >= crashAnim.duration) {
       gameOver();
     }
     return;
   }
-  // Update entities
   rocket.update(dt);
 
   for (const a of asteroids) a.update(dt);
   for (const c of coins_arr) c.update(dt);
   for (const l of lasers) l.update(dt);
   
-  // Update explosions
   for (let i = explosions.length - 1; i >= 0; i--) {
     explosions[i].t += dt * 1000;
     if (explosions[i].t >= explosions[i].duration) {
@@ -447,17 +416,14 @@ function update(dt) {
     }
   }
   
-  // Remove offscreen
   asteroids = asteroids.filter((a) => !a.offscreen());
   coins_arr = coins_arr.filter((c) => !c.offscreen());
   lasers = lasers.filter((l) => !l.offscreen());
 
-  // Spawn asteroids
   spawnTimer += dt * 1000;
   if (spawnTimer >= spawnIntervalMs()) {
     spawnTimer = 0;
 
-    // Spawn 1 or sometimes 2 asteroids for variety
     const burst = Math.random() < 0.12 ? 2 : 1;
     for (let i = 0; i < burst; i++) {
       const newAst = new Asteroid();
@@ -467,23 +433,19 @@ function update(dt) {
     }
   }
 
-  // Spawn coins
   coinSpawnTimer += dt * 1000;
   if (coinSpawnTimer >= 2000) { // spawn a coin every 2 seconds
     coinSpawnTimer = 0;
     coins_arr.push(new Coin());
   }
 
-  // Laser hits asteroids
   for (let i = lasers.length - 1; i >= 0; i--) {
     const laser = lasers[i];
     for (let j = asteroids.length - 1; j >= 0; j--) {
       const asteroid = asteroids[j];
       if (laser.hits(asteroid)) {
-        // Destroy asteroid and laser
         explosions.push({ x: asteroid.x, y: asteroid.y, t: 0, duration: 400 });
         
-        // Spawn a coin at the destroyed asteroid's location
         const newCoin = new Coin();
         newCoin.x = asteroid.x;
         newCoin.y = asteroid.y;
@@ -491,7 +453,6 @@ function update(dt) {
         
         asteroids.splice(j, 1);
         lasers.splice(i, 1);
-        // Award points based on asteroid size
         score += Math.floor(asteroid.size);
         updateHud();
         break;
@@ -499,10 +460,8 @@ function update(dt) {
     }
   }
 
-  // Collisions
   const { cx, cy } = rocket.center();
   
-  // Check asteroid collisions
   for (const a of asteroids) {
     if (dist(cx, cy, a.x, a.y) <= rocket.r + a.r) {
       triggerCrash(cx, cy);
@@ -510,7 +469,6 @@ function update(dt) {
     }
   }
 
-  // Check coin collection
   for (let i = coins_arr.length - 1; i >= 0; i--) {
     const c = coins_arr[i];
     if (dist(cx, cy, c.x, c.y) <= rocket.r + c.r) {
@@ -518,7 +476,6 @@ function update(dt) {
       coins_arr.splice(i, 1);
       updateHud();
 
-      // Transition to Level 2 when player reaches 10 coins (trigger once)
       if (!window.__level2Triggered && coins >= 10) {
         window.__level2Triggered = true;
         try { bgMusic.pause(); } catch (_) {}
@@ -530,8 +487,7 @@ function update(dt) {
     }
   }
 
-  // Score by survival time
-  score += dt * 10; // 10 pts per second
+  score += dt * 10;
   if (score > best) {
     best = Math.floor(score);
   }
@@ -539,8 +495,7 @@ function update(dt) {
 }
 
 function drawBackground() {
-  // Pitch-black with minimal starfield
-  ctx.fillStyle = "#000";
+   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, W, H);
 
   const t = performance.now() / 1000;
@@ -555,27 +510,23 @@ function drawBackground() {
   }
   ctx.restore();
   
-  // Draw very distant Planet Zeeb (tiny - very far away on Level 1)
   drawDistantPlanet(t);
 }
 
 function drawDistantPlanet(t) {
-  const planetSize = 28; // Tiny - very distant on Level 1
-  const planetX = W - 60;
-  const planetY = 50;
-  
-  // Gentle floating motion
-  const floatX = Math.sin(t * 0.3) * 2;
-  const floatY = Math.cos(t * 0.25) * 1.5;
-  
-  // Subtle pulsing glow effect
-  const pulsePhase = Math.sin(t * 1.2) * 0.5 + 0.5;
+   const planetSize = 28;
+   const planetX = W - 60;
+   const planetY = 50;
+   
+   const floatX = Math.sin(t * 0.3) * 2;
+   const floatY = Math.cos(t * 0.25) * 1.5;
+   
+   const pulsePhase = Math.sin(t * 1.2) * 0.5 + 0.5;
   const glowIntensity = 6 + pulsePhase * 8;
   const glowAlpha = 0.2 + pulsePhase * 0.15;
   
   ctx.save();
   
-  // Draw faint purple glow behind planet
   ctx.globalAlpha = glowAlpha;
   const gradient = ctx.createRadialGradient(
     planetX + floatX, planetY + floatY, planetSize * 0.3,
@@ -589,8 +540,7 @@ function drawDistantPlanet(t) {
   ctx.arc(planetX + floatX, planetY + floatY, planetSize * 0.5 + glowIntensity, 0, Math.PI * 2);
   ctx.fill();
   
-  // Draw planet
-  ctx.globalAlpha = 0.5 + pulsePhase * 0.1; // Very faint - far away
+  ctx.globalAlpha = 0.5 + pulsePhase * 0.1;
   
   if (IMAGES.planet && IMAGES.planet.complete) {
     ctx.drawImage(
@@ -601,7 +551,6 @@ function drawDistantPlanet(t) {
       planetSize
     );
   } else {
-    // Fallback circle
     ctx.fillStyle = "#3a7d44";
     ctx.beginPath();
     ctx.arc(planetX + floatX, planetY + floatY, planetSize / 2, 0, Math.PI * 2);
@@ -612,19 +561,13 @@ function drawDistantPlanet(t) {
 }
 
 function drawIntro() {
-  ctx.clearRect(0, 0, W, H);
-  drawBackground();
-  
-  // Calculate intro animation progress (0 to 1)
-  const progress = Math.min(1, introTimer / INTRO_DURATION);
-  
-  // Easing function for smooth animation
-  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
-  
-  // Phase 1 (0-0.5): Zeeb large and centered, title visible
-  // Phase 2 (0.5-1.0): Zeeb shrinks and moves to battle position, title fades out
-  
-  // Calculate Zeeb's scale and position
+   ctx.clearRect(0, 0, W, H);
+   drawBackground();
+   
+   const progress = Math.min(1, introTimer / INTRO_DURATION);
+   
+   const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+   
   const startScale = 4.0; // 4x normal size
   const endScale = 1.0;
   const startX = W / 2 - (rocket.w * startScale) / 2;
@@ -650,10 +593,8 @@ function drawIntro() {
     currentY = startY + (endY - startY) * eased;
   }
   
-  // Draw Zeeb at intro position/scale
   rocket.draw(currentScale, currentX, currentY);
   
-  // Draw title text
   let titleAlpha = 0;
   if (progress < 0.1) {
     // Fade in
@@ -670,33 +611,29 @@ function drawIntro() {
     ctx.save();
     ctx.globalAlpha = titleAlpha;
     
-    // Title glow
     ctx.shadowColor = "#00aaff";
     ctx.shadowBlur = 30;
     
-    // Main title
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 52px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 48px 'Audiowide', 'Orbitron', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("ZEEB'S ASTROID DODGER", W / 2, H / 2 - 160);
     
-    // Subtitle
     ctx.shadowBlur = 15;
-    ctx.font = "28px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "26px 'Audiowide', 'Orbitron', sans-serif";
     ctx.fillStyle = "#88ccff";
     ctx.fillText("Level 1", W / 2, H / 2 - 100);
     
     ctx.restore();
   }
   
-  // "GET READY" text near the end
   if (progress > 0.8) {
     const readyAlpha = (progress - 0.8) / 0.2;
     ctx.save();
     ctx.globalAlpha = readyAlpha;
     ctx.fillStyle = "#ffff00";
-    ctx.font = "bold 32px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 30px 'Audiowide', 'Orbitron', sans-serif";
     ctx.textAlign = "center";
     ctx.shadowColor = "#ffaa00";
     ctx.shadowBlur = 20;
@@ -706,8 +643,7 @@ function drawIntro() {
 }
 
 function draw() {
-  // During intro, use special intro drawing
-  if (state === "intro") {
+   if (state === "intro") {
     drawIntro();
     return;
   }
@@ -715,13 +651,11 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
 
-  // Draw entities
   rocket.draw();
   for (const a of asteroids) a.draw();
   for (const c of coins_arr) c.draw();
   for (const l of lasers) l.draw();
 
-  // Draw explosions
   for (const ex of explosions) {
     if (IMAGES.crash && IMAGES.crash.complete) {
       const p = Math.min(1, ex.t / ex.duration);
@@ -734,7 +668,6 @@ function draw() {
     }
   }
 
-  // Crash explosion effect
   if (state === "crashing" && IMAGES.crash && IMAGES.crash.complete && crashAnim.active) {
     const p = Math.min(1, crashAnim.t / crashAnim.duration);
     const size = 120 + 140 * p;
@@ -743,7 +676,6 @@ function draw() {
     ctx.drawImage(IMAGES.crash, -size / 2, -size / 2, size, size);
     ctx.restore();
 
-    // Slight screen flash
     ctx.save();
     ctx.fillStyle = `rgba(255, 120, 80, ${0.25 * (1 - p)})`;
     ctx.fillRect(0, 0, W, H);
@@ -763,16 +695,14 @@ function draw() {
 }
 
 function updateIntro(dt) {
-  introTimer += dt;
-  
-  // When intro is complete, transition to running state
-  if (introTimer >= INTRO_DURATION) {
+   introTimer += dt;
+   
+   if (introTimer >= INTRO_DURATION) {
     state = "running";
     introTimer = 0;
   }
 }
 
-// Main loop
 function loop(ts) {
   const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0); // cap large dt spikes
   lastTs = ts;
@@ -788,7 +718,6 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-// Helpers: show/hide
 function show(el) {
   el.classList.remove("hidden");
 }
@@ -796,21 +725,18 @@ function hide(el) {
   el.classList.add("hidden");
 }
 
-// How to Play modal
 const howToPlayBtn = $("howToPlayBtn");
 const howToPlayOverlay = $("howToPlayOverlay");
 const closeHowToPlay = $("closeHowToPlay");
 
-// Event listeners
 startBtn.addEventListener("click", () => {
   if (state === "ready" || state === "over") startGame();
 });
 restartBtn.addEventListener("click", () => {
   if (state === "over") startGame();
-});
+  });
 
-// How to Play button handlers
-if (howToPlayBtn && howToPlayOverlay && closeHowToPlay) {
+  if (howToPlayBtn && howToPlayOverlay && closeHowToPlay) {
   howToPlayBtn.addEventListener("click", () => {
     howToPlayOverlay.classList.remove("hidden");
   });
@@ -819,14 +745,12 @@ if (howToPlayBtn && howToPlayOverlay && closeHowToPlay) {
     howToPlayOverlay.classList.add("hidden");
   });
   
-  // Close on clicking outside the panel
   howToPlayOverlay.addEventListener("click", (e) => {
     if (e.target === howToPlayOverlay) {
       howToPlayOverlay.classList.add("hidden");
     }
   });
   
-  // Close on Escape key
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !howToPlayOverlay.classList.contains("hidden")) {
       howToPlayOverlay.classList.add("hidden");
@@ -835,8 +759,7 @@ if (howToPlayBtn && howToPlayOverlay && closeHowToPlay) {
 }
 
 window.addEventListener("keydown", (e) => {
-  // Prevent scrolling on arrow keys/space
-  if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
+   if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
 
   if (e.key === "p" || e.key === "P") {
     togglePause();
@@ -847,7 +770,6 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Shoot laser with spacebar
   if (e.key === " " && state === "running") {
     const now = performance.now();
     if (now - lastShot >= 250) { // rate limit: max 4 shots per second
@@ -876,7 +798,6 @@ window.addEventListener("keyup", (e) => {
   }
 });
 
-// Pointer controls on canvas (mouse/touch unified)
 let shootOnRelease = false;
 let moveStartTime = 0;
 
@@ -887,7 +808,6 @@ canvas.addEventListener("pointerdown", (e) => {
   shootOnRelease = true;
   updateTargetY(e);
   
-  // Quick tap detection for shooting
   if (state === "running" && performance.now() - moveStartTime < 50) {
     const now = performance.now();
     if (now - lastShot >= 250) {
@@ -905,7 +825,6 @@ canvas.addEventListener("pointermove", (e) => {
   e.preventDefault();
   if (pointerActive) {
     updateTargetY(e);
-    // If user moves significantly, don't shoot on release
     if (performance.now() - moveStartTime > 100) {
       shootOnRelease = false;
     }
@@ -913,9 +832,8 @@ canvas.addEventListener("pointermove", (e) => {
 });
 
 window.addEventListener("pointerup", (e) => {
-  if (pointerActive && state === "running" && shootOnRelease && performance.now() - moveStartTime < 200) {
-    // Quick tap = shoot laser
-    const now = performance.now();
+if (pointerActive && state === "running" && shootOnRelease && performance.now() - moveStartTime < 200) {
+  const now = performance.now();
     if (now - lastShot >= 250) {
       const { cx, cy } = rocket.center();
       lasers.push(new Laser(cx + rocket.w / 2, cy - 4));
@@ -930,14 +848,12 @@ window.addEventListener("pointerup", (e) => {
 });
 
 function updateTargetY(e) {
-  const rect = canvas.getBoundingClientRect();
-  const y = e.clientY - rect.top;
-  // Scale to actual canvas coordinates if canvas is scaled
-  const scaleY = H / rect.height;
+const rect = canvas.getBoundingClientRect();
+const y = e.clientY - rect.top;
+const scaleY = H / rect.height;
   targetY = y * scaleY;
 }
 
-// Auto-hide mobile address bar on load
 function hideAddressBar() {
   if (window.innerHeight !== window.outerHeight) {
     // Scroll slightly to trigger address bar hiding
@@ -946,13 +862,11 @@ function hideAddressBar() {
   }
 }
 
-/* Start in "ready" state with overlay visible */
 show(overlay);
 hide(gameOverEl);
 updateHud();
 initStars();
 
-/* Try to autoplay start screen music (fallback: start muted then auto-unmute when possible) */
 (function tryAutoplayMusic() { return;
   try {
     bgMusic.muted = false;
@@ -988,10 +902,9 @@ initStars();
       });
     }
   } catch (_) {}
-})();
+  })();
 
-// Hide address bar on mobile
-setTimeout(hideAddressBar, 100);
+  setTimeout(hideAddressBar, 100);
 window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 100));
 
 requestAnimationFrame((ts) => {

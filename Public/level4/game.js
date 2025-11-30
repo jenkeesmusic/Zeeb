@@ -1315,14 +1315,14 @@ function drawIntro(dt) {
     
     // Main title
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 56px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 52px 'Audiowide', 'Orbitron', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("CUCUMBER BATTLE", W / 2, H / 2 - 180);
     
     // Subtitle
     ctx.shadowBlur = 15;
-    ctx.font = "28px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "26px 'Audiowide', 'Orbitron', sans-serif";
     ctx.fillStyle = "#88ffaa";
     ctx.fillText("Level 4", W / 2, H / 2 - 120);
     
@@ -1330,14 +1330,14 @@ function drawIntro(dt) {
     if (progress > 0.25) {
       const vsAlpha = Math.min(1, (progress - 0.25) / 0.15);
       ctx.globalAlpha = titleAlpha * vsAlpha;
-      ctx.font = "bold 72px 'Segoe UI', Arial, sans-serif";
+      ctx.font = "bold 68px 'Audiowide', 'Orbitron', sans-serif";
       ctx.fillStyle = "#ff6644";
       ctx.shadowColor = "#ff4400";
       ctx.shadowBlur = 25;
       ctx.fillText("VS", W / 2 + 200, H / 2 + 50);
       
       // Cucumber name
-      ctx.font = "bold 36px 'Segoe UI', Arial, sans-serif";
+      ctx.font = "bold 32px 'Audiowide', 'Orbitron', sans-serif";
       ctx.fillStyle = "#66ff88";
       ctx.shadowColor = "#00ff44";
       ctx.fillText("THE CUCUMBER", W / 2 + 200, H / 2 + 110);
@@ -1373,7 +1373,7 @@ function drawIntro(dt) {
     ctx.save();
     ctx.globalAlpha = readyAlpha;
     ctx.fillStyle = "#ffff00";
-    ctx.font = "bold 32px 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 30px 'Audiowide', 'Orbitron', sans-serif";
     ctx.textAlign = "center";
     ctx.shadowColor = "#ffaa00";
     ctx.shadowBlur = 20;
