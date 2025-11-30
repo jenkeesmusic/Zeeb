@@ -73,7 +73,7 @@ IMAGES.coin.src = "../img/coin.png";
 IMAGES.laser.src = "../img/laser3.png";
 
 // Game state
-let state = "ready"; // "ready" | "running" | "paused" | "crashing" | "over"
+let state = "ready"; // "ready" | "intro" | "running" | "paused" | "crashing" | "over" | "win"
 let lastTs = 0;
 let score = 0;
 let coins = 0;
@@ -81,6 +81,10 @@ let coins = 0;
 let best = parseInt(localStorage.getItem("zeeb_best_l3") || "0", 10);
 bestEl.textContent = best.toString();
 coinsEl.textContent = coins.toString();
+
+// Intro sequence state
+const INTRO_DURATION = 4.0; // 4 seconds
+let introTimer = 0;
 
 const keys = new Set();
 
@@ -138,23 +142,28 @@ class Rocket {
     this.tilt = Math.max(-0.3, Math.min(0.3, -this.vy / 900));
   }
 
-  draw() {
+  draw(introScale = 1, introX = null, introY = null) {
     const ang = this.angle + (this.tilt || 0);
+    const baseX = introX !== null ? introX : this.x;
+    const baseY = introY !== null ? introY : this.y;
+    const drawW = this.w * introScale;
+    const drawH = this.h * introScale;
+    
     if (this.sprite && this.sprite.complete) {
       ctx.save();
-      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.translate(baseX + drawW / 2, baseY + drawH / 2);
       ctx.rotate(ang);
-      ctx.drawImage(this.sprite, -this.w / 2, -this.h / 2, this.w, this.h);
+      ctx.drawImage(this.sprite, -drawW / 2, -drawH / 2, drawW, drawH);
       ctx.restore();
     } else {
       ctx.save();
-      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.translate(baseX + drawW / 2, baseY + drawH / 2);
       ctx.rotate(ang);
       ctx.fillStyle = "#ffa870";
       ctx.beginPath();
-      ctx.moveTo(-this.w * 0.4, -this.h * 0.4);
-      ctx.lineTo(this.w * 0.5, 0);
-      ctx.lineTo(-this.w * 0.4, this.h * 0.4);
+      ctx.moveTo(-drawW * 0.4, -drawH * 0.4);
+      ctx.lineTo(drawW * 0.5, 0);
+      ctx.lineTo(-drawW * 0.4, drawH * 0.4);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
@@ -356,7 +365,10 @@ function startGame() {
   resetGame();
   hide(overlay);
   hide(gameOverEl);
-  state = "running";
+  // Start with intro sequence
+  state = "intro";
+  introTimer = 0;
+  lastTs = performance.now();
   // Attempt autoplay with sound; if blocked, start muted then periodically try to unmute
   try {
     bgMusic.muted = false;
@@ -568,7 +580,88 @@ function drawBackground() {
   ctx.restore();
 }
 
+function drawIntro() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  
+  const progress = Math.min(1, introTimer / INTRO_DURATION);
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+  
+  const startScale = 4.0;
+  const endScale = 1.0;
+  const startX = W / 2 - (rocket.w * startScale) / 2;
+  const startY = H / 2 - (rocket.h * startScale) / 2;
+  const endX = rocket.x;
+  const endY = H / 2 - rocket.h / 2;
+  
+  let currentScale, currentX, currentY;
+  
+  if (progress < 0.5) {
+    const pulsePhase = progress / 0.5;
+    const pulse = 1 + Math.sin(pulsePhase * Math.PI * 2) * 0.03;
+    currentScale = startScale * pulse;
+    currentX = W / 2 - (rocket.w * currentScale) / 2;
+    currentY = H / 2 - (rocket.h * currentScale) / 2;
+  } else {
+    const shrinkProgress = (progress - 0.5) / 0.5;
+    const eased = easeOutCubic(shrinkProgress);
+    currentScale = startScale + (endScale - startScale) * eased;
+    currentX = startX + (endX - startX) * eased;
+    currentY = startY + (endY - startY) * eased;
+  }
+  
+  rocket.draw(currentScale, currentX, currentY);
+  
+  let titleAlpha = 0;
+  if (progress < 0.1) {
+    titleAlpha = progress / 0.1;
+  } else if (progress < 0.6) {
+    titleAlpha = 1;
+  } else {
+    titleAlpha = 1 - (progress - 0.6) / 0.4;
+  }
+  
+  if (titleAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = titleAlpha;
+    
+    ctx.shadowColor = "#ff8844";
+    ctx.shadowBlur = 30;
+    
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 52px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ZEEB'S ASTROID DODGER", W / 2, H / 2 - 160);
+    
+    ctx.shadowBlur = 15;
+    ctx.font = "28px 'Segoe UI', Arial, sans-serif";
+    ctx.fillStyle = "#ffcc88";
+    ctx.fillText("Level 3", W / 2, H / 2 - 100);
+    
+    ctx.restore();
+  }
+  
+  if (progress > 0.8) {
+    const readyAlpha = (progress - 0.8) / 0.2;
+    ctx.save();
+    ctx.globalAlpha = readyAlpha;
+    ctx.fillStyle = "#ffff00";
+    ctx.font = "bold 32px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#ffaa00";
+    ctx.shadowBlur = 20;
+    ctx.fillText("GET READY!", W / 2, H - 80);
+    ctx.restore();
+  }
+}
+
 function draw() {
+  if (state === "intro") {
+    drawIntro();
+    return;
+  }
+  
   ctx.clearRect(0, 0, W, H);
   drawBackground();
 
@@ -712,11 +805,22 @@ function draw() {
   }
 }
 
+function updateIntro(dt) {
+  introTimer += dt;
+  if (introTimer >= INTRO_DURATION) {
+    state = "running";
+    introTimer = 0;
+  }
+}
+
 // Main loop
 function loop(ts) {
   const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
   lastTs = ts;
 
+  if (state === "intro") {
+    updateIntro(dt);
+  }
   if (state === "running" || state === "crashing") {
     update(dt);
   }
