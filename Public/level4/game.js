@@ -413,14 +413,9 @@ function shoot() {
   if (now - lastShot < 220) return;
   lastShot = now;
   const { cx, cy } = rocket.center();
-  const vx = 1000;
-  const timeToEdge = Math.max(0.001, (W - cx) / vx);
-  const spreadHalf = 42;
-  const vyTop = -spreadHalf / timeToEdge;
-  const vyBottom = spreadHalf / timeToEdge;
 
-  lasers.push(new Laser(cx + rocket.w / 2, cy - 6, vyTop));
-  lasers.push(new Laser(cx + rocket.w / 2, cy + 6, vyBottom));
+  // Single laser shot for boss level
+  lasers.push(new Laser(cx + rocket.w / 2, cy, 0));
 
   laserSound.currentTime = 0;
   laserSound.play().catch(() => {});
