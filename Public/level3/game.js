@@ -605,7 +605,7 @@ function drawDistantPlanet(t) {
   ctx.save();
   ctx.globalAlpha = 0.7; // Slightly transparent - far away
   
-  // Draw planet
+  // Draw planet only (no cucumber yet - Zeeb is still approaching)
   if (IMAGES.planet && IMAGES.planet.complete) {
     ctx.drawImage(
       IMAGES.planet, 
@@ -620,17 +620,6 @@ function drawDistantPlanet(t) {
     ctx.beginPath();
     ctx.arc(planetX + floatX, planetY + floatY, planetSize / 2, 0, Math.PI * 2);
     ctx.fill();
-  }
-  
-  // Draw tiny cucumber on top of planet
-  if (IMAGES.cucumber && IMAGES.cucumber.complete) {
-    const cucH = 18; // Very small cucumber
-    const iw = IMAGES.cucumber.naturalWidth || IMAGES.cucumber.width || 1;
-    const ih = IMAGES.cucumber.naturalHeight || IMAGES.cucumber.height || 1;
-    const cucW = Math.round(cucH * (iw / ih));
-    const cucX = planetX + floatX - cucW / 2;
-    const cucY = planetY + floatY - planetSize / 2 - cucH + 6; // Sitting on top of planet
-    ctx.drawImage(IMAGES.cucumber, cucX, cucY, cucW, cucH);
   }
   
   ctx.restore();
