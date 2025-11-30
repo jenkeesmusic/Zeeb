@@ -791,9 +791,22 @@ function handleCollisions() {
       if (bounced) {
         l.bounced = true;
         l.canDamagePlayer = true; // Can now damage player
-        l.vx = -Math.abs(l.vx) * 0.65; // Faster bounce back
-        l.vy = (Math.random() * 2 - 1) * 280; // More spread
-        l.life = Math.min(l.life, 1.2); // Lives longer
+        
+        // Calculate direction toward Zeeb
+        const rocketCenterX = rocket.x + rocket.w / 2;
+        const rocketCenterY = rocket.y + rocket.h / 2;
+        const dx = rocketCenterX - l.x;
+        const dy = rocketCenterY - l.y;
+        const dist = Math.hypot(dx, dy);
+        
+        // Aim at Zeeb with some spread for fairness
+        const speed = 650; // Consistent speed toward player
+        const spread = randRange(-0.15, 0.15); // Small random spread angle
+        const angle = Math.atan2(dy, dx) + spread;
+        
+        l.vx = Math.cos(angle) * speed;
+        l.vy = Math.sin(angle) * speed;
+        l.life = Math.min(l.life, 1.5); // Lives longer to reach Zeeb
         l.active = true;
       } else {
         l.active = false;
