@@ -32,6 +32,7 @@ const IMAGES = {
   crash: new Image(),
   coin: new Image(),
   laser: new Image(),
+  planet: new Image(),
 };
 
 // New ship/laser + same asteroid, coin, crash sets
@@ -42,6 +43,7 @@ IMAGES.asteroids[2].src = "../img/astroid3.png";
 IMAGES.crash.src = "../img/crash.png";
 IMAGES.coin.src = "../img/coin.png";
 IMAGES.laser.src = "../img/laser2.png";
+IMAGES.planet.src = "../img/plamet_zeeb.png";
 
 // Game state
 let state = "ready"; // "ready" | "intro" | "running" | "paused" | "crashing" | "over"
@@ -513,6 +515,62 @@ function drawBackground() {
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
+  
+  // Draw distant Planet Zeeb (medium size - getting closer on Level 2)
+  drawDistantPlanet(t);
+}
+
+function drawDistantPlanet(t) {
+  const planetSize = 40; // Medium - closer than Level 1
+  const planetX = W - 70;
+  const planetY = 55;
+  
+  // Gentle floating motion
+  const floatX = Math.sin(t * 0.3) * 2.5;
+  const floatY = Math.cos(t * 0.25) * 2;
+  
+  // Pulsing glow effect
+  const pulsePhase = Math.sin(t * 1.3) * 0.5 + 0.5;
+  const glowIntensity = 10 + pulsePhase * 14;
+  const glowAlpha = 0.3 + pulsePhase * 0.2;
+  
+  ctx.save();
+  
+  // Draw purple glow behind planet
+  ctx.globalAlpha = glowAlpha;
+  const gradient = ctx.createRadialGradient(
+    planetX + floatX, planetY + floatY, planetSize * 0.3,
+    planetX + floatX, planetY + floatY, planetSize * 0.5 + glowIntensity
+  );
+  gradient.addColorStop(0, 'rgba(180, 110, 240, 0.7)');
+  gradient.addColorStop(0.4, 'rgba(140, 80, 210, 0.4)');
+  gradient.addColorStop(0.7, 'rgba(100, 60, 170, 0.2)');
+  gradient.addColorStop(1, 'rgba(80, 50, 140, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(planetX + floatX, planetY + floatY, planetSize * 0.5 + glowIntensity, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw planet
+  ctx.globalAlpha = 0.6 + pulsePhase * 0.1; // More visible than Level 1
+  
+  if (IMAGES.planet && IMAGES.planet.complete) {
+    ctx.drawImage(
+      IMAGES.planet, 
+      planetX + floatX - planetSize / 2, 
+      planetY + floatY - planetSize / 2, 
+      planetSize, 
+      planetSize
+    );
+  } else {
+    // Fallback circle
+    ctx.fillStyle = "#3a7d44";
+    ctx.beginPath();
+    ctx.arc(planetX + floatX, planetY + floatY, planetSize / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
   ctx.restore();
 }
 
