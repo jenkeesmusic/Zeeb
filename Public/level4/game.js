@@ -73,13 +73,8 @@ let targetY = H / 2;
 let shootOnRelease = false;
 let moveStartTime = 0;
 
-// Stars for background
-const stars = Array.from({ length: 50 }, () => ({
-  x: Math.random() * W,
-  y: Math.random() * H,
-  speed: 20 + Math.random() * 80,
-  size: 0.6 + Math.random() * 1.6,
-}));
+// Stars for background - using shared module
+const starfield = createStarfield(ctx, W, H, STAR_PRESETS.level4);
 
 // Screen shake effect
 const screenShake = {
@@ -553,25 +548,8 @@ const lasers = [];
 const sparks = [];
 const fallingAsteroids = [];
 
-function drawBackground(dt) {
-  ctx.fillStyle = "#030a05";
-  ctx.fillRect(0, 0, W, H);
-
-  for (const s of stars) {
-    s.x -= s.speed * dt;
-    if (s.x < -4) {
-      s.x = W + Math.random() * 40;
-      s.y = Math.random() * H * 0.9;
-      s.speed = 20 + Math.random() * 80;
-      s.size = 0.6 + Math.random() * 1.6;
-    }
-    ctx.globalAlpha = 0.5 + Math.random() * 0.5;
-    ctx.fillStyle = "#caffc6";
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
+function drawBackground(dt, speedMultiplier = 1) {
+  starfield.draw(dt, speedMultiplier);
 }
 
 // Planet state for floating animation and reactions
@@ -1430,14 +1408,7 @@ function draw(dt) {
 function updateIntro(dt) {
   introTimer += dt;
   
-  // Update background stars
-  for (const s of stars) {
-    s.x -= s.speed * dt * 0.5; // Slower during intro
-    if (s.x < -4) {
-      s.x = W + Math.random() * 40;
-      s.y = Math.random() * H * 0.9;
-    }
-  }
+  // Update background stars (handled by drawBackground with speed multiplier)
   
   // When intro is complete, transition to running state
   if (introTimer >= INTRO_DURATION) {
