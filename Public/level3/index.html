@@ -27,9 +27,9 @@
     <!-- Accessible Skip button shown while the boss intro video is playing -->
     <button id="skipIntroBtn" class="btn skip-btn hidden" aria-label="Skip">Skip</button>
 
-    <div id="overlay" class="overlay">
+    <div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="level3OverlayTitle">
       <div class="panel">
-        <h1>Level 3: Meteor Gauntlet</h1>
+        <h1 id="level3OverlayTitle">Level 3: Meteor Gauntlet</h1>
         <p class="subtitle">Blazing speeds, denser fields, and tighter dodges.</p>
         <details style="margin: 12px 0; text-align: left;">
           <summary style="cursor: pointer; color: #ffd7bb; font-size: 14px; user-select: none;">ℹ️ How to Play</summary>
@@ -44,9 +44,9 @@
       </div>
     </div>
 
-    <div id="gameOver" class="overlay hidden">
+    <div id="gameOver" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="level3GameOverTitle">
       <div class="panel">
-        <h2>Level 3 Over</h2>
+        <h2 id="level3GameOverTitle">Level 3 Over</h2>
         <p id="finalScore">Score: 0</p>
         <div class="actions">
           <button id="restartBtn" class="btn">Restart Level 3</button>
@@ -54,9 +54,9 @@
       </div>
     </div>
 
-    <div id="winOverlay" class="overlay hidden">
+    <div id="winOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="winOverlayTitle">
       <div class="panel" style="max-width: min(95vw, 850px); width: auto; padding: 28px 24px;">
-        <h2>Cucumber Battle</h2>
+        <h2 id="winOverlayTitle">Cucumber Battle</h2>
         <p class="subtitle" style="margin-top: 6px;">Level 4: Cucumber Battle — watch the pre-fight transmission to prepare.</p>
         <video id="winVideo" src="../img/I.MOV" playsinline style="width: 100%; height: auto; max-height: 62vh; object-fit: contain; border-radius: 10px; display: block; margin: 0 auto; display: none;"></video>
         <div class="actions" style="margin-top: 10px;">

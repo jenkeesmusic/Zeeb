@@ -52,16 +52,13 @@ function unlockMusic() {
   musicUnlocked = true;
 }
 
-// State
+ // State
 let state = "ready"; // "ready" | "intro" | "running" | "complete" | "gameover"
-let phase = 2; // single-phase battle (legacy var retained but not used for flow)
 let lastTs = 0;
-let hits = 0;
 
-// Intro sequence state
+ // Intro sequence state
 const INTRO_DURATION = 5.0; // 5 seconds
 let introTimer = 0;
-let introPhase = 0; // 0-1 progress through intro
 let introShown = false; // Only show intro once per page load
 let hp = 200; // Cucumber HP (doubled for longer battle)
 let zeebHp = 150; // Player HP (increased for boss battle survivability)
@@ -749,7 +746,6 @@ function handleCollisions() {
     if (!l.canDamage) continue;
     if (intersects(l.rect(), rect)) {
       l.canDamage = false;
-      hits += 1;
 
       const bounced = Math.random() < bounceChance;
       // Lasers do minimal damage; main damage comes from ricocheted asteroids
@@ -1494,7 +1490,6 @@ function updateHpDisplays() {
 }
 
 function resetStage() {
-  hits = 0;
   hp = MAX_CUCUMBER_HP;
   zeebHp = MAX_ZEEB_HP;
   dropTimer = 0;

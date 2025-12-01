@@ -21,9 +21,9 @@
 
     <canvas id="gameCanvas" width="900" height="600" aria-label="Level 4: Cucumber Battle"></canvas>
 
-    <div id="overlay" class="overlay">
+    <div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="cucumberOverlayTitle">
       <div class="panel">
-        <h1>Cucumber Battle</h1>
+        <h1 id="cucumberOverlayTitle">Cucumber Battle</h1>
         <p class="subtitle">Objective: Shoot falling asteroids so they ricochet into the cucumber for heavy damage. Lasers alone mostly bounce off.</p>
         <ul class="instructions">
           <li>Move up/down: W/S or Up/Down • Drag on mobile</li>
@@ -36,9 +36,9 @@
       </div>
     </div>
 
-    <div id="completeOverlay" class="overlay hidden">
+    <div id="completeOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="completeOverlayTitle">
       <div class="panel">
-        <h2>Victory!</h2>
+        <h2 id="completeOverlayTitle">Victory!</h2>
         <p class="subtitle">Nice ricochets. Cucumber has been defeated!</p>
         <div class="actions">
           <button id="restartBtn" class="btn">Play Again</button>

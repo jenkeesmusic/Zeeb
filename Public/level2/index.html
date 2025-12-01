@@ -25,9 +25,9 @@
 
     <canvas id="gameCanvas" width="900" height="600" aria-label="Game canvas"></canvas>
 
-    <div id="overlay" class="overlay">
+    <div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="level2OverlayTitle">
       <div class="panel">
-        <h1>Level 2: Asteroid Storm</h1>
+        <h1 id="level2OverlayTitle">Level 2: Asteroid Storm</h1>
         <p class="subtitle">Faster asteroids, tighter gaps, and a new ship.</p>
         <ul class="instructions">
           <li>Keyboard: W/S or Up/Down to move • Spacebar to shoot • P to pause</li>
@@ -39,9 +39,9 @@
       </div>
     </div>
 
-    <div id="gameOver" class="overlay hidden">
+    <div id="gameOver" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="level2GameOverTitle">
       <div class="panel">
-        <h2>Level 2 Over</h2>
+        <h2 id="level2GameOverTitle">Level 2 Over</h2>
         <p id="finalScore">Score: 0</p>
         <div class="actions">
           <button id="restartBtn" class="btn">Restart Level 2</button>

@@ -28,7 +28,7 @@
 
     <canvas id="gameCanvas" width="900" height="600" aria-label="Game canvas"></canvas>
 
-    <div id="overlay" class="overlay">
+    <div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="startTitle">
       <div class="panel">
         <div class="start-scene">
           <div class="art">
@@ -46,17 +46,17 @@
       </div>
     </div>
 
-    <div id="gameOver" class="overlay hidden">
+    <div id="gameOver" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
       <div class="panel">
-        <h2>Game Over</h2>
+        <h2 id="gameOverTitle">Game Over</h2>
         <p id="finalScore">Score: 0</p>
         <button id="restartBtn" class="btn">Restart</button>
       </div>
     </div>
 
-    <div id="howToPlayOverlay" class="overlay hidden">
+    <div id="howToPlayOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="howToPlayTitle">
       <div class="panel how-to-play-panel">
-        <h2>🎮 How to Play</h2>
+        <h2 id="howToPlayTitle">🎮 How to Play</h2>
         
         <div class="instructions-section">
           <h3>📱 Mobile / Tablet</h3>

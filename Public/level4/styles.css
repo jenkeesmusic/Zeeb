@@ -201,12 +201,6 @@ html, body {
 .btn:hover { filter: brightness(1.08); }
 .btn:active { transform: translateY(1px); }
 
-.btn.secondary {
-  border-color: rgba(100, 255, 140, 0.32);
-  color: #e3ffe8;
-  background: linear-gradient(180deg, #0b1f12, #08180e);
-}
-
 @media (max-width: 920px) {
   #gameCanvas {
     width: 100vw;

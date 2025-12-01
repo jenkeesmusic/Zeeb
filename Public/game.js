@@ -13,19 +13,6 @@ const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
 
-let musicUnlocked = false;
-function unlockMusic() {
-  if (musicUnlocked) return;
-  try {
-    bgMusic.muted = false;
-    bgMusic.volume = 0.6;
-    const p = bgMusic.play();
-    if (p && typeof p.catch === "function") p.catch(() => {});
-  } catch (_) {}
-  musicUnlocked = true;
-}
-
-
 const laserSound = new Audio("audio/pew.wav");
 laserSound.volume = 0.3;
 
@@ -346,7 +333,7 @@ function startGame() {
     const p = bgMusic.play();
     if (p && typeof p.catch === "function") p.catch(() => {});
   } catch (e) {
-    console.log("Audio play failed:", e);
+    // console.error("Audio play failed in startGame:", e);
   }
 }
 
@@ -384,7 +371,7 @@ function togglePause() {
       const p = bgMusic.play();
       if (p && typeof p.catch === "function") p.catch(() => {});
     } catch (e) {
-      console.log("Audio play failed:", e);
+      // console.error("Audio play failed in togglePause:", e);
     }
   }
 }
@@ -778,7 +765,7 @@ window.addEventListener("keydown", (e) => {
       lastShot = now;
       // Play laser sound
       laserSound.currentTime = 0;
-      laserSound.play().catch(e => console.log("Sound play failed:", e));
+      laserSound.play().catch(() => {});
     }
     return;
   }
@@ -816,7 +803,7 @@ canvas.addEventListener("pointerdown", (e) => {
       lastShot = now;
       // Play laser sound
       laserSound.currentTime = 0;
-      laserSound.play().catch(e => console.log("Sound play failed:", e));
+      laserSound.play().catch(() => {});
     }
   }
 });
@@ -840,7 +827,7 @@ if (pointerActive && state === "running" && shootOnRelease && performance.now() 
       lastShot = now;
       // Play laser sound
       laserSound.currentTime = 0;
-      laserSound.play().catch(e => console.log("Sound play failed:", e));
+      laserSound.play().catch(() => {});
     }
   }
   pointerActive = false;
@@ -867,46 +854,9 @@ hide(gameOverEl);
 updateHud();
 initStars();
 
-(function tryAutoplayMusic() { return;
-  try {
-    bgMusic.muted = false;
-    bgMusic.volume = 0.6;
-    const p = bgMusic.play();
-    if (p && typeof p.catch === "function") {
-      p.catch(() => {
-        try {
-          // Fallback: start muted to satisfy autoplay, then try unmuting shortly after
-          bgMusic.muted = true;
-          const p2 = bgMusic.play();
-          if (p2 && typeof p2.catch === "function") p2.catch(() => {});
-          let attempts = 0;
-          const maxAttempts = 12; // ~12 seconds of retries
-          const unmuteTimer = setInterval(() => {
-            attempts++;
-            if (document.hidden) return; // only try when tab is visible
-            try {
-              bgMusic.muted = false;
-              bgMusic.volume = 0.6;
-              const p3 = bgMusic.play();
-              // If unmuted successfully, stop trying
-              if (!bgMusic.muted) clearInterval(unmuteTimer);
-              if (p3 && typeof p3.catch === "function") {
-                p3.catch(() => {
-                  // keep trying silently
-                });
-              }
-            } catch (_) {}
-            if (attempts >= maxAttempts) clearInterval(unmuteTimer);
-          }, 1000);
-        } catch (_) {}
-      });
-    }
-  } catch (_) {}
-  })();
-
-  setTimeout(hideAddressBar, 100);
+setTimeout(hideAddressBar, 100);
 window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 100));
-
+ 
 requestAnimationFrame((ts) => {
   lastTs = ts;
   requestAnimationFrame(loop);
