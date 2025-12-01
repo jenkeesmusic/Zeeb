@@ -329,18 +329,9 @@ let explosions = [];
 let spawnTimer = 0;
 let coinSpawnTimer = 0;
 let crashAnim = { active: false, t: 0, duration: 900, x: 0, y: 0 };
-let stars = [];
+// Stars for background - using shared module
+const starfield = createStarfield(ctx, W, H, STAR_PRESETS.level3);
 let lastShot = 0;
-
-function initStars() {
-  const COUNT = 160; // denser starfield for L3
-  stars = Array.from({ length: COUNT }, () => ({
-    x: Math.random() * W,
-    y: Math.random() * H,
-    r: Math.random() * 1.35 + 0.35,
-    tw: Math.random() * Math.PI * 2,
-  }));
-}
 
 function spawnIntervalMs() {
   // L3: even faster spawn cadence
@@ -362,7 +353,7 @@ function resetGame() {
   lastShot = 0;
   crashAnim = { active: false, t: 0, duration: 900, x: 0, y: 0 };
   rocket.reset();
-  initStars();
+  starfield.reset();
   updateHud();
 }
 
@@ -572,24 +563,12 @@ function update(dt) {
   updateHud();
 }
 
-function drawBackground() {
-  // Warmer starfield for L3
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, W, H);
-
-  const t = performance.now() / 1000;
-  ctx.save();
-  for (const s of stars) {
-    const a = 0.5 + 0.5 * (0.5 + 0.5 * Math.sin(t * 2.4 + s.tw));
-    ctx.globalAlpha = a;
-    ctx.fillStyle = "#ffd0a8";
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
+function drawBackground(dt) {
+  // Draw moving stars using shared module (warm orange stars for L3)
+  starfield.draw(dt || 0.016);
   
-  // Draw distant Planet Zeeb with Cucumber in upper right (we're getting close!)
+  const t = performance.now() / 1000;
+  // Draw distant Planet Zeeb in upper right
   drawDistantPlanet(t);
 }
 
@@ -1122,7 +1101,6 @@ window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 10
 
 /* Boot: show title screen (don't auto-start) */
 updateHud();
-initStars();
 
 requestAnimationFrame((ts) => {
   lastTs = ts;

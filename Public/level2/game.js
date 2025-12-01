@@ -277,18 +277,9 @@ let explosions = [];
 let spawnTimer = 0;
 let coinSpawnTimer = 0;
 let crashAnim = { active: false, t: 0, duration: 900, x: 0, y: 0 };
-let stars = [];
+// Stars for background - using shared module
+const starfield = createStarfield(ctx, W, H, STAR_PRESETS.level2);
 let lastShot = 0;
-
-function initStars() {
-  const COUNT = 140;
-  stars = Array.from({ length: COUNT }, () => ({
-    x: Math.random() * W,
-    y: Math.random() * H,
-    r: Math.random() * 1.3 + 0.3,
-    tw: Math.random() * Math.PI * 2,
-  }));
-}
 
 function spawnIntervalMs() {
    const minMs = 300;
@@ -309,7 +300,7 @@ function resetGame() {
   lastShot = 0;
   crashAnim = { active: false, t: 0, duration: 900, x: 0, y: 0 };
   rocket.reset();
-  initStars();
+  starfield.reset();
   updateHud();
 }
 
@@ -467,22 +458,11 @@ function update(dt) {
   updateHud();
 }
 
-function drawBackground() {
-   ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, W, H);
-
-  const t = performance.now() / 1000;
-  ctx.save();
-  for (const s of stars) {
-    const a = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * 2.2 + s.tw));
-    ctx.globalAlpha = a;
-    ctx.fillStyle = "#b0fff0";
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
+function drawBackground(dt) {
+  // Draw moving stars using shared module
+  starfield.draw(dt || 0.016);
   
+  const t = performance.now() / 1000;
   drawDistantPlanet(t);
 }
 
@@ -800,7 +780,6 @@ window.addEventListener('orientationchange', () => setTimeout(hideAddressBar, 10
 show(overlay);
 hide(gameOverEl);
 updateHud();
-initStars();
 
 requestAnimationFrame((ts) => {
   lastTs = ts;
