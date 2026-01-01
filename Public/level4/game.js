@@ -40,16 +40,23 @@ const ASTEROID_IMAGES = [IMAGES.asteroid1, IMAGES.asteroid2, IMAGES.asteroid3];
 // Audio
 const laserSound = new Audio("../audio/pew.wav");
 laserSound.volume = 0.35;
-let musicUnlocked = false;
+let musicPlaying = false;
 function unlockMusic() {
-  if (musicUnlocked) return;
+  // Always try to play if not currently playing
+  if (musicPlaying) return;
   try {
     bgMusic.muted = false;
     bgMusic.volume = 0.6;
     const p = bgMusic.play();
-    if (p && typeof p.catch === "function") p.catch(() => {});
+    if (p && typeof p.then === "function") {
+      p.then(() => {
+        musicPlaying = true;
+      }).catch(() => {
+        // Autoplay blocked, will retry on next user interaction
+        musicPlaying = false;
+      });
+    }
   } catch (_) {}
-  musicUnlocked = true;
 }
 
  // State
