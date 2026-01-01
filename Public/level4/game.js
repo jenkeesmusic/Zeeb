@@ -1714,7 +1714,7 @@ window.addEventListener("keydown", (e) => {
   if ((e.key === " " || e.key === "Enter") && state === "win" && finaleVideoEnded) {
     if (finaleVideo) try { finaleVideo.pause(); } catch (_) {}
     // Navigate to start screen to restart the whole game
-    window.location.href = "../start/";
+    window.location.href = "../";
     return;
   }
 
@@ -1745,7 +1745,7 @@ canvas.addEventListener("pointerdown", (e) => {
   if (state === "win" && finaleVideoEnded) {
     if (finaleVideo) try { finaleVideo.pause(); } catch (_) {}
     // Navigate to start screen to restart the whole game
-    window.location.href = "../start/";
+    window.location.href = "../";
     return;
   }
   
