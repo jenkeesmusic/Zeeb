@@ -25,8 +25,6 @@
     <header class="title">Zeeb's Astroid Dodger — Level 3</header>
 
     <canvas id="gameCanvas" width="900" height="600" aria-label="Game canvas"></canvas>
-    <!-- Accessible Skip button shown while the boss intro video is playing -->
-    <button id="skipIntroBtn" class="btn skip-btn hidden" aria-label="Skip">Skip</button>
 
     <div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="level3OverlayTitle">
       <div class="panel">
@@ -58,12 +56,8 @@
     <div id="winOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="winOverlayTitle">
       <div class="panel" style="max-width: min(95vw, 850px); width: auto; padding: 28px 24px;">
         <h2 id="winOverlayTitle">Cucumber Battle</h2>
-        <p class="subtitle" style="margin-top: 6px;">Watch the pre-fight transmission to prepare for battle!</p>
-        <video id="winVideo" src="../img/I.MOV" playsinline style="width: 100%; height: auto; max-height: 62vh; object-fit: contain; border-radius: 10px; display: block; margin: 0 auto; display: none;"></video>
-        <div class="actions" style="margin-top: 10px;">
-          <button id="playVideoBtn" class="btn">Play Cucumber Battle Intro</button>
-          <a class="btn secondary" href="../level4/index.html">Go to Battle</a>
-        </div>
+        <p class="subtitle" style="margin-top: 6px;">Prepare for the final battle!</p>
+        <video id="winVideo" src="../img/I.MOV" playsinline style="width: 100%; height: auto; max-height: 62vh; object-fit: contain; border-radius: 10px; display: block; margin: 0 auto;"></video>
       </div>
     </div>
 

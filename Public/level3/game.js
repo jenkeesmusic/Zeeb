@@ -19,13 +19,8 @@ const bgMusic = $("bgMusic");
 const winOverlay = $("winOverlay");
 const winVideo = $("winVideo");
 const replayL3 = $("replayL3");
-const playVideoBtn = $("playVideoBtn");
-const skipIntroBtn = $("skipIntroBtn");
 let winPlaying = false;
 let winEnded = false;
-let winBtnRect = null;
-let winReplayRect = null;
-let winSkipRect = null;
 
 // Robust music unlock for mobile autoplay
 let musicUnlocked = false;
@@ -43,7 +38,10 @@ if (winVideo) {
   winVideo.addEventListener("ended", () => {
     winPlaying = false;
     winEnded = true;
-    try { if (skipIntroBtn) hide(skipIntroBtn); } catch (_) {}
+    // Auto-navigate to Level 4 when video ends
+    setTimeout(() => {
+      window.location.href = "../level4/index.html";
+    }, 500);
   });
 }
 
@@ -533,24 +531,26 @@ function update(dt) {
       coins_arr.splice(i, 1);
       updateHud();
 
-      // Cucumber Battle (Level 4) briefing trigger: at 15 coins, show overlay with button (no autoplay)
+      // Cucumber Battle (Level 4) briefing trigger: at 15 coins, auto-play video
       if (!window.__winTriggered && coins >= 15) {
         window.__winTriggered = true;
-        state = "paused"; // pause game
+        state = "win"; // switch to win state for video playback
         try { bgMusic.pause(); } catch (_) {}
-        // Show overlay with "Play Boss Intro" button
+        // Show overlay and auto-play video
         if (winOverlay) { 
           try { 
             show(winOverlay); 
           } catch (_) {} 
         }
-        // Reset video to beginning but don't play yet
         if (winVideo) {
           try {
             winEnded = false;
-            winPlaying = false;
-            winVideo.pause();
+            winPlaying = true;
             winVideo.currentTime = 0;
+            winVideo.muted = false;
+            winVideo.volume = 1.0;
+            const p = winVideo.play();
+            if (p && typeof p.catch === "function") p.catch(() => {});
           } catch (_) {}
         }
       }
@@ -752,55 +752,12 @@ function draw() {
     ctx.textAlign = "center";
     ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
     ctx.fillText("Cucumber Battle", W / 2, Math.max(40, dy - 20));
+    
+    // Show "Loading battle..." when video ends (auto-navigates shortly after)
     if (winEnded) {
-      // Draw action buttons: Continue to Battle + Replay Intro
-      const btnW = 300;
-      const btnH = 56;
-      const gap = 12;
-      const bx = Math.floor((W - btnW) / 2);
-      const baseY = Math.min(H - 20, dy + drawH + 70);
-      const by1 = baseY - (btnH * 2 + gap); // Continue on top
-      const by2 = by1 + btnH + gap;         // Replay below
-
-      // Continue to Battle (Level 4)
-      ctx.save();
-      ctx.fillStyle = "rgba(255, 220, 180, 0.55)";
-      ctx.strokeStyle = "#ffcf99";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.rect(bx, by1, btnW, btnH);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#2b1a0e";
-      ctx.font = "bold 22px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Continue to Battle", bx + btnW / 2, by1 + btnH / 2);
-      ctx.restore();
-
-      // Replay Intro
-      ctx.save();
-      ctx.fillStyle = "rgba(255, 220, 180, 0.28)";
-      ctx.strokeStyle = "#ffcf99";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.rect(bx, by2, btnW, btnH);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#2b1a0e";
-      ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Replay Intro", bx + btnW / 2, by2 + btnH / 2);
-      ctx.restore();
-
-      // Save hitboxes for pointer handling
-      winBtnRect = { x: bx, y: by1, w: btnW, h: btnH };
-      winReplayRect = { x: bx, y: by2, w: btnW, h: btnH };
-      winSkipRect = null;
-    } else {
-      // Use DOM skip button only; no canvas-drawn skip button
-      winSkipRect = null;
+      ctx.font = "bold 24px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      ctx.fillStyle = "#ffcc88";
+      ctx.fillText("Loading battle...", W / 2, dy + drawH + 40);
     }
     ctx.restore();
 
@@ -899,38 +856,6 @@ if (typeof replayL3 !== "undefined" && replayL3) {
   });
 }
 
-/* Play Video Button: enable video and music after user click */
-if (typeof playVideoBtn !== "undefined" && playVideoBtn) {
-  playVideoBtn.addEventListener("click", () => {
-    // Hide the overlay and transition to "win" state
-    if (winOverlay) hide(winOverlay);
-    state = "win";
-    winPlaying = true;
-    winEnded = false;
-    try { if (skipIntroBtn) show(skipIntroBtn); } catch (_) {}
-    // Keep background music silent during boss intro video
-    try { bgMusic.pause(); } catch (_) {}
-    
-    // Play video with sound
-    if (winVideo) {
-      try {
-        winVideo.muted = false;
-        winVideo.volume = 1.0;
-        winVideo.currentTime = 0;
-        const p = winVideo.play();
-        if (p && typeof p.catch === "function") p.catch(() => {});
-      } catch (_) {}
-    }
-  });
-}
-
-if (typeof skipIntroBtn !== "undefined" && skipIntroBtn) {
-  skipIntroBtn.addEventListener("click", () => {
-    try { if (winVideo) winVideo.pause(); } catch (_) {}
-    try { hide(skipIntroBtn); } catch (_) {}
-    window.location.href = "../level4/index.html?autostart=1";
-  });
-}
 
 window.addEventListener("keydown", (e) => {
   if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
@@ -945,13 +870,6 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Allow skipping the boss intro while video is playing
-  if (state === "win" && !winEnded && (e.key === "Escape" || e.key === "s" || e.key === "S")) {
-    try { if (winVideo) winVideo.pause(); } catch (_) {}
-    try { if (skipIntroBtn) hide(skipIntroBtn); } catch (_) {}
-    window.location.href = "../level4/index.html?autostart=1";
-    return;
-  }
 
   // Shoot (triple-shot with cone spread)
   if (e.key === " " && state === "running") {
@@ -996,50 +914,14 @@ canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   unlockMusic();
 
-  // Special handling in briefing mode: tap to unmute or to replay after video ends
+  // Special handling in briefing mode: tap to unmute if needed
   if (state === "win") {
-    if (winVideo) {
+    if (winVideo && !winEnded) {
       try {
-        if (winEnded) {
-          // If video finished, only navigate when tapping the Restart button
-          const rect = canvas.getBoundingClientRect();
-          const scaleX = W / rect.width;
-          const scaleY = H / rect.height;
-          const px = (e.clientX - rect.left) * scaleX;
-          const py = (e.clientY - rect.top) * scaleY;
-
-          if (winBtnRect &&
-              px >= winBtnRect.x && px <= winBtnRect.x + winBtnRect.w &&
-              py >= winBtnRect.y && py <= winBtnRect.y + winBtnRect.h) {
-            window.location.href = "../level4/index.html?autostart=1";
-            return;
-          }
-          if (winReplayRect &&
-              px >= winReplayRect.x && px <= winReplayRect.x + winReplayRect.w &&
-              py >= winReplayRect.y && py <= winReplayRect.y + winReplayRect.h) {
-            try {
-              winEnded = false;
-              winPlaying = true;
-              winVideo.currentTime = 0;
-              const p = winVideo.play();
-              if (p && typeof p.catch === "function") p.catch(() => {});
-            } catch (_) {}
-            return;
-          }
-        } else {
-          // While playing: check for Skip button, otherwise unmute/continue
-          const rect = canvas.getBoundingClientRect();
-          const scaleX = W / rect.width;
-          const scaleY = H / rect.height;
-          const px = (e.clientX - rect.left) * scaleX;
-          const py = (e.clientY - rect.top) * scaleY;
-
-
-          // Unmute + continue playback
-          winVideo.muted = false;
-          const p = winVideo.play();
-          if (p && typeof p.catch === "function") p.catch(() => {});
-        }
+        // Unmute + continue playback
+        winVideo.muted = false;
+        const p = winVideo.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
       } catch (_) {}
     }
     return;
