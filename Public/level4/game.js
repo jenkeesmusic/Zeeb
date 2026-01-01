@@ -1627,6 +1627,12 @@ function resetStage() {
 }
 
 function startStage() {
+  // Reset and restart the music from the beginning
+  try {
+    bgMusic.pause();
+    bgMusic.currentTime = 0;
+  } catch (_) {}
+  
   unlockMusic();
   hide(overlay);
   hide(completeOverlay);
