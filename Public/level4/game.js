@@ -41,70 +41,51 @@ const ASTEROID_IMAGES = [IMAGES.asteroid1, IMAGES.asteroid2, IMAGES.asteroid3];
 const laserSound = new Audio("../audio/pew.wav");
 laserSound.volume = 0.35;
 let musicPlaying = false;
-let musicAttempts = 0;
 
-function tryPlayMusic() {
-  if (musicPlaying) return;
-  musicAttempts++;
-  
-  try {
-    bgMusic.volume = 0.6;
-    
-    // Try playing - may be blocked by autoplay policy
-    const p = bgMusic.play();
-    if (p && typeof p.then === "function") {
-      p.then(() => {
-        musicPlaying = true;
-        bgMusic.muted = false;
-        console.log("Music started playing (attempt " + musicAttempts + ")");
-      }).catch((err) => {
-        console.log("Music play blocked (attempt " + musicAttempts + "):", err.message);
-        musicPlaying = false;
-      });
-    }
-  } catch (e) {
-    console.log("Music error:", e);
-  }
-}
-
-// Aggressive autoplay strategy: Try multiple times at increasing intervals
-function aggressiveAutoplay() {
-  tryPlayMusic();
-  
-  // Retry several times in case of race conditions
-  setTimeout(tryPlayMusic, 100);
-  setTimeout(tryPlayMusic, 300);
-  setTimeout(tryPlayMusic, 500);
-  setTimeout(tryPlayMusic, 1000);
-  setTimeout(tryPlayMusic, 2000);
-}
-
-// Alias for backward compatibility
 function unlockMusic() {
-  tryPlayMusic();
+  if (musicPlaying) return;
+  // Same approach as Level 3: try unmuted first, fallback to muted then unmute
+  try {
+    bgMusic.muted = false;
+    bgMusic.volume = 0.6;
+    const p = bgMusic.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        // Fallback: start muted to satisfy autoplay, then try to unmute periodically
+        try {
+          bgMusic.muted = true;
+          const p2 = bgMusic.play();
+          if (p2 && typeof p2.catch === "function") p2.catch(() => {});
+          // Try to unmute every second
+          let attempts = 0;
+          const maxAttempts = 20;
+          const unmuteTimer = setInterval(() => {
+            attempts++;
+            if (document.hidden) return;
+            try {
+              bgMusic.muted = false;
+              bgMusic.volume = 0.6;
+              const p3 = bgMusic.play();
+              if (!bgMusic.muted && !bgMusic.paused) {
+                musicPlaying = true;
+                clearInterval(unmuteTimer);
+              }
+              if (p3 && typeof p3.catch === "function") p3.catch(() => {});
+            } catch (_) {}
+            if (attempts >= maxAttempts) clearInterval(unmuteTimer);
+          }, 1000);
+        } catch (_) {}
+      });
+    } else {
+      musicPlaying = true;
+    }
+  } catch (_) {}
 }
 
-// Try to start music immediately when script loads
-aggressiveAutoplay();
-
-// Also try on DOMContentLoaded
-document.addEventListener("DOMContentLoaded", () => {
-  tryPlayMusic();
-});
-
-// Also try when window loads
-window.addEventListener("load", () => {
-  tryPlayMusic();
-});
-
-// Try on any click/touch/key to catch first interaction
-const startMusicOnInteraction = () => {
-  tryPlayMusic();
-};
-document.addEventListener("click", startMusicOnInteraction, { once: false });
-document.addEventListener("touchstart", startMusicOnInteraction, { once: false });
-document.addEventListener("keydown", startMusicOnInteraction, { once: false });
-document.addEventListener("mousemove", startMusicOnInteraction, { once: true });
+// Also unlock on any interaction
+document.addEventListener("click", unlockMusic, { once: false });
+document.addEventListener("touchstart", unlockMusic, { once: false });
+document.addEventListener("keydown", unlockMusic, { once: false });
 
  // State
 let state = "ready"; // "ready" | "intro" | "running" | "complete" | "gameover"
