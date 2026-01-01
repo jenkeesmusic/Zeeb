@@ -1628,6 +1628,7 @@ function resetStage() {
 
 function startStage() {
   // Reset and restart the music from the beginning
+  musicPlaying = false; // Reset flag so unlockMusic will actually play
   try {
     bgMusic.pause();
     bgMusic.currentTime = 0;
