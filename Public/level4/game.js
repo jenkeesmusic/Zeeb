@@ -1607,15 +1607,9 @@ requestAnimationFrame(loop);
 
 /**
  * Autostart battle:
- * - If ?autostart=1, start immediately (used by Level 3 skip).
- * - Otherwise, wait for user to click Start button.
+ * - Always start the battle immediately when level 4 loads (no skip option).
+ * - The intro sequence will play, giving the dramatic reveal.
  */
-try {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("autostart") === "1") {
-    setTimeout(() => {
-      try { startStage(); } catch (_) {}
-    }, 50);
-  }
-  // If no autostart param, wait for user to click Start button
-} catch (_) {}
+setTimeout(() => {
+  try { startStage(); } catch (_) {}
+}, 100);
