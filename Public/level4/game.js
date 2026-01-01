@@ -13,6 +13,10 @@ const hpEl = $("hpEl");
 const zeebHpEl = $("zeebHpEl");
 const zeebHpBar = $("zeebHpBar");
 const cucumberHpBar = $("cucumberHpBar");
+const winOverlay = $("winOverlay");
+const finaleVideo = $("finaleVideo");
+let finaleVideoPlaying = false;
+let finaleVideoEnded = false;
 
 const W = canvas.width;
 const H = canvas.height;
@@ -1400,6 +1404,65 @@ function draw(dt) {
   
   ctx.clearRect(0, 0, W, H);
   
+  // Draw finale video when in win state
+  if (state === "win") {
+    drawBackground(dt || 0);
+    
+    const vw = (finaleVideo && finaleVideo.videoWidth) ? finaleVideo.videoWidth : 1280;
+    const vh = (finaleVideo && finaleVideo.videoHeight) ? finaleVideo.videoHeight : 720;
+
+    // Fit video within canvas with margin
+    let maxW = Math.floor(W * 0.94);
+    let maxH = Math.floor(H * 0.78);
+    let drawW = maxW;
+    let drawH = Math.floor(drawW * (vh / vw));
+    if (drawH > maxH) {
+      drawH = maxH;
+      drawW = Math.floor(drawH * (vw / vh));
+    }
+    const dx = Math.floor((W - drawW) / 2);
+    const dy = Math.floor((H - drawH) / 2);
+
+    // Dim backdrop
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+
+    // Frame glow/border
+    ctx.save();
+    ctx.shadowColor = "#88ff88";
+    ctx.shadowBlur = 24;
+    ctx.fillStyle = "rgba(100, 255, 150, 0.15)";
+    ctx.fillRect(dx - 8, dy - 8, drawW + 16, drawH + 16);
+    ctx.restore();
+
+    // Draw video frame
+    if (finaleVideo) {
+      try { ctx.drawImage(finaleVideo, dx, dy, drawW, drawH); } catch (_) {}
+    }
+
+    // Title text
+    ctx.save();
+    ctx.fillStyle = "#aaffaa";
+    ctx.textAlign = "center";
+    ctx.font = "bold 36px 'Audiowide', 'Orbitron', system-ui, sans-serif";
+    ctx.shadowColor = "#00ff44";
+    ctx.shadowBlur = 20;
+    ctx.fillText("VICTORY!", W / 2, Math.max(40, dy - 20));
+    
+    // Show "Play Again" option when video ends
+    if (finaleVideoEnded) {
+      ctx.font = "bold 24px 'Audiowide', 'Orbitron', system-ui, sans-serif";
+      ctx.fillStyle = "#ffff88";
+      ctx.shadowColor = "#ffaa00";
+      ctx.fillText("Press Space or Click to Play Again", W / 2, dy + drawH + 45);
+    }
+    ctx.restore();
+    
+    return;
+  }
+  
   // Apply screen shake
   ctx.save();
   ctx.translate(screenShake.offsetX, screenShake.offsetY);
@@ -1538,8 +1601,32 @@ function startStage() {
 }
 
 function winStage() {
-  state = "complete";
-  show(completeOverlay);
+  state = "win";
+  try { bgMusic.pause(); } catch (_) {}
+  
+  // Show win overlay (semi-transparent for video to show through canvas)
+  if (winOverlay) show(winOverlay);
+  
+  // Play finale video
+  if (finaleVideo) {
+    try {
+      finaleVideoEnded = false;
+      finaleVideoPlaying = true;
+      finaleVideo.currentTime = 0;
+      finaleVideo.muted = false;
+      finaleVideo.volume = 1.0;
+      const p = finaleVideo.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (_) {}
+  }
+}
+
+// Handle finale video ended - show play again option
+if (finaleVideo) {
+  finaleVideo.addEventListener("ended", () => {
+    finaleVideoPlaying = false;
+    finaleVideoEnded = true;
+  });
 }
 
 function loseStage() {
@@ -1569,6 +1656,14 @@ window.addEventListener("keydown", (e) => {
     startStage();
     return;
   }
+  
+  // Restart from win state after video ends
+  if ((e.key === " " || e.key === "Enter") && state === "win" && finaleVideoEnded) {
+    if (finaleVideo) try { finaleVideo.pause(); } catch (_) {}
+    if (winOverlay) hide(winOverlay);
+    startStage();
+    return;
+  }
 
   if (state === "running" && e.key === " ") {
     shoot();
@@ -1592,6 +1687,15 @@ window.addEventListener("keyup", (e) => {
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   unlockMusic();
+  
+  // Handle click to restart after finale video
+  if (state === "win" && finaleVideoEnded) {
+    if (finaleVideo) try { finaleVideo.pause(); } catch (_) {}
+    if (winOverlay) hide(winOverlay);
+    startStage();
+    return;
+  }
+  
   if (state !== "running") return;
   pointerActive = true;
   moveStartTime = performance.now();
