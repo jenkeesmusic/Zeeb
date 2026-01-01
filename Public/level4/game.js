@@ -41,23 +41,42 @@ const ASTEROID_IMAGES = [IMAGES.asteroid1, IMAGES.asteroid2, IMAGES.asteroid3];
 const laserSound = new Audio("../audio/pew.wav");
 laserSound.volume = 0.35;
 let musicPlaying = false;
+let musicAttempts = 0;
 
 function tryPlayMusic() {
   if (musicPlaying) return;
+  musicAttempts++;
+  
   try {
-    bgMusic.muted = false;
     bgMusic.volume = 0.6;
+    
+    // Try playing - may be blocked by autoplay policy
     const p = bgMusic.play();
     if (p && typeof p.then === "function") {
       p.then(() => {
         musicPlaying = true;
-        console.log("Music started playing");
-      }).catch(() => {
-        // Autoplay blocked, will retry on next user interaction
+        bgMusic.muted = false;
+        console.log("Music started playing (attempt " + musicAttempts + ")");
+      }).catch((err) => {
+        console.log("Music play blocked (attempt " + musicAttempts + "):", err.message);
         musicPlaying = false;
       });
     }
-  } catch (_) {}
+  } catch (e) {
+    console.log("Music error:", e);
+  }
+}
+
+// Aggressive autoplay strategy: Try multiple times at increasing intervals
+function aggressiveAutoplay() {
+  tryPlayMusic();
+  
+  // Retry several times in case of race conditions
+  setTimeout(tryPlayMusic, 100);
+  setTimeout(tryPlayMusic, 300);
+  setTimeout(tryPlayMusic, 500);
+  setTimeout(tryPlayMusic, 1000);
+  setTimeout(tryPlayMusic, 2000);
 }
 
 // Alias for backward compatibility
@@ -65,8 +84,10 @@ function unlockMusic() {
   tryPlayMusic();
 }
 
-// Try to start music immediately on page load
-// This works when user has interacted with the site before (from Level 3 video)
+// Try to start music immediately when script loads
+aggressiveAutoplay();
+
+// Also try on DOMContentLoaded
 document.addEventListener("DOMContentLoaded", () => {
   tryPlayMusic();
 });
@@ -83,6 +104,7 @@ const startMusicOnInteraction = () => {
 document.addEventListener("click", startMusicOnInteraction, { once: false });
 document.addEventListener("touchstart", startMusicOnInteraction, { once: false });
 document.addEventListener("keydown", startMusicOnInteraction, { once: false });
+document.addEventListener("mousemove", startMusicOnInteraction, { once: true });
 
  // State
 let state = "ready"; // "ready" | "intro" | "running" | "complete" | "gameover"
