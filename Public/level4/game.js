@@ -1601,10 +1601,7 @@ function winStage() {
   state = "win";
   try { bgMusic.pause(); } catch (_) {}
   
-  // Show win overlay (semi-transparent for video to show through canvas)
-  if (winOverlay) show(winOverlay);
-  
-  // Play finale video
+  // Play finale video (rendered directly on canvas, no overlay needed)
   if (finaleVideo) {
     try {
       finaleVideoEnded = false;
