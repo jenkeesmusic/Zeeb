@@ -1406,14 +1406,16 @@ function draw(dt) {
   
   // Draw finale video when in win state
   if (state === "win") {
-    drawBackground(dt || 0);
+    // Black background for clean video viewing
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, W, H);
     
     const vw = (finaleVideo && finaleVideo.videoWidth) ? finaleVideo.videoWidth : 1280;
     const vh = (finaleVideo && finaleVideo.videoHeight) ? finaleVideo.videoHeight : 720;
 
     // Fit video within canvas with margin
-    let maxW = Math.floor(W * 0.94);
-    let maxH = Math.floor(H * 0.78);
+    let maxW = Math.floor(W * 0.96);
+    let maxH = Math.floor(H * 0.82);
     let drawW = maxW;
     let drawH = Math.floor(drawW * (vh / vw));
     if (drawH > maxH) {
@@ -1423,18 +1425,13 @@ function draw(dt) {
     const dx = Math.floor((W - drawW) / 2);
     const dy = Math.floor((H - drawH) / 2);
 
-    // Dim backdrop
+    // Subtle frame glow
     ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(0, 0, W, H);
-    ctx.restore();
-
-    // Frame glow/border
-    ctx.save();
-    ctx.shadowColor = "#88ff88";
-    ctx.shadowBlur = 24;
-    ctx.fillStyle = "rgba(100, 255, 150, 0.15)";
-    ctx.fillRect(dx - 8, dy - 8, drawW + 16, drawH + 16);
+    ctx.shadowColor = "#44aa44";
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = "#227722";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(dx - 4, dy - 4, drawW + 8, drawH + 8);
     ctx.restore();
 
     // Draw video frame
