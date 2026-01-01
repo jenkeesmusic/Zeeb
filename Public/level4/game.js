@@ -41,8 +41,8 @@ const ASTEROID_IMAGES = [IMAGES.asteroid1, IMAGES.asteroid2, IMAGES.asteroid3];
 const laserSound = new Audio("../audio/pew.wav");
 laserSound.volume = 0.35;
 let musicPlaying = false;
-function unlockMusic() {
-  // Always try to play if not currently playing
+
+function tryPlayMusic() {
   if (musicPlaying) return;
   try {
     bgMusic.muted = false;
@@ -51,6 +51,7 @@ function unlockMusic() {
     if (p && typeof p.then === "function") {
       p.then(() => {
         musicPlaying = true;
+        console.log("Music started playing");
       }).catch(() => {
         // Autoplay blocked, will retry on next user interaction
         musicPlaying = false;
@@ -58,6 +59,30 @@ function unlockMusic() {
     }
   } catch (_) {}
 }
+
+// Alias for backward compatibility
+function unlockMusic() {
+  tryPlayMusic();
+}
+
+// Try to start music immediately on page load
+// This works when user has interacted with the site before (from Level 3 video)
+document.addEventListener("DOMContentLoaded", () => {
+  tryPlayMusic();
+});
+
+// Also try when window loads
+window.addEventListener("load", () => {
+  tryPlayMusic();
+});
+
+// Try on any click/touch/key to catch first interaction
+const startMusicOnInteraction = () => {
+  tryPlayMusic();
+};
+document.addEventListener("click", startMusicOnInteraction, { once: false });
+document.addEventListener("touchstart", startMusicOnInteraction, { once: false });
+document.addEventListener("keydown", startMusicOnInteraction, { once: false });
 
  // State
 let state = "ready"; // "ready" | "intro" | "running" | "complete" | "gameover"
