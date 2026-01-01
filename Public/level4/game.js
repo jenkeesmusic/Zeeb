@@ -1453,7 +1453,7 @@ function draw(dt) {
       ctx.font = "bold 24px 'Audiowide', 'Orbitron', system-ui, sans-serif";
       ctx.fillStyle = "#ffff88";
       ctx.shadowColor = "#ffaa00";
-      ctx.fillText("Press Space or Click to Play Again", W / 2, dy + drawH + 45);
+      ctx.fillText("Press Space or Click to Restart Game", W / 2, dy + drawH + 45);
     }
     ctx.restore();
     
@@ -1651,11 +1651,11 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   
-  // Restart from win state after video ends
+  // Restart whole game from win state after video ends
   if ((e.key === " " || e.key === "Enter") && state === "win" && finaleVideoEnded) {
     if (finaleVideo) try { finaleVideo.pause(); } catch (_) {}
-    if (winOverlay) hide(winOverlay);
-    startStage();
+    // Navigate to start screen to restart the whole game
+    window.location.href = "../start/";
     return;
   }
 
@@ -1682,11 +1682,11 @@ canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   unlockMusic();
   
-  // Handle click to restart after finale video
+  // Handle click to restart whole game after finale video
   if (state === "win" && finaleVideoEnded) {
     if (finaleVideo) try { finaleVideo.pause(); } catch (_) {}
-    if (winOverlay) hide(winOverlay);
-    startStage();
+    // Navigate to start screen to restart the whole game
+    window.location.href = "../start/";
     return;
   }
   
