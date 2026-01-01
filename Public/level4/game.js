@@ -112,6 +112,11 @@ let targetY = H / 2;
 let shootOnRelease = false;
 let moveStartTime = 0;
 
+// Power-up event at 56 seconds
+let powerUpTriggered = false;
+let powerUpEffectTimer = 0;
+const POWER_UP_TIME = 56; // seconds into the music
+
 // Stars for background - using shared module
 const starfield = createStarfield(ctx, W, H, STAR_PRESETS.level4);
 
@@ -1193,6 +1198,20 @@ function update(dt) {
   cucumber.update(dt, planet); // Pass planet so cucumber can stand on it
   screenShake.update(dt);
   
+  // Check for power-up at 56 seconds in the music
+  if (!powerUpTriggered && bgMusic && bgMusic.currentTime >= POWER_UP_TIME) {
+    powerUpTriggered = true;
+    powerUpEffectTimer = 3.0; // Red gradient effect lasts 3 seconds
+    // Give Zeeb +25 HP boost!
+    zeebHp = Math.min(zeebHp + 25, MAX_ZEEB_HP + 25); // Can exceed max slightly for boost
+    updateHpDisplays();
+  }
+  
+  // Decay power-up effect timer
+  if (powerUpEffectTimer > 0) {
+    powerUpEffectTimer -= dt;
+  }
+  
   // Single-phase battle: asteroids always spawn
   dropTimer -= dt;
   if (dropTimer <= 0) {
@@ -1497,6 +1516,33 @@ function draw(dt) {
     ctx.fillRect(0, 0, W, H);
   }
   
+  // Power-up red gradient effect at 56 seconds
+  if (powerUpEffectTimer > 0) {
+    const effectAlpha = Math.min(0.5, powerUpEffectTimer / 3.0 * 0.5);
+    // Create a red gradient from edges toward center
+    const gradient = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W * 0.8);
+    gradient.addColorStop(0, 'rgba(255, 50, 50, 0)');
+    gradient.addColorStop(0.4, `rgba(255, 30, 30, ${effectAlpha * 0.3})`);
+    gradient.addColorStop(0.7, `rgba(200, 0, 0, ${effectAlpha * 0.5})`);
+    gradient.addColorStop(1, `rgba(150, 0, 0, ${effectAlpha})`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+    
+    // Show "+25 HP" text during first 2 seconds
+    if (powerUpEffectTimer > 1.0) {
+      const textAlpha = Math.min(1, (powerUpEffectTimer - 1.0) / 1.0);
+      ctx.save();
+      ctx.globalAlpha = textAlpha;
+      ctx.fillStyle = "#ffff44";
+      ctx.font = "bold 48px 'Audiowide', 'Orbitron', sans-serif";
+      ctx.textAlign = "center";
+      ctx.shadowColor = "#ff6600";
+      ctx.shadowBlur = 30;
+      ctx.fillText("+25 POWER!", W / 2, H / 2 - 50);
+      ctx.restore();
+    }
+  }
+  
   ctx.restore();
 }
 
@@ -1561,6 +1607,8 @@ function resetStage() {
   dropTimer = 0;
   overheadTimer = 3.0; // First overhead asteroid after 3 seconds
   fieryTimer = 5.0; // First fiery asteroid after 5 seconds
+  powerUpTriggered = false; // Reset power-up for new attempt
+  powerUpEffectTimer = 0;
   lasers.length = 0;
   sparks.length = 0;
   fallingAsteroids.length = 0;
