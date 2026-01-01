@@ -1205,6 +1205,8 @@ function update(dt) {
     // Give Zeeb +25 HP boost!
     zeebHp = Math.min(zeebHp + 25, MAX_ZEEB_HP + 25); // Can exceed max slightly for boost
     updateHpDisplays();
+    // Change page background from green to red gradient (same pattern, red colors)
+    document.body.style.background = "radial-gradient(circle at 50% 20%, #330808, #100202 50%, #060101 100%)";
   }
   
   // Decay power-up effect timer
@@ -1609,6 +1611,8 @@ function resetStage() {
   fieryTimer = 5.0; // First fiery asteroid after 5 seconds
   powerUpTriggered = false; // Reset power-up for new attempt
   powerUpEffectTimer = 0;
+  // Reset page background to original green gradient
+  document.body.style.background = "radial-gradient(circle at 50% 20%, #083316, #021007 50%, #010604 100%)";
   lasers.length = 0;
   sparks.length = 0;
   fallingAsteroids.length = 0;
