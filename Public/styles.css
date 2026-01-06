@@ -98,6 +98,10 @@ img { display: block; }
   place-items: center;
   background: radial-gradient(ellipse at center, rgba(2, 8, 18, 0.7), rgba(2, 8, 18, 0.9));
   z-index: 10;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 20px 10px;
 }
 
 .hidden { display: none; }
@@ -239,14 +243,22 @@ body, button, canvas {
   user-select: none;
 }
 
-/* Lock viewport on mobile to prevent browser sliding */
-html {
+/* Lock viewport on mobile to prevent browser sliding - but allow overlays to scroll */
+#gameCanvas {
   touch-action: none;
 }
 
 .wrap {
-  touch-action: none;
   overscroll-behavior: contain;
+}
+
+/* Allow overlay panels to scroll on mobile */
+.overlay {
+  touch-action: pan-y !important;
+}
+
+.overlay .panel {
+  touch-action: pan-y;
 }
 
 /* Start Scene (Planet Zeeb + Zeeb Hero) */
