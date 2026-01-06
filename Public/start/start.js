@@ -6,6 +6,9 @@
   }
 
   function wire() {
+    // ===== The Zeeb Show functionality =====
+    wireZeebShow();
+
     const zeeb = document.getElementById("zeebHero");
     const bgMusic = document.getElementById("bgMusic");
     if (!zeeb || !bgMusic) return;
@@ -87,5 +90,86 @@
       planet.addEventListener("touchstart", wave, { passive: true });
 
     }
+  }
+
+  // ===== The Zeeb Show Video Player =====
+  function wireZeebShow() {
+    const zeebShowBtn = document.getElementById("zeebShowBtn");
+    const zeebShowOverlay = document.getElementById("zeebShowOverlay");
+    const closeZeebShowBtn = document.getElementById("closeZeebShow");
+    const videoPlayerOverlay = document.getElementById("videoPlayerOverlay");
+    const closeVideoBtn = document.getElementById("closeVideoPlayer");
+    const video = document.getElementById("zeebShowVideo");
+    const videoSource = document.getElementById("videoSource");
+    const startOverlay = document.getElementById("overlay");
+    const episodeCards = document.querySelectorAll(".episode-card");
+    const bgMusic = document.getElementById("bgMusic");
+
+    if (!zeebShowBtn || !zeebShowOverlay) return;
+
+    // Open episode selection
+    zeebShowBtn.addEventListener("click", () => {
+      startOverlay.classList.add("hidden");
+      zeebShowOverlay.classList.remove("hidden");
+      // Pause background music when entering the show
+      if (bgMusic) {
+        try { bgMusic.pause(); } catch (_) {}
+      }
+    });
+
+    // Close episode selection, back to start
+    closeZeebShowBtn.addEventListener("click", () => {
+      zeebShowOverlay.classList.add("hidden");
+      startOverlay.classList.remove("hidden");
+    });
+
+    // Handle episode card clicks
+    episodeCards.forEach(card => {
+      card.addEventListener("click", () => {
+        const src = card.dataset.src;
+        if (!src || !videoSource || !video) return;
+
+        // Set video source and play
+        videoSource.src = src;
+        video.load();
+        
+        // Hide episode selection, show video player
+        zeebShowOverlay.classList.add("hidden");
+        videoPlayerOverlay.classList.remove("hidden");
+        
+        // Play video
+        const playPromise = video.play();
+        if (playPromise && typeof playPromise.catch === "function") {
+          playPromise.catch(() => {});
+        }
+      });
+    });
+
+    // Close video player, back to episode selection
+    function closeVideo() {
+      video.pause();
+      video.currentTime = 0;
+      videoPlayerOverlay.classList.add("hidden");
+      zeebShowOverlay.classList.remove("hidden");
+    }
+
+    closeVideoBtn.addEventListener("click", closeVideo);
+
+    // Also close when video ends
+    video.addEventListener("ended", () => {
+      setTimeout(closeVideo, 500); // Small delay before returning to menu
+    });
+
+    // Close video on escape key
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        if (!videoPlayerOverlay.classList.contains("hidden")) {
+          closeVideo();
+        } else if (!zeebShowOverlay.classList.contains("hidden")) {
+          zeebShowOverlay.classList.add("hidden");
+          startOverlay.classList.remove("hidden");
+        }
+      }
+    });
   }
 })();
