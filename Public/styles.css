@@ -127,12 +127,25 @@ img { display: block; }
   width: min(92vw, 520px);
   padding: 22px 20px;
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(8,14,28,0.92), rgba(6,10,20,0.92));
+  background: linear-gradient(135deg, 
+    rgba(8,14,28,0.94) 0%, 
+    rgba(18,10,35,0.94) 25%, 
+    rgba(8,20,40,0.94) 50%, 
+    rgba(15,8,30,0.94) 75%, 
+    rgba(8,14,28,0.94) 100%);
+  background-size: 400% 400%;
+  animation: panel-gradient 25s ease infinite;
   border: 1px solid rgba(120, 170, 255, 0.25);
   box-shadow:
     0 10px 30px rgba(0, 0, 0, 0.55),
     inset 0 0 60px rgba(0, 60, 140, 0.15);
   text-align: center;
+}
+
+@keyframes panel-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .panel h1, .panel h2 {
