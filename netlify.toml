@@ -2,68 +2,7 @@
   publish = "Public"
   command = ""
 
-# Block WordPress probing attacks
-[[redirects]]
-  from = "/wp-admin/*"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/wordpress/*"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/wp-content/*"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/wp-includes/*"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/wp-login.php"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/xmlrpc.php"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/.env"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/admin/*"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/administrator/*"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/phpmyadmin/*"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/.git/*"
-  to = "/404.html"
-  status = 404
-
-[[redirects]]
-  from = "/config/*"
-  to = "/404.html"
-  status = 404
-
-# Explicit passthrough for level pages and assets (serve real files first)
+# Serve real files - these rules ensure actual files are served
 [[redirects]]
   from = "/level2/*"
   to = "/level2/:splat"
@@ -89,8 +28,50 @@
   to = "/zeeb-show/:splat"
   status = 200
 
-# SPA fallback: for unknown routes, serve root index.html
 [[redirects]]
-  from = "/*"
+  from = "/img/*"
+  to = "/img/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/audio/*"
+  to = "/audio/:splat"
+  status = 200
+
+# Root level files
+[[redirects]]
+  from = "/game.js"
+  to = "/game.js"
+  status = 200
+
+[[redirects]]
+  from = "/styles.css"
+  to = "/styles.css"
+  status = 200
+
+[[redirects]]
+  from = "/stars.js"
+  to = "/stars.js"
+  status = 200
+
+[[redirects]]
+  from = "/manifest.json"
+  to = "/manifest.json"
+  status = 200
+
+[[redirects]]
+  from = "/robots.txt"
+  to = "/robots.txt"
+  status = 200
+
+# Homepage only
+[[redirects]]
+  from = "/"
   to = "/index.html"
   status = 200
+
+# Everything else gets 404
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404
