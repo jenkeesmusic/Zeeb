@@ -55,6 +55,8 @@ img { display: block; }
   letter-spacing: 0.3px;
   opacity: 0.6;
   transition: opacity 0.3s ease;
+  z-index: 15;
+  pointer-events: none;
 }
 .site-credit:hover {
   opacity: 0.9;
