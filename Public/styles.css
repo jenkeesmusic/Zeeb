@@ -128,13 +128,13 @@ img { display: block; }
   padding: 22px 20px;
   border-radius: 14px;
   background: linear-gradient(135deg, 
-    rgba(8,14,28,0.94) 0%, 
-    rgba(18,10,35,0.94) 25%, 
-    rgba(8,20,40,0.94) 50%, 
-    rgba(15,8,30,0.94) 75%, 
-    rgba(8,14,28,0.94) 100%);
+    rgba(6,12,24,0.95) 0%, 
+    rgba(30,15,50,0.95) 25%, 
+    rgba(10,25,50,0.95) 50%, 
+    rgba(25,10,45,0.95) 75%, 
+    rgba(6,12,24,0.95) 100%);
   background-size: 400% 400%;
-  animation: panel-gradient 25s ease infinite;
+  animation: panel-gradient 20s ease infinite;
   border: 1px solid rgba(120, 170, 255, 0.25);
   box-shadow:
     0 10px 30px rgba(0, 0, 0, 0.55),
@@ -406,16 +406,19 @@ body, button, canvas {
   margin: 14px 0;
 }
 
-/* Secondary button style */
+/* Secondary button style - understated helper */
 .btn.btn-secondary {
-  background: linear-gradient(180deg, #1a2a40, #0e1a28);
-  border-color: rgba(100, 150, 200, 0.5);
-  box-shadow: 0 4px 12px rgba(0, 50, 120, 0.25);
-  font-size: 14px;
-  padding: 10px 16px;
+  background: linear-gradient(180deg, rgba(20,30,45,0.7), rgba(12,18,28,0.8));
+  border-color: rgba(80, 120, 160, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 30, 80, 0.2);
+  font-size: 13px;
+  padding: 8px 14px;
+  font-weight: 600;
+  color: rgba(200, 220, 240, 0.8);
 }
 .btn.btn-secondary:hover {
-  filter: brightness(1.15);
+  filter: brightness(1.2);
+  color: rgba(220, 235, 255, 0.95);
 }
 
 /* How to Play Panel */
