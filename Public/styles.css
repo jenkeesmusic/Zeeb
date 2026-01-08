@@ -45,6 +45,21 @@ img { display: block; }
   opacity: 0.85;
 }
 
+.site-credit {
+  position: fixed;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #5a6a7a;
+  letter-spacing: 0.3px;
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+.site-credit:hover {
+  opacity: 0.9;
+}
+
 /* Canvas */
 #gameCanvas {
   width: 900px;
