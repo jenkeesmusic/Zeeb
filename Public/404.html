@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>404 - SECTOR NOT FOUND</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: flicker 1.5s infinite;
+        }
+        .message {
+            font-size: 1.2rem;
+            line-height: 1.8;
+            max-width: 500px;
+        }
+        .code {
+            margin-top: 2rem;
+            padding: 1rem;
+            border: 1px solid #0f0;
+            font-size: 0.9rem;
+        }
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>404</h1>
+        <div class="message">
+            ALERT: SECTOR NOT FOUND<br><br>
+            COORDINATES INVALID<br>
+            ACCESS: DENIED<br>
+            CLEARANCE: INSUFFICIENT<br><br>
+            RETURNING TO BASE RECOMMENDED
+        </div>
+        <div class="code">
+            ERROR_CODE: 0x404<br>
+            STATUS: NAVIGATION_FAILURE<br>
+            END TRANSMISSION
+        </div>
+    </div>
+</body>
+</html>
