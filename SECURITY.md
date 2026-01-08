@@ -58,5 +58,17 @@ Custom 404 page with:
 
 ---
 
+## Domain Redirect
+
+The Netlify subdomain `zeebgame.netlify.app` automatically redirects (301) to `gamesbygrace.com`.
+
+This ensures:
+- All traffic goes through the custom domain
+- No duplicate content issues
+- Consistent branding
+
+---
+
 ## Updates
 - **2026-01-07**: Initial security setup - robots.txt, whitelist routing, 404 page
+- **2026-01-07**: Added Netlify subdomain → custom domain redirect

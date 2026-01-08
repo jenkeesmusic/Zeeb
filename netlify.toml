@@ -2,6 +2,13 @@
   publish = "Public"
   command = ""
 
+# Force redirect from Netlify subdomain to custom domain
+[[redirects]]
+  from = "https://zeebgame.netlify.app/*"
+  to = "https://gamesbygrace.com/:splat"
+  status = 301
+  force = true
+
 # Serve real files - these rules ensure actual files are served
 [[redirects]]
   from = "/level2/*"
