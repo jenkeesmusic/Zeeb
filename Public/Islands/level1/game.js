@@ -656,7 +656,9 @@ class OceanAnimation {
         this.islandDriftSpeed = 4; // px/s — super slow background drift
 
         // Game state
-        this.state = 'title';       // 'title' | 'playing' | 'gameover'
+        this.state = 'title';       // 'title' | 'transition' | 'playing' | 'gameover'
+        this.transitionTimer = 0;
+        this.transitionDuration = 1.2; // seconds for island fade-out
         this.titleMusicTriggered = false; // true after first interaction starts music
         this.score = 0;
         this.lives = 3;
@@ -2474,32 +2476,24 @@ class OceanAnimation {
             const baseW = baseH * islandAspect;
             const baseX = this.width * 0.08;
             const baseY = 400 * 0.75;
-            // Scale from center
             const drawW = baseW * s;
             const drawH = baseH * s;
             const drawX = baseX - (drawW - baseW) / 2;
             const drawY = baseY - (drawH - baseH) / 2;
             ctx.drawImage(islandLeftImg, drawX, drawY, drawW, drawH);
 
-            let rightDrawX = 0, rightDrawY = 0, rightDrawW = 0, rightDrawH = 0;
             const islandRightImg = this.images.islandRight;
             if (islandRightImg.complete && islandRightImg.naturalWidth > 0) {
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const rightBaseW = baseH * rightAspect;
                 const rightBaseX = this.width * 0.92 - rightBaseW;
                 const rightBaseY = 425 * 0.75;
-                rightDrawW = rightBaseW * s;
-                rightDrawH = baseH * s;
-                rightDrawX = rightBaseX - (rightDrawW - rightBaseW) / 2;
-                rightDrawY = rightBaseY - (rightDrawH - baseH) / 2;
+                const rightDrawW = rightBaseW * s;
+                const rightDrawH = baseH * s;
+                const rightDrawX = rightBaseX - (rightDrawW - rightBaseW) / 2;
+                const rightDrawY = rightBaseY - (rightDrawH - baseH) / 2;
                 ctx.drawImage(islandRightImg, rightDrawX, rightDrawY, rightDrawW, rightDrawH);
             }
-
-            // Store bounds for click detection
-            this._titleIslandBounds = {
-                leftX: drawX, leftY: drawY, leftW: drawW, leftH: drawH,
-                rightX: rightDrawX, rightY: rightDrawY, rightW: rightDrawW, rightH: rightDrawH
-            };
         }
 
         // Wave layers (no fish, no danger waves)
@@ -2551,6 +2545,86 @@ class OceanAnimation {
 
         ctx.restore();
 
+    }
+
+    drawTransition() {
+        const ctx = this.ctx;
+        const t = Math.min(1, this.transitionTimer / this.transitionDuration);
+        // Ease-in-out curve
+        const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        // Draw the same scene as title (sky, clouds, horizon, waves)
+        ctx.clearRect(0, 0, this.width, this.height);
+
+        const hasSky = this.images.sky.complete && this.images.sky.naturalWidth > 0;
+        if (hasSky) {
+            ctx.drawImage(this.images.sky, 0, 0, this.width, this.height);
+        } else {
+            const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#98D8E8');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, this.width, this.height);
+        }
+
+        if (this.cloudSystem) {
+            try { this.cloudSystem.draw(ctx); } catch (err) { this.cloudSystem = null; }
+        }
+
+        this.drawHorizon();
+
+        // Fading islands — both fade and sink out
+        const alpha = 1 - ease;
+        const bob = 1.0 + Math.sin(this.elapsedTime * 1.5) * 0.02;
+        const sinkY = ease * this.height * 0.08;
+
+        const islandLeftImg = this.images.islandLeft;
+        if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
+            const pixelsPerInch = 96;
+            const baseH = pixelsPerInch * 1 * bob;
+            const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
+            const baseW = baseH * islandAspect;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.drawImage(islandLeftImg, this.width * 0.08, 400 * 0.75 + sinkY, baseW, baseH);
+            ctx.restore();
+
+            const islandRightImg = this.images.islandRight;
+            if (islandRightImg.complete && islandRightImg.naturalWidth > 0) {
+                const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
+                const rightBaseW = baseH * rightAspect;
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.drawImage(islandRightImg, this.width * 0.92 - rightBaseW, 425 * 0.75 + sinkY, rightBaseW, baseH);
+                ctx.restore();
+            }
+        }
+
+        // Waves
+        if (this.useGerstnerWaves) {
+            for (let i = 0; i < this.gerstnerWaves.layers.length; i++) {
+                if (this.visibleWaveLayers.includes(i)) {
+                    this.gerstnerWaves.drawLayer(this.ctx, i, this.width, this.height);
+                }
+            }
+        }
+
+        // Title text fades out too
+        const titleAlpha = 1 - ease;
+        ctx.save();
+        ctx.globalAlpha = titleAlpha;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0, 80, 180, 0.6)';
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = "bold 52px Boogaloo, cursive";
+        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.22);
+        ctx.shadowBlur = 0;
+        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.22);
+        ctx.restore();
     }
 
     start() {
@@ -2612,16 +2686,10 @@ class OceanAnimation {
     }
 
     startPlaying() {
-        this.state = 'playing';
-        this.score = 0;
-        this.lives = 3;
-        this.gameOver = false;
-        this.crashTimer = 0;
-        this.sprayParticles = [];
-        this.dangerWave.active = false;
-        this.dangerWave.nextSpawnTime = this.elapsedTime + 3;
-        this.player.beginEntry();
-        // Fade out title music (start it first if needed for the fade)
+        // Begin transition: fade the title island out before gameplay
+        this.state = 'transition';
+        this.transitionTimer = 0;
+        // Start music fade during transition
         if (!this.titleMusicStarted) {
             this.titleMusicStarted = true;
             this.titleMusic.volume = 0.5;
@@ -2633,6 +2701,18 @@ class OceanAnimation {
             this.music.play().catch(() => {});
             this.musicStarted = true;
         }
+    }
+
+    finishTransition() {
+        this.state = 'playing';
+        this.score = 0;
+        this.lives = 3;
+        this.gameOver = false;
+        this.crashTimer = 0;
+        this.sprayParticles = [];
+        this.dangerWave.active = false;
+        this.dangerWave.nextSpawnTime = this.elapsedTime + 3;
+        this.player.beginEntry();
     }
     
     update(deltaTime) {
@@ -3303,6 +3383,13 @@ class OceanAnimation {
             if (this.state === 'title') {
                 this.updateTitle(deltaTime);
                 this.drawTitle();
+            } else if (this.state === 'transition') {
+                this.updateTitle(deltaTime);
+                this.transitionTimer += deltaTime / 1000;
+                if (this.transitionTimer >= this.transitionDuration) {
+                    this.finishTransition();
+                }
+                this.drawTransition();
             } else if (this.state === 'paused') {
                 // Freeze game, draw last frame with pause overlay
                 this.draw();
@@ -3316,8 +3403,11 @@ class OceanAnimation {
                 this.draw();
             }
         } else {
-            // Show loading message
-            this.ctx.fillStyle = '#333';
+            // Show loading message on sky-colored background
+            const loadGrad = this.ctx.createLinearGradient(0, 0, 0, this.height);
+            loadGrad.addColorStop(0, '#87CEEB');
+            loadGrad.addColorStop(1, '#98D8E8');
+            this.ctx.fillStyle = loadGrad;
             this.ctx.fillRect(0, 0, this.width, this.height);
             this.ctx.fillStyle = 'white';
             this.ctx.font = "24px 'Lilita One', Arial";

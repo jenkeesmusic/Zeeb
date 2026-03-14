@@ -45,7 +45,7 @@ body {
     margin: 0 auto;
     width: 900px;
     height: 600px;
-    background: #001f3f; /* Dark blue fallback */
+    background: #87CEEB; /* Sky blue — matches sky gradient, no flash */
 }
 
 .controls {

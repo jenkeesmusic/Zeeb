@@ -35,13 +35,15 @@ body {
   margin: 0 auto;
   padding: 56px 24px 64px;
   display: grid;
-  gap: 32px;
+  gap: 36px;
 }
+
+/* ─── Hero ─── */
 
 .hero {
   text-align: center;
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .eyebrow {
@@ -57,6 +59,10 @@ body {
   font-size: clamp(32px, 5vw, 56px);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  background: linear-gradient(135deg, #fff 30%, var(--mint) 60%, var(--sun));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .lede {
@@ -64,12 +70,15 @@ body {
   color: var(--muted);
   max-width: 720px;
   margin: 0 auto;
+  line-height: 1.6;
 }
+
+/* ─── Card Grid ─── */
 
 .card-grid {
   display: grid;
   gap: 22px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
 .card {
@@ -85,12 +94,30 @@ body {
   animation: cardRise 700ms ease forwards;
   transform: translateY(12px);
   opacity: 0;
+  overflow: hidden;
+  transition: border-color 250ms ease, box-shadow 250ms ease;
 }
 
 .card:nth-child(1) { animation-delay: 0.05s; }
 .card:nth-child(2) { animation-delay: 0.15s; }
 .card:nth-child(3) { animation-delay: 0.25s; }
 
+/* Themed top accent stripe */
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 22px 22px 0 0;
+}
+
+.card-space::before { background: linear-gradient(90deg, var(--sea), #8fd4ff); }
+.card-surf::before  { background: linear-gradient(90deg, var(--mint), #a8f0e0); }
+.card-show::before  { background: linear-gradient(90deg, var(--coral), #ffa090); }
+
+/* Soft radial highlight */
 .card::after {
   content: "";
   position: absolute;
@@ -101,6 +128,13 @@ body {
   pointer-events: none;
 }
 
+/* Themed hover glow */
+.card-space:hover { border-color: rgba(84, 183, 255, 0.4); box-shadow: var(--shadow), 0 0 30px rgba(84, 183, 255, 0.15); }
+.card-surf:hover  { border-color: rgba(110, 231, 210, 0.4); box-shadow: var(--shadow), 0 0 30px rgba(110, 231, 210, 0.15); }
+.card-show:hover  { border-color: rgba(255, 111, 97, 0.4);  box-shadow: var(--shadow), 0 0 30px rgba(255, 111, 97, 0.15); }
+
+/* ─── Card Internals ─── */
+
 .card-top {
   display: flex;
   justify-content: space-between;
@@ -109,22 +143,27 @@ body {
 }
 
 .badge {
-  font-size: 12px;
-  padding: 6px 12px;
+  font-size: 20px;
+  padding: 8px 20px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
   text-transform: uppercase;
   letter-spacing: 0.12em;
+  font-weight: 600;
 }
 
 .tag {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   color: var(--sun);
 }
 
+.card-space .tag { color: var(--sea); }
+.card-surf .tag  { color: var(--mint); }
+.card-show .tag  { color: var(--coral); }
+
 .card-art {
-  height: 140px;
+  height: 150px;
   display: grid;
   place-items: center;
   z-index: 1;
@@ -134,7 +173,12 @@ body {
   max-height: 140px;
   width: auto;
   filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.45));
+  animation: artFloat 4s ease-in-out infinite;
 }
+
+.card:nth-child(1) .card-art img { animation-delay: 0s; }
+.card:nth-child(2) .card-art img { animation-delay: 1.3s; }
+.card:nth-child(3) .card-art img { animation-delay: 2.6s; }
 
 .card h2 {
   font-size: 22px;
@@ -145,9 +189,11 @@ body {
 .card p {
   color: var(--muted);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.55;
   z-index: 1;
 }
+
+/* ─── CTA Button ─── */
 
 .cta {
   margin-top: 6px;
@@ -158,6 +204,7 @@ body {
   border-radius: 14px;
   border: none;
   font-weight: 700;
+  font-size: 14px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #0a0f14;
@@ -175,15 +222,18 @@ body {
   box-shadow: 0 14px 26px rgba(255, 179, 71, 0.45);
 }
 
-.card-space .tag { color: var(--sea); }
-.card-surf .tag { color: var(--mint); }
-.card-show .tag { color: var(--coral); }
+/* ─── Footer ─── */
 
 .site-credit {
   text-align: center;
-  color: rgba(245, 244, 239, 0.55);
-  font-size: 14px;
+  color: rgba(245, 244, 239, 0.45);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+/* ─── Overlay / Dialog ─── */
 
 .overlay {
   position: fixed;
@@ -226,6 +276,12 @@ body {
   border-radius: 999px;
   cursor: pointer;
   font-weight: 600;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+
+.ghost:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .dialog-body {
@@ -249,13 +305,14 @@ body {
   display: grid;
   gap: 6px;
   cursor: pointer;
-  transition: transform 150ms ease, border-color 150ms ease;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
 }
 
 .episode:hover,
 .episode:focus-visible {
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .episode-number {
@@ -287,7 +344,8 @@ body {
   background: #000;
 }
 
-/* Beta disclaimer dialog */
+/* ─── Beta Disclaimer Dialog ─── */
+
 .beta-dialog {
   width: min(420px, 100%);
   text-align: center;
@@ -302,7 +360,7 @@ body {
 .beta-msg {
   color: var(--muted);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .beta-buttons {
@@ -320,6 +378,8 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* ─── Animations ─── */
+
 @keyframes cardRise {
   to {
     transform: translateY(0);
@@ -327,13 +387,18 @@ body {
   }
 }
 
+@keyframes artFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+/* ─── Responsive: Tablet ─── */
+
 @media (max-width: 900px) {
   .dialog-body {
     grid-template-columns: 1fr;
   }
-}
 
-@media (max-width: 900px) {
   .hero h1 {
     font-size: 36px;
   }
@@ -343,19 +408,21 @@ body {
   }
 }
 
+/* ─── Responsive: Mobile ─── */
+
 @media (max-width: 720px) {
   :root {
     --shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
   }
 
   .scene {
-    padding: 32px 14px 48px;
+    padding: 28px 16px 44px;
     gap: 24px;
   }
 
   .hero {
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
 
   .hero h1 {
@@ -369,44 +436,58 @@ body {
   }
 
   .card-grid {
-    gap: 16px;
+    gap: 18px;
     grid-template-columns: 1fr;
   }
 
   .card {
-    padding: 18px 16px 22px;
-    border-radius: 16px;
+    padding: 20px 18px 24px;
+    border-radius: 18px;
     gap: 14px;
+    /* Horizontal layout on mobile for readability */
+    grid-template-columns: 90px 1fr;
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .card-top {
+    grid-column: 1 / -1;
   }
 
   .card-art {
-    height: 100px;
+    height: auto;
+    grid-row: 2 / 5;
+    align-self: center;
+  }
+
+  .card-art img {
+    max-height: 80px;
+    animation: none;
   }
 
   .card h2 {
-    font-size: 20px;
+    font-size: 19px;
+    align-self: end;
   }
 
   .card p {
     font-size: 14px;
+    line-height: 1.5;
+    align-self: start;
   }
 
   .cta {
     width: 100%;
+    grid-column: 1 / -1;
     padding: 14px 16px;
     font-size: 14px;
     border-radius: 12px;
     min-height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .site-credit {
     font-size: 12px;
   }
 
-  /* Dialog mobile improvements */
   .overlay {
     padding: 16px;
   }
@@ -450,10 +531,12 @@ body {
   }
 }
 
+/* ─── Responsive: Small Phone ─── */
+
 @media (max-width: 480px) {
   .scene {
-    padding: 24px 12px 40px;
-    gap: 20px;
+    padding: 20px 12px 36px;
+    gap: 18px;
   }
 
   .hero {
@@ -465,7 +548,7 @@ body {
   }
 
   .lede {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .eyebrow {
@@ -475,7 +558,8 @@ body {
 
   .card {
     padding: 16px 14px 20px;
-    border-radius: 14px;
+    border-radius: 16px;
+    grid-template-columns: 75px 1fr;
   }
 
   .card-top {
@@ -484,21 +568,20 @@ body {
   }
 
   .badge {
-    padding: 4px 10px;
-    font-size: 10px;
+    padding: 6px 14px;
+    font-size: 16px;
   }
 
   .tag {
-    font-size: 11px;
+    font-size: 18px;
   }
 
-  .card-art {
-    height: 80px;
-    margin: 8px 0;
+  .card-art img {
+    max-height: 65px;
   }
 
   .card h2 {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   .card p {
@@ -535,7 +618,8 @@ body {
   }
 }
 
-/* Touch device optimizations */
+/* ─── Touch Devices ─── */
+
 @media (hover: none) and (pointer: coarse) {
   .cta,
   .episode,
@@ -547,5 +631,9 @@ body {
   .cta:active,
   .episode:active {
     transform: scale(0.98);
+  }
+
+  .card-art img {
+    animation: none;
   }
 }

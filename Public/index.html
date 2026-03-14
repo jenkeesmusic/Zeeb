@@ -41,7 +41,7 @@
         </div>
         <h2>Zeeb Islands</h2>
         <p>Catch the rhythm of the waves and guide Zeeb across the ocean.</p>
-        <a class="cta" href="Islands/level1/index.html">Play Zeeb Islands</a>
+        <a class="cta" id="playIslands" href="Islands/level1/index.html">Play Zeeb Islands</a>
       </article>
 
       <article class="card card-show">
@@ -94,6 +94,18 @@
             Your browser does not support the video tag.
           </video>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="betaOverlay" role="dialog" aria-modal="true">
+    <div class="dialog beta-dialog">
+      <div class="beta-icon">🏄</div>
+      <h2>Heads Up!</h2>
+      <p class="beta-msg">Zeeb Islands is still in beta — some things might be a little wobbly. Jump in and have fun!</p>
+      <div class="beta-buttons">
+        <a class="cta" href="Islands/level1/index.html">Let's Go!</a>
+        <button class="ghost" id="betaCancel" type="button">Maybe Later</button>
       </div>
     </div>
   </div>
