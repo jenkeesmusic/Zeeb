@@ -16,8 +16,8 @@ class Player {
         
         // Jumping physics
         this.velocityY = 0;
-        this.gravity = 600; // pixels/sec²
-        this.jumpPower = -350; // pixels/sec
+        this.gravity = 750; // pixels/sec² (snappy arc)
+        this.jumpPower = -480; // pixels/sec (high launch, fast return)
         this.isJumping = false;
         this.lastJumpTime = -Infinity;
         this.jumpCount = 0;       // Track jumps used (0, 1, or 2 for double-jump)
@@ -34,11 +34,23 @@ class Player {
         // Smooth Y position tracking to prevent jitter
         this.smoothY = this.y;
         this.bobOffset = 0;
+        this.landingSettle = 0; // countdown for post-landing smoothing
+        this.landingTiltFade = 0;   // fading jump tilt after landing
+        this.landingScaleFade = 0;  // fading jump scale after landing
+        this.landingTwistFade = 0;  // fading twist skew after landing
+        this.landingSquishFade = 0; // fading twist scaleX after landing
         
         // Additional floating motion parameters
         this.floatTime = 0;          // Track time for floating animation
         this.floatAmplitude = 8;     // Pixels of additional float motion
         this.floatSpeed = 1.8;       // Speed of floating oscillation
+
+        // Carving — side-to-side sway like a real surfer
+        this.carveTime = 0;
+        this.carveSpeed = 0.7;       // Hz of carve cycle
+        this.carveAmplitude = 18;    // px side-to-side sway
+        this.carveOffsetX = 0;       // current sway offset
+        this.carveTilt = 0;          // current carve tilt angle
         
         // Images
         this.surfboardImage = new Image(); // Green.png includes Zeeb
@@ -63,8 +75,8 @@ class Player {
         // Intro animation: surf in from left on first load
         this.isEntering = false;
         this.entryTimer = 0;
-        this.entryDuration = 1.6;
-        this.entryStartXRatio = -0.22;
+        this.entryDuration = 2.2;
+        this.entryStartXRatio = -0.30;
         this.entryProgress = 0;
         this.entryDropHeightRatio = 0.18;
 
@@ -206,22 +218,27 @@ class Player {
         
         if (this.isEntering) {
             this.entryTimer += dt;
-            const progress = Math.min(1, this.entryTimer / this.entryDuration);
-            this.entryProgress = progress;
+            const raw = Math.min(1, this.entryTimer / this.entryDuration);
+            this.entryProgress = raw;
+            // Ease-out cubic — fast start, smooth deceleration into position
+            const ease = 1 - Math.pow(1 - raw, 3);
+
             const startX = this.ocean.width * this.entryStartXRatio;
             const endX = this.ocean.width * this.baseXRatio;
-            this.x = startX + (endX - startX) * progress;
+            this.x = startX + (endX - startX) * ease;
 
             const targetY = this.getRideSurfaceY(this.currentWaveIndex, this.x);
             const minY = this.ocean.height * 0.35;
             const maxY = this.ocean.height * 0.85;
             const rideTargetY = Math.max(minY, Math.min(maxY, targetY));
-            const dropOffset = -(this.ocean.height * this.entryDropHeightRatio) * (1 - progress);
+            // Gentle drop-in that eases to zero
+            const dropOffset = -(this.ocean.height * this.entryDropHeightRatio) * (1 - ease);
             const introTargetY = rideTargetY + dropOffset;
-            this.smoothY = introTargetY;
-            this.y = introTargetY;
+            // Smooth Y tracking so he doesn't snap
+            this.smoothY += (introTargetY - this.smoothY) * 0.15;
+            this.y = this.smoothY;
 
-            if (progress >= 1) {
+            if (raw >= 1) {
                 this.isEntering = false;
                 this.x = endX;
                 this.y = rideTargetY;
@@ -246,63 +263,99 @@ class Player {
             
             // Check if landed on target wave (going down and past target)
             if (this.y >= this.jumpTargetY && this.velocityY > 0) {
+                // Capture current visual state for fade-out (before clearing isJumping)
+                this.landingTiltFade = Math.sin(this.velocityY * 0.001) * 0.15;
+                this.landingScaleFade = Math.abs(this.velocityY) * 0.0002;
+                const phase = this.velocityY / Math.abs(this.jumpPower);
+                this.landingTwistFade = Math.sin(phase * Math.PI) * 0.12;
+                this.landingSquishFade = Math.abs(Math.sin(phase * Math.PI)) * 0.08;
+
+                // Clamp to landing target — don't overshoot
                 this.y = this.jumpTargetY;
-                this.smoothY = this.y; // Reset smooth tracking to match landed position
+                this.smoothY = this.y;
                 this.velocityY = 0;
                 this.isJumping = false;
-                this.jumpCount = 0; // Reset jump count on landing
+                this.jumpCount = 0;
                 this.currentWaveIndex = this.targetWaveIndex;
+                this.landingSettle = 0.5; // seconds to blend onto wave surface
                 // Landing splash burst from back tip of surfboard
                 const tip = this.getBackTip();
                 this.ocean.spawnSpray(tip.x, tip.y, 'burst');
+                // Coin batch timer continues running — awards after 0.4s lull
             }
             
             // Safety: prevent falling through the bottom
             const maxY = this.ocean.height * 0.90;
             if (this.y > maxY) {
-                this.y = this.jumpTargetY;
-                this.smoothY = this.y; // Reset smooth tracking
+                const liveY2 = this.getRideSurfaceY(this.targetWaveIndex, this.x);
+                const clampedLiveY2 = Math.max(this.ocean.height * 0.35, Math.min(this.ocean.height * 0.85, liveY2));
+                this.smoothY = clampedLiveY2;
+                this.y = clampedLiveY2;
                 this.velocityY = 0;
                 this.isJumping = false;
-                this.jumpCount = 0; // Reset jump count on landing
+                this.jumpCount = 0;
                 this.currentWaveIndex = this.targetWaveIndex;
             }
         } else {
             // Keep Zeeb anchored on screen while the waves move under him
             this.x = this.ocean.width * this.baseXRatio;
 
-            // When not jumping, smoothly follow the wave surface
+            // How settled are we after landing? 1 = just landed, 0 = fully settled
+            let settleBlend = 0;
+            if (this.landingSettle > 0) {
+                this.landingSettle -= dt;
+                settleBlend = Math.max(0, this.landingSettle / 0.5);
+            }
+
+            // Carving sway — fade in after landing
+            this.carveTime += dt;
+            const carvePhase = this.carveTime * this.carveSpeed * Math.PI * 2;
+            const rawCarveX = Math.sin(carvePhase) * this.carveAmplitude
+                            + Math.sin(carvePhase * 1.7 + 1.2) * (this.carveAmplitude * 0.3);
+            const carveVelocity = Math.cos(carvePhase) * this.carveAmplitude * this.carveSpeed * Math.PI * 2
+                                + Math.cos(carvePhase * 1.7 + 1.2) * (this.carveAmplitude * 0.3) * 1.7 * this.carveSpeed * Math.PI * 2;
+            const carveFade = 1 - settleBlend; // 0 at landing, 1 when settled
+            this.carveOffsetX = rawCarveX * carveFade;
+            this.carveTilt = carveVelocity * -0.0012 * carveFade;
+
+            this.x += this.carveOffsetX;
+
+            // Wave surface target
             const targetY = this.getRideSurfaceY(this.currentWaveIndex, this.x);
-            
-            // Bounds checking: prevent extreme Y values
-            const minY = this.ocean.height * 0.35;  // Don't go too high
-            const maxY = this.ocean.height * 0.85; // Don't go too low
+            const minY = this.ocean.height * 0.35;
+            const maxY = this.ocean.height * 0.85;
             const clampedTargetY = Math.max(minY, Math.min(maxY, targetY));
-            
-            // Rate limiting: prevent sudden jumps
-            const maxDelta = this.ocean.height * 0.03; // Max 3% of height per frame
+
+            // Smoothing — heavier during settle, normal after
+            const smoothing = 0.35 + settleBlend * 0.35; // 0.7 at landing → 0.35 settled
+            const maxDelta = this.ocean.height * (0.03 + settleBlend * 0.07); // wider rate limit during settle
             let smoothTargetY = clampedTargetY;
             const deltaY = clampedTargetY - this.smoothY;
             if (Math.abs(deltaY) > maxDelta) {
                 smoothTargetY = this.smoothY + Math.sign(deltaY) * maxDelta;
             }
-            
-            // Sync Zeeb's extra bob with the active wave rhythm.
+            this.smoothY += (smoothTargetY - this.smoothY) * smoothing;
+
+            // Bob — fade in after landing
             const activeWave = this.ocean.waves[this.currentWaveIndex];
             const wavePhase =
                 this.ocean.elapsedTime * (activeWave?.bobSpeed || this.floatSpeed) +
                 (activeWave?.bobPhase || 0);
             const syncAmplitude = this.floatAmplitude * 0.55;
             const floatOffset =
-                Math.sin(wavePhase) * syncAmplitude +
-                Math.sin(wavePhase * 2 + 0.9) * (syncAmplitude * 0.25);
-            
-            // Smooth interpolation to prevent jitter
-            const smoothing = 0.35; // Increased for more responsive movement
-            this.smoothY = this.smoothY + (smoothTargetY - this.smoothY) * smoothing;
+                (Math.sin(wavePhase) * syncAmplitude +
+                Math.sin(wavePhase * 2 + 0.9) * (syncAmplitude * 0.25)) * carveFade;
+
             this.y = this.smoothY + floatOffset;
         }
         
+        // Decay landing fade values (exponential decay ~10 frames to near zero)
+        const fadeRate = 8 * dt; // fast but smooth
+        this.landingTiltFade *= Math.max(0, 1 - fadeRate);
+        this.landingScaleFade *= Math.max(0, 1 - fadeRate);
+        this.landingTwistFade *= Math.max(0, 1 - fadeRate);
+        this.landingSquishFade *= Math.max(0, 1 - fadeRate);
+
         // Final Y bounds check (safety net)
         const absoluteMaxY = this.ocean.height * 0.90;
         if (this.y > absoluteMaxY) {
@@ -339,7 +392,9 @@ class Player {
         const surfboardY = actualY - surfboardHeight * 0.64;
 
         // Add extra tilt during jump (nose up/down based on vertical velocity)
-        const jumpTilt = this.isJumping ? Math.sin(this.velocityY * 0.001) * 0.15 : 0;
+        const jumpTilt = this.isJumping
+            ? Math.sin(this.velocityY * 0.001) * 0.15
+            : this.landingTiltFade; // fade out after landing
         
         // Add subtle tilt based on floating motion when not jumping
         const floatTilt = (!this.isJumping && !this.isEntering) ? 
@@ -357,13 +412,16 @@ class Player {
         }
         
         const entryTilt = this.isEntering
-            ? -0.30 * (1 - this.entryProgress) // Linear nose-up fade during entry.
+            ? -0.25 * Math.pow(1 - this.entryProgress, 2) // Ease-out nose-up during entry
             : 0;
-        const tilt = this.tiltBase + Math.sin(this.ocean.elapsedTime * this.tiltSpeed) * this.tiltBob + jumpTilt + rideTilt + floatTilt + entryTilt;
+        const carveTilt = (!this.isJumping && !this.isEntering) ? this.carveTilt : 0;
+        const tilt = this.tiltBase + Math.sin(this.ocean.elapsedTime * this.tiltSpeed) * this.tiltBob + jumpTilt + rideTilt + floatTilt + entryTilt + carveTilt;
         const boardCenterY = surfboardY + surfboardHeight / 2;
 
         // Scale during jump for depth effect
-        const jumpScale = this.isJumping ? 1 + Math.abs(this.velocityY) * 0.0002 : 1;
+        const jumpScale = this.isJumping
+            ? 1 + Math.abs(this.velocityY) * 0.0002
+            : 1 + this.landingScaleFade;
         const drawWidth = this.surfboardWidth * jumpScale;
         const drawHeight = surfboardHeight * jumpScale;
         
@@ -372,29 +430,25 @@ class Player {
         let twistSkew = 0;
         let twistScaleX = 1;
         if (this.isJumping) {
-            // Calculate twist based on jump phase
-            // Going up: twist one way, going down: twist the other way
             const jumpPhase = this.velocityY / Math.abs(this.jumpPower);
-            
-            // Smooth twist that peaks at top of jump arc and reverses direction
             twistSkew = Math.sin(jumpPhase * Math.PI) * 0.12;
-            
-            // Slight horizontal squeeze to enhance 3D effect
             twistScaleX = 1 - Math.abs(Math.sin(jumpPhase * Math.PI)) * 0.08;
-            
-            // Direction based on which wave we're jumping to
             if (this.targetWaveIndex > this.jumpStartWave) {
-                twistSkew *= -1; // Twist towards viewer when jumping forward
+                twistSkew *= -1;
             }
+        } else {
+            // Fade out twist after landing
+            twistSkew = this.landingTwistFade;
+            twistScaleX = 1 - this.landingSquishFade;
         }
 
         ctx.save();
         ctx.translate(this.x, boardCenterY);
         ctx.rotate(tilt);
-        
-        // Apply 3D twist effect using transform matrix
-        // transform(scaleX, skewY, skewX, scaleY, translateX, translateY)
-        if (this.isJumping) {
+
+        // Apply 3D twist effect (during jump or fading after landing)
+        const hasTwist = Math.abs(twistSkew) > 0.001 || Math.abs(1 - twistScaleX) > 0.001;
+        if (hasTwist) {
             ctx.transform(twistScaleX, twistSkew, 0, 1, 0, 0);
         }
         
@@ -461,7 +515,7 @@ class OceanAnimation {
         // Glow cache for danger waves
         this.glowCache = new WeakMap();
 
-        this.visibleWaveLayers = [1, 2]; // Show only middle/front BG wave layers
+        this.visibleWaveLayers = [1, 2]; // mid, front layers
 
         // Gerstner wave system (physically-based, replaces SVG tiling)
         this.useGerstnerWaves = true; // Toggle: true = Gerstner, false = SVG tiles
@@ -485,7 +539,8 @@ class OceanAnimation {
             dangerWave2: new Image(),
             dangerWave3: new Image(),
             dangerWave4: new Image(),
-            dangerWave5: new Image()
+            dangerWave5: new Image(),
+            coin: new Image()
         };
         
         // Danger wave image rotation - cycles through GraceWave2, 3, 4
@@ -519,7 +574,7 @@ class OceanAnimation {
                 name: 'backOceanWater',
                 asset: 'wave1.svg',
                 offset: 0,
-                speed: 120,         // Full speed (ramps from 80% over first 20s)
+                speed: 156,         // Full speed (ramps from 80% over first 20s)
                 heightRatio: 0.50,  // Wave height
                 yPosition: 0.55,    // Positioned low to ride the bottom
                 surfaceRatio: 0.15,
@@ -534,7 +589,7 @@ class OceanAnimation {
                 name: 'midOceanWater',
                 asset: 'wave2.svg',
                 offset: 0,
-                speed: 180,         // Full speed (ramps from 80% over first 20s)
+                speed: 234,         // Full speed (ramps from 80% over first 20s)
                 heightRatio: 0.60,  // Wave height (15% larger)
                 yPosition: 0.56,    // Moved a bit further lower on screen
                 surfaceRatio: 0.15,
@@ -553,7 +608,7 @@ class OceanAnimation {
                 name: 'frontOceanWater',
                 asset: 'wave3.svg',
                 offset: 0,
-                speed: 300,         // Full speed (ramps from 80% over first 20s)
+                speed: 390,         // Full speed (ramps from 80% over first 20s)
                 heightRatio: 0.62,  // Wave height (15% taller)
                 yPosition: 0.57,    // Positioned slightly lower to hide edge
                 alpha: 0.9,         // Slightly more translucent to reveal fish
@@ -569,7 +624,7 @@ class OceanAnimation {
                 name: 'bottomOceanWater',
                 asset: 'wave2.svg',
                 offset: 0,
-                speed: 80,          // Full speed (ramps from 80% over first 20s)
+                speed: 104,         // Full speed (ramps from 80% over first 20s)
                 heightRatio: 0.20,  // Slightly taller
                 yPosition: 0.85,    // Positioned at very bottom
                 yOffsetPx: -20,     // Move wave up ~50px from previous position
@@ -617,14 +672,14 @@ class OceanAnimation {
             active: false,
             x: 0,                    // Position of danger zone
             width: 120,              // Width of danger zone
-            speed: 200,              // Pixels per second (faster than normal waves)
+            speed: 325,              // Pixels per second (faster than normal waves)
             warningTime: 2.0,        // Seconds of warning before danger hits
             spawnInterval: 5,        // Seconds between danger waves (varies)
             nextSpawnTime: 3,        // Time until next spawn
             color: 'rgba(255, 100, 50, 0.6)', // Warning color
             foamColor: 'rgba(255, 255, 255, 0.9)',
             hitPlayer: false,
-            graceTime: 0.25,         // Small delay before wipeout triggers (increased for fairness)
+            graceTime: 0.12,         // Small delay before wipeout triggers (increased for fairness)
             contactStart: null,
             sizeMultiplier: 2.16,   // 60% larger than previous danger-wave size
             yOffsetRatio: 0.10      // Lower so part of wave sits beyond frame bottom
@@ -634,13 +689,13 @@ class OceanAnimation {
             active: false,
             x: 0,
             width: 120,
-            speed: 200,
+            speed: 325,
             warningTime: 2.0,
             spawnChance: 0.15,       // Base chance to spawn with main wave (scales with score)
             color: 'rgba(255, 100, 50, 0.6)',
             foamColor: 'rgba(255, 255, 255, 0.9)',
             hitPlayer: false,
-            graceTime: 0.25,
+            graceTime: 0.12,
             contactStart: null,
             sizeMultiplier: 1.45,    // Reverted extra danger-wave size
             yOffsetRatio: 0.10       // Lower so part of wave sits beyond frame bottom
@@ -649,7 +704,14 @@ class OceanAnimation {
         // Target vertical line where danger-wave tops should align.
         this.dangerWaveHitY = 400;
         
-        // Golden wave system removed
+        // Wave pattern system
+        this.wavePattern = {
+            active: false,
+            type: null,           // 'rapidDouble' | 'tripleStaircase' | 'slowFast'
+            wavesRemaining: 0,
+            nextWaveDelay: 0,     // seconds until next wave in pattern
+            timer: 0
+        };
 
         // Island parallax drift (very slow, left to right)
         this.islandDriftX = 0;
@@ -661,6 +723,7 @@ class OceanAnimation {
         this.transitionDuration = 1.2; // seconds for island fade-out
         this.titleMusicTriggered = false; // true after first interaction starts music
         this.score = 0;
+        this.coinsCollected = 0;
         this.lives = 3;
         this.gameOver = false;
         this.crashTimer = 0;        // Timer for crash animation
@@ -669,8 +732,38 @@ class OceanAnimation {
         // Close call bonus feedback
         this.showCloseCall = false;
         this.closeCallTimer = 0;
-        
-        // Golden wave bonus feedback removed
+
+        // Score pop animation
+        this.scorePop = 0;          // 0 = idle, counts down from 0.35
+        this.scorePopScale = 1;     // current scale for score text
+
+        // Floating score numbers
+        this.floatingScores = [];   // { x, y, text, timer, duration, color }
+
+        // Coin collection system
+        this.coins = [];
+        this.coinSpawnTimer = 2;
+        this.jumpCoinCount = 0;
+        this.jumpCoinValue = 0;
+        this.coinSpawnInterval = { min: 3, max: 4 };
+        this.coinSize = 28;
+        this.coinPointValue = 25;
+        this.coinSpeed = 180;
+        this.jumpCoinCount = 0;      // coins collected in current batch
+        this.jumpCoinValue = 0;      // total value accumulated in batch
+        this.coinBatchTimer = 0;     // countdown — when it hits 0, display the batch
+        this.coinsCollected = 0;     // total coins collected this run
+
+        // Speed hack (keys 1-9)
+        this.speedHack = 1.0;
+
+        // Ambient title-screen coins (rare, decorative)
+        this.titleCoins = [];
+        this.titleCoinTimer = 8 + Math.random() * 12; // first one after 8-20s
+
+        // Jump combo tracker
+        this.comboCount = 0;        // waves cleared in current jump sequence
+        this.comboTimer = 0;        // resets when landing
         
         // Crash animation details
         this.crashAnimation = {
@@ -774,15 +867,22 @@ class OceanAnimation {
             if (event.key === 'p' || event.key === 'P') {
                 if (this.state === 'playing') {
                     this.state = 'paused';
+                    this.music.volume *= 0.5;
                 } else if (this.state === 'paused') {
                     this.state = 'playing';
+                    this.music.volume = 0.5;
                     this.lastTime = performance.now(); // prevent time jump
                 }
                 return;
             }
             if (this.state === 'paused') {
                 this.state = 'playing';
+                this.music.volume = 0.5;
                 this.lastTime = performance.now();
+                return;
+            }
+            if (event.key >= '1' && event.key <= '9') {
+                this.speedHack = 1.0 + (parseInt(event.key) - 1) * 0.3125; // 1=1.0x, 9=3.5x
                 return;
             }
             if (event.key === 'd' || event.key === 'D') {
@@ -791,6 +891,8 @@ class OceanAnimation {
                 event.preventDefault(); // Prevent page scroll
                 if (this.state === 'title') {
                     this.startPlaying();
+                } else if (this.state === 'wipeout') {
+                    this.resumeAfterWipeout();
                 } else if (this.state === 'gameover') {
                     this.restartGame();
                 } else if (this.state === 'playing' && this.crashTimer <= 0) {
@@ -816,6 +918,7 @@ class OceanAnimation {
                 const dy = cy - (pb.y + pb.h / 2);
                 if (dx * dx + dy * dy <= (pb.w / 2 + 8) ** 2) {
                     this.state = 'paused';
+                    this.music.volume *= 0.5;
                     e.preventDefault();
                     return;
                 }
@@ -827,12 +930,20 @@ class OceanAnimation {
                 return;
             }
 
+            // Wipeout — tap anywhere to resume
+            if (this.state === 'wipeout') {
+                this.resumeAfterWipeout();
+                e.preventDefault();
+                return;
+            }
+
             // Pause overlay button hit test (Resume / Main Menu)
             if (this.state === 'paused' && this._pauseBtns) {
                 const b = this._pauseBtns;
                 if (cx >= b.btnX && cx <= b.btnX + b.btnW) {
                     if (cy >= b.resumeY && cy <= b.resumeY + b.btnH) {
                         this.state = 'playing';
+                        this.music.volume = 0.5;
                         this.lastTime = performance.now();
                         e.preventDefault();
                         return;
@@ -1243,7 +1354,7 @@ class OceanAnimation {
                 const scoreBoost = this.score >= 900 ? 1.4 : 1.0;
                 return ramp * scoreBoost;
             })();
-        const effectiveSpeed = wave.speed * speedMultiplier;
+        const effectiveSpeed = wave.speed * speedMultiplier * this.speedHack;
 
         if (!tileWidth || !Number.isFinite(tileWidth)) {
             wave.offset += effectiveSpeed * dt;
@@ -1278,7 +1389,7 @@ class OceanAnimation {
         this.fish.x = entrySide === 'right'
             ? this.width + this.fish.width * 1.6
             : -this.fish.width * 1.6;
-        this.fish.speed = frontWave.speed * 1.05 * direction;
+        this.fish.speed = frontWave.speed * 0.55 * direction;
         const baseY = this.getWaveSurfaceYAtX(this.fish.surfaceWaveIndex, this.fish.x);
         this.fish.y = baseY + this.height * this.fish.depthOffsetRatio;
     }
@@ -1321,7 +1432,7 @@ class OceanAnimation {
         if (this.fish.state === 'dead') {
             this.fish.y += this.fish.sinkSpeed * dt;
         } else {
-            this.fish.x += this.fish.speed * dt;
+            this.fish.x += this.fish.speed * this.speedHack * dt;
             this.fish.wiggleTime += dt * 2;
             const baseY = this.getWaveSurfaceYAtX(this.fish.surfaceWaveIndex, this.fish.x);
             const wiggle = Math.sin(this.fish.wiggleTime) * (this.height * 0.01);
@@ -1362,8 +1473,12 @@ class OceanAnimation {
         if (!wave) {
             return;
         }
+        // Don't overwrite a wave that's anywhere on or near the screen
+        if (wave.active && wave.x > -wave.width) {
+            return;
+        }
         wave.active = true;
-        wave.x = this.width + 100; // Start off-screen right
+        wave.x = this.width + 120; // Start well off-screen right
         wave.width = (80 + Math.random() * 60) * sizeMultiplier; // Random width 80-140
         wave.heightScale = 0.92 + Math.random() * 0.08; // 92-100% of peak height (consistent since all sprites are same size)
         wave.hitPlayer = false;
@@ -1386,24 +1501,60 @@ class OceanAnimation {
     // Spawn timing scales with score — more waves as you climb
     getDangerSpawnTiming() {
         const s = this.score;
-        if (s >= 2000) return { min: 1.5, range: 1.5, extraChance: 0.65 };
-        if (s >= 1500) return { min: 2.0, range: 1.5, extraChance: 0.55 };
-        if (s >= 900)  return { min: 2.5, range: 2.0, extraChance: 0.45 };
-        if (s >= 500)  return { min: 3.0, range: 2.0, extraChance: 0.35 };
-        if (s >= 200)  return { min: 3.5, range: 2.5, extraChance: 0.25 };
-        return                { min: 4.0, range: 3.0, extraChance: 0.15 };
+        let t;
+        if (s >= 10000) t = { min: 0.8, range: 0.8, extraChance: 0.85 };
+        else if (s >= 6000)  t = { min: 1.0, range: 1.0, extraChance: 0.80 };
+        else if (s >= 4000)  t = { min: 1.2, range: 1.2, extraChance: 0.75 };
+        else if (s >= 2000)  t = { min: 1.5, range: 1.5, extraChance: 0.65 };
+        else if (s >= 1500)  t = { min: 2.0, range: 1.5, extraChance: 0.55 };
+        else if (s >= 900)   t = { min: 2.5, range: 2.0, extraChance: 0.45 };
+        else if (s >= 500)   t = { min: 3.0, range: 2.0, extraChance: 0.35 };
+        else if (s >= 200)   t = { min: 3.5, range: 2.5, extraChance: 0.25 };
+        else                 t = { min: 4.0, range: 3.0, extraChance: 0.15 };
+        // Speed hack shrinks spawn intervals so waves come faster
+        t.min /= this.speedHack;
+        t.range /= this.speedHack;
+        return t;
+    }
+
+    getDangerWaveSpeed() {
+        // Base speed scales with score
+        const s = this.score;
+        let base = 325;
+        if (s >= 10000) base = 550;
+        else if (s >= 6000) base = 480;
+        else if (s >= 4000) base = 430;
+        else if (s >= 2000) base = 390;
+        else if (s >= 900) base = 360;
+
+        // Random variation: some waves come fast, some slow — keeps player guessing
+        const variation = 0.7 + Math.random() * 0.6; // 0.7x to 1.3x
+        return base * variation;
     }
 
     spawnDangerWave() {
+        // Try to spawn a wave pattern instead of a solo wave
+        if (!this.wavePattern.active && this.score >= 300) {
+            const patternChance = Math.min(0.55, (this.score - 300) / 2000);
+            if (Math.random() < patternChance && this.startWavePattern()) {
+                // Pattern handles its own spawn timing
+                const timing = this.getDangerSpawnTiming();
+                this.dangerWave.nextSpawnTime = this.elapsedTime + timing.min + timing.range + 2;
+                return;
+            }
+        }
+
+        // Normal solo wave spawn with speed variation
         this.spawnDangerWaveInstance(this.dangerWave, this.dangerWave.sizeMultiplier || 1);
+        this.dangerWave.speed = this.getDangerWaveSpeed();
 
         const timing = this.getDangerSpawnTiming();
         this.dangerWave.nextSpawnTime = this.elapsedTime + timing.min + Math.random() * timing.range;
 
         if (Math.random() < timing.extraChance) {
             this.spawnDangerWaveInstance(this.dangerWaveExtra, this.dangerWaveExtra.sizeMultiplier || 1.1);
-            // Stagger the extra wave so it comes after the main wave
-            this.dangerWaveExtra.x += 250 + Math.random() * 150; // 250-400 pixels behind
+            this.dangerWaveExtra.x += 250 + Math.random() * 150;
+            this.dangerWaveExtra.speed = this.getDangerWaveSpeed(); // independent speed
         }
     }
     
@@ -1413,26 +1564,29 @@ class OceanAnimation {
             this.crashTimer -= dt;
             if (this.crashTimer <= 0) {
                 this.crashTimer = 0;
-                this.crashAnimation.active = false;  // Reset crash animation
-                
-                // Clear all active danger waves for a clean restart
+                this.crashAnimation.active = false;
+
+                // Clear all active danger waves and patterns
                 this.dangerWave.active = false;
                 this.dangerWave.hitPlayer = false;
                 this.dangerWave.contactStart = null;
+                this.dangerWave.speed = this.getDangerWaveSpeed ? this.getDangerWaveSpeed() : 325;
                 this.dangerWaveExtra.active = false;
                 this.dangerWaveExtra.hitPlayer = false;
                 this.dangerWaveExtra.contactStart = null;
-                // Give player breathing room before next danger wave (scales with score)
-                const postCrash = this.getDangerSpawnTiming();
-                this.dangerWave.nextSpawnTime = this.elapsedTime + postCrash.min + Math.random() * 1.5;
-                
-                // Also clear any active fish
+                this.dangerWaveExtra.speed = this.getDangerWaveSpeed ? this.getDangerWaveSpeed() : 325;
+                this.wavePattern.active = false;
+                this.wavePattern.wavesRemaining = 0;
                 this.fish.active = false;
-                
-                // Check for game over
+
                 if (this.lives <= 0) {
                     this.gameOver = true;
                     this.state = 'gameover';
+                } else {
+                    // Pause and wait for player to press space
+                    this.state = 'wipeout';
+
+
                 }
             }
         }
@@ -1442,19 +1596,280 @@ class OceanAnimation {
             return;
         }
         
+        // Update wave pattern timer
+        if (this.wavePattern.active) {
+            this.wavePattern.timer -= dt;
+            if (this.wavePattern.timer <= 0 && this.wavePattern.wavesRemaining > 0) {
+                this.spawnPatternWave();
+            }
+            if (this.wavePattern.wavesRemaining <= 0) {
+                this.wavePattern.active = false;
+                // Restore base speed in case pattern modified it
+                this.dangerWave.speed = this.getDangerWaveSpeed ? this.getDangerWaveSpeed() : 325;
+                this.dangerWaveExtra.speed = this.getDangerWaveSpeed ? this.getDangerWaveSpeed() : 325;
+            }
+        }
+
         // Spawn new danger wave if it's time
-        if (!this.dangerWave.active && this.elapsedTime >= this.dangerWave.nextSpawnTime) {
+        if (!this.wavePattern.active && !this.dangerWave.active && this.elapsedTime >= this.dangerWave.nextSpawnTime) {
             this.spawnDangerWave();
         }
-        
-        // Golden wave spawning removed
         
         this.updateDangerWaveInstance(this.dangerWave, dt);
         this.updateDangerWaveInstance(this.dangerWaveExtra, dt);
         // Golden wave update removed
     }
     
-    // Golden wave functions removed
+    // Wave pattern system
+
+    getPatternForScore() {
+        const s = this.score;
+        if (s < 300) return null;
+
+        const patterns = ['rapidDouble'];
+        if (s >= 800)  patterns.push('tripleStaircase');
+        if (s >= 1500) patterns.push('slowFast');
+
+        return patterns[Math.floor(Math.random() * patterns.length)];
+    }
+
+    startWavePattern() {
+        const type = this.getPatternForScore();
+        if (!type) return false;
+
+        this.wavePattern.active = true;
+        this.wavePattern.type = type;
+
+        const baseSpeed = this.getDangerWaveSpeed();
+        this.dangerWave.speed = baseSpeed;
+
+        switch (type) {
+            case 'rapidDouble':
+                // Two waves, tight gap — spawn first now, second after short delay
+                this.spawnDangerWaveInstance(this.dangerWave, this.dangerWave.sizeMultiplier || 1);
+                this.dangerWave.speed = baseSpeed;
+                this.wavePattern.wavesRemaining = 1;
+                this.wavePattern.nextWaveDelay = 0.45;
+                this.wavePattern.timer = this.wavePattern.nextWaveDelay;
+                break;
+
+            case 'tripleStaircase':
+                // Three waves, each faster — spawn first now
+                this.spawnDangerWaveInstance(this.dangerWave, this.dangerWave.sizeMultiplier || 1);
+                this.wavePattern.wavesRemaining = 2;
+                this.wavePattern.nextWaveDelay = 0.7;
+                this.wavePattern.timer = this.wavePattern.nextWaveDelay;
+                this.wavePattern._speedStep = 1; // tracks which wave we're on
+                break;
+
+            case 'slowFast':
+                // Wide slow wave first
+                this.spawnDangerWaveInstance(this.dangerWave, (this.dangerWave.sizeMultiplier || 1) * 1.3);
+                this.dangerWave.speed = baseSpeed * 0.7;
+                this.wavePattern.wavesRemaining = 1;
+                this.wavePattern.nextWaveDelay = 1.2;
+                this.wavePattern.timer = this.wavePattern.nextWaveDelay;
+                this.wavePattern._baseSpeed = baseSpeed;
+                break;
+        }
+
+        return true;
+    }
+
+    spawnPatternWave() {
+        const type = this.wavePattern.type;
+        const baseSpeed = this.wavePattern._baseSpeed || 325;
+
+        // Find a free wave slot — only reuse if fully off-screen left
+        const slotFree = (w) => !w.active || w.x <= -w.width;
+        let target = slotFree(this.dangerWaveExtra) ? this.dangerWaveExtra : null;
+        if (!target && slotFree(this.dangerWave)) target = this.dangerWave;
+
+        if (!target) {
+            // Both slots busy — retry in 0.3s
+            this.wavePattern.timer = 0.3;
+            return;
+        }
+
+        const sizeMul = target === this.dangerWave
+            ? (this.dangerWave.sizeMultiplier || 1)
+            : (this.dangerWaveExtra.sizeMultiplier || 1);
+
+        switch (type) {
+            case 'rapidDouble':
+                this.spawnDangerWaveInstance(target, sizeMul);
+                break;
+
+            case 'tripleStaircase': {
+                this.wavePattern._speedStep++;
+                const speedMul = 1 + (this.wavePattern._speedStep - 1) * 0.15;
+                this.spawnDangerWaveInstance(target, sizeMul);
+                target.speed = 325 * speedMul;
+                break;
+            }
+
+            case 'slowFast':
+                this.spawnDangerWaveInstance(target, sizeMul * 0.7);
+                target.speed = baseSpeed * 1.5;
+                this.dangerWave.speed = 325;
+                break;
+        }
+
+        this.wavePattern.wavesRemaining--;
+        if (this.wavePattern.wavesRemaining > 0) {
+            this.wavePattern.timer = this.wavePattern.nextWaveDelay;
+        }
+    }
+
+    // ── Coin system ──────────────────────────────────────────────
+
+    spawnCoinCluster() {
+        const count = 2 + Math.floor(Math.random() * 2); // 2-3
+        const startX = this.width + 40;
+        const spacing = 45;
+
+        for (let i = 0; i < count; i++) {
+            const isAir = Math.random() < 0.35;
+            this.coins.push({
+                x: startX + i * spacing,
+                y: 0,
+                type: isAir ? 'air' : 'surface',
+                airOffsetY: isAir ? (60 + Math.random() * 60) : 0,
+                collected: false,
+                collectTimer: 0,
+                pulsePhase: Math.random() * Math.PI * 2
+            });
+        }
+    }
+
+    updateCoins(dt) {
+        if (this.gameOver || this.crashTimer > 0) return;
+
+        // Batch timer — resets coin streak after a lull
+        if (this.coinBatchTimer > 0) {
+            this.coinBatchTimer -= dt;
+            if (this.coinBatchTimer <= 0) {
+                this.jumpCoinCount = 0;
+                this.jumpCoinValue = 0;
+            }
+        }
+
+        this.coinSpawnTimer -= dt * this.speedHack;
+        if (this.coinSpawnTimer <= 0) {
+            this.spawnCoinCluster();
+            const { min, max } = this.coinSpawnInterval;
+            this.coinSpawnTimer = min + Math.random() * (max - min);
+        }
+
+        for (let i = this.coins.length - 1; i >= 0; i--) {
+            const coin = this.coins[i];
+
+            coin.x -= this.coinSpeed * this.speedHack * dt;
+
+            const surfaceY = this.getWaveSurfaceYAtX(2, coin.x);
+            if (coin.type === 'surface') {
+                coin.y = surfaceY - this.coinSize * 0.6;
+            } else {
+                coin.y = surfaceY - coin.airOffsetY;
+            }
+
+            if (coin.collected) {
+                coin.collectTimer -= dt;
+                if (coin.collectTimer <= 0) {
+                    this.coins.splice(i, 1);
+                }
+                continue;
+            }
+
+            const dx = coin.x - this.player.x;
+            const dy = coin.y - this.player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < this.coinSize / 2 + this.player.surfboardWidth * 0.45) {
+                coin.collected = true;
+                coin.collectTimer = 0.25;
+
+                this.jumpCoinCount++;
+                this.coinsCollected++;
+                this.jumpCoinValue += this.coinPointValue;
+                this.score += this.coinPointValue;
+                this.scorePop = Math.min(0.5, 0.2 + this.jumpCoinCount * 0.05);
+                this.coinBatchTimer = 0.5;
+            }
+
+            if (coin.x < -50) {
+                this.coins.splice(i, 1);
+            }
+        }
+    }
+
+    drawCoins(ctx) {
+        const img = this.images.coin;
+        if (!img.complete || img.naturalWidth === 0) return;
+
+        for (const coin of this.coins) {
+            ctx.save();
+            let scale = 1 + 0.12 * Math.sin(this.elapsedTime * 4 + coin.pulsePhase);
+
+            if (coin.collected) {
+                const t = coin.collectTimer / 0.25;
+                scale *= t;
+                ctx.globalAlpha = t;
+            }
+
+            const size = this.coinSize * scale;
+            ctx.drawImage(img, coin.x - size / 2, coin.y - size / 2, size, size);
+            ctx.restore();
+        }
+    }
+
+    awardJumpCoins() {
+        // Now handled inline in updateCoins — kept for compatibility
+    }
+
+    awardJumpPoints(points, waveX, isCloseCall) {
+        this.score += points;
+        this.scorePop = 0.3;
+        this.comboCount++;
+
+        // Only show floating text for special moments
+        if (isCloseCall) {
+            this.floatingScores.push({
+                x: waveX,
+                y: this.player.y - 30,
+                text: `CLOSE CALL! +${points}`,
+                timer: 0,
+                duration: 1.0,
+                color: '#32ff64'
+            });
+        }
+
+        // Combo bonus for clearing 2+ waves while airborne
+        if (this.comboCount === 2) {
+            const comboBonus = 200;
+            this.score += comboBonus;
+            this.scorePop = 0.35;
+            this.floatingScores.push({
+                x: this.player.x,
+                y: this.player.y - 50,
+                text: `2x COMBO! +${comboBonus}`,
+                timer: 0,
+                duration: 1.2,
+                color: '#ff66ff'
+            });
+        } else if (this.comboCount > 2) {
+            const comboBonus = this.comboCount * 150;
+            this.score += comboBonus;
+            this.scorePop = 0.35;
+            this.floatingScores.push({
+                x: this.player.x,
+                y: this.player.y - 50,
+                text: `${this.comboCount}x COMBO! +${comboBonus}`,
+                timer: 0,
+                duration: 1.2,
+                color: '#ff66ff'
+            });
+        }
+    }
 
     updateDangerWaveInstance(wave, dt) {
         if (!wave || !wave.active) {
@@ -1462,21 +1877,22 @@ class OceanAnimation {
         }
 
         // Move danger wave from right to left (boost speed at 900+ points)
-        const dangerBoost = this.score >= 900 ? 1.4 : 1.0;
-        wave.x -= wave.speed * dangerBoost * dt;
+        const dangerBoost = this.score >= 900 ? 1.5 : 1.0;
+        const prevX = wave.x;
+        wave.x -= wave.speed * dangerBoost * this.speedHack * dt;
 
         // Check collision with player
         if (!wave.hitPlayer) {
             // Get Zeeb's actual position on the surfboard (centered on board)
             const zeebX = this.player.x;
             const zeebY = this.player.y;
-            
-            // Zeeb's collision box (smaller than surfboard, just around Zeeb himself)
-            const zeebWidth = this.player.surfboardWidth * 0.3;  // Zeeb is about 30% of board width
-            const zeebHeight = this.player.getSurfboardHeight() * 0.6; // Zeeb is about 60% of board height
+
+            // Zeeb's collision box
+            const zeebWidth = this.player.surfboardWidth * 0.45;  // Wider hitbox
+            const zeebHeight = this.player.getSurfboardHeight() * 0.6;
             const zeebLeft = zeebX - zeebWidth / 2;
             const zeebRight = zeebX + zeebWidth / 2;
-            
+
             // Calculate visual sprite dimensions (must match drawDangerWave)
             const img = wave.img || this.images.dangerWave2;
             const waveHeight = this.height * 0.24 * (wave.sizeMultiplier || 1) * (wave.heightScale || 1);
@@ -1485,38 +1901,33 @@ class OceanAnimation {
                 const aspect = img.naturalWidth / img.naturalHeight;
                 waveWidth = waveHeight * aspect;
             }
-            
-            // Sprite is drawn at waveX = dw.x - waveWidth * 0.3
-            // The dangerous curl is on the LEFT side of the sprite
-            const spriteLeft = wave.x - waveWidth * 0.3;
-            
-            // Only the left 40% of the sprite is the dangerous curling part
-            const dangerousPortionRatio = 0.4;
-            const dangerLeft = spriteLeft;
-            const dangerRight = spriteLeft + waveWidth * dangerousPortionRatio;
-            
+
+            // Use swept range (prevX → wave.x) to prevent tunneling at high speeds
+            // dangerLeft = furthest-left edge (current frame), dangerRight = furthest-right edge (previous frame)
+            const dangerousPortionRatio = 0.55;
+            const dangerLeft = (wave.x - waveWidth * 0.3);                              // leading edge NOW
+            const dangerRight = (prevX - waveWidth * 0.3) + waveWidth * dangerousPortionRatio; // trailing edge LAST FRAME
+
             // Wave height for collision
             const waveTop = this.getDangerWaveTopY();
             const waveBottom = this.height;
-            
-            // Check if danger wave overlaps with Zeeb's position
+
+            // Check if danger wave overlaps with Zeeb's position (swept)
             const horizontalHit = dangerRight > zeebLeft && dangerLeft < zeebRight;
-            
+
             // Vertical zones for collision detection
             // Player clears if they are ABOVE the wave top at any point during the wave's approach
-            const clearanceHeight = waveTop + 20; // Add 20px margin - more forgiving!
-            const inDangerZone = zeebY > waveTop + 30; // Only crash if DEEP in the wave (30px below top)
-            const playerCleared = zeebY < clearanceHeight; // Player is ABOVE the clearance line
-            const recentlyJumped = (this.elapsedTime - this.player.lastJumpTime) <= 0.6;
-            
-            // Track if player EVER cleared during this wave's approach
-            // This handles the case where the wave is faster than the jump arc
-            // Check this BEFORE any collision logic - even if wave hasn't reached player yet
-            if (playerCleared && (this.player.isJumping || recentlyJumped)) {
+            const clearanceHeight = waveTop + 5; // Must be near or above wave top
+            const inDangerZone = zeebY > waveTop + 10; // Crash if below wave top by 10px
+            const playerCleared = zeebY < clearanceHeight;
+            const recentlyJumped = (this.elapsedTime - this.player.lastJumpTime) <= 0.5;
+
+            // Only check clearance when the wave is near the player (within ~100px)
+            const waveNearby = dangerRight > zeebLeft - 80 && dangerLeft < zeebRight + 80;
+            if (waveNearby && playerCleared && this.player.isJumping) {
                 if (!wave.everCleared) {
                     wave.everCleared = true;
-                    wave.clearanceY = zeebY; // Track how high they got
-                    console.log(`CLEARED! Zeeb at Y=${zeebY.toFixed(0)}, waveTop=${waveTop.toFixed(0)}, clearance=${clearanceHeight.toFixed(0)}`);
+                    wave.clearanceY = zeebY;
                 }
             }
             
@@ -1532,14 +1943,11 @@ class OceanAnimation {
                     // Player must be above wave top (positive distance) but within 15px
                     const distanceAboveWave = waveTop - (wave.clearanceY || zeebY);
                     if (distanceAboveWave > 0 && distanceAboveWave < 15) {
-                        // Close call! BARELY cleared the wave = bonus points!
-                        this.score += 150; // 100 base + 50 close call bonus
+                        this.awardJumpPoints(150, wave.x, true);
                         this.showCloseCall = true;
-                        this.closeCallTimer = 1.0; // Show "CLOSE CALL!" for 1 second
-                        console.log(`CLOSE CALL! +150 points! (cleared by only ${distanceAboveWave.toFixed(0)}px)`);
+                        this.closeCallTimer = 1.0;
                     } else {
-                        this.score += 100;
-                        console.log(`Nice jump! +100 points (cleared by ${distanceAboveWave.toFixed(0)}px)`);
+                        this.awardJumpPoints(100, wave.x, false);
                     }
                     
                     // Trigger wave-riding animation!
@@ -1550,7 +1958,7 @@ class OceanAnimation {
             } else if (horizontalHit) {
                 // Player is horizontally overlapping with wave danger zone and NEVER cleared
                 
-                if (playerCleared && (this.player.isJumping || recentlyJumped)) {
+                if (playerCleared && this.player.isJumping) {
                     // Currently clearing - mark it!
                     wave.everCleared = true;
                     wave.clearanceY = zeebY;
@@ -1560,15 +1968,12 @@ class OceanAnimation {
                     if (!wave.pointsAwarded) {
                         wave.pointsAwarded = true;
                         const distanceAboveWave = waveTop - zeebY;
-                        // Close call only if BARELY cleared (0-15px above wave)
                         if (distanceAboveWave > 0 && distanceAboveWave < 15) {
-                            this.score += 150;
+                            this.awardJumpPoints(150, wave.x, true);
                             this.showCloseCall = true;
                             this.closeCallTimer = 1.0;
-                            console.log(`CLOSE CALL! +150 points! (cleared by ${distanceAboveWave.toFixed(0)}px)`);
                         } else {
-                            this.score += 100;
-                            console.log(`Nice jump! +100 points (cleared by ${distanceAboveWave.toFixed(0)}px)`);
+                            this.awardJumpPoints(100, wave.x, false);
                         }
                         this.player.isRidingWave = true;
                         this.player.rideWaveTimer = this.player.rideWaveDuration;
@@ -1605,13 +2010,86 @@ class OceanAnimation {
 
         // Remove danger wave when it goes off-screen
         if (wave.x < -wave.width) {
+            // Award points if player cleared the wave but overlap was missed
+            if (wave.everCleared && !wave.pointsAwarded) {
+                wave.pointsAwarded = true;
+                this.awardJumpPoints(100, this.player.x, false);
+                this.player.isRidingWave = true;
+                this.player.rideWaveTimer = this.player.rideWaveDuration;
+            }
             wave.active = false;
         }
     }
     
+    resumeAfterWipeout() {
+        this.state = 'playing';
+        this.music.volume = 0.5;
+        this.lastTime = performance.now();
+        // Reset player position
+        this.player.isJumping = false;
+        this.player.velocityY = 0;
+        this.player.jumpCount = 0;
+        this.player.x = this.width * this.player.baseXRatio;
+        const surfaceY = this.player.getRideSurfaceY(2, this.player.x);
+        this.player.y = surfaceY;
+        this.player.smoothY = surfaceY;
+        this.player.landingSettle = 0;
+        // Breathing room before next danger wave
+        const postCrash = this.getDangerSpawnTiming();
+        this.dangerWave.nextSpawnTime = this.elapsedTime + postCrash.min + Math.random() * 1.5;
+    }
+
+    updateWipeout(deltaTime) {
+        const dt = Math.min(deltaTime / 1000, 0.05);
+        this.elapsedTime += dt;
+
+        // Animate clouds
+        if (this.cloudSystem) {
+            try { this.cloudSystem.update(dt); } catch (e) { this.cloudSystem = null; }
+        }
+
+        // Animate wave layers
+        if (this.useGerstnerWaves) {
+            this.gerstnerWaves.update(dt, this.elapsedTime, this.score);
+        }
+        for (let i = 0; i < this.waves.length; i++) {
+            const wave = this.waves[i];
+            const image = this.images[`wave${i + 1}`];
+            const metrics = this.getWaveMetrics(image, wave);
+            this.advanceWave(wave, dt, metrics.tileWidth);
+        }
+
+    }
+
+    drawWipeoutOverlay(ctx) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        // Lives remaining
+        ctx.font = "bold 36px 'Lilita One', Arial";
+        ctx.fillStyle = '#ff6666';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.lineWidth = 4;
+        const msg = this.lives === 1 ? 'Wipeout! Last life!' : `Wipeout! ${this.lives} lives left`;
+        ctx.strokeText(msg, this.width / 2, this.height / 2 - 20);
+        ctx.fillText(msg, this.width / 2, this.height / 2 - 20);
+
+        // Prompt
+        ctx.font = "24px 'Lilita One', Arial";
+        ctx.fillStyle = 'white';
+        ctx.strokeText('Tap or press SPACE to get back out there', this.width / 2, this.height / 2 + 25);
+        ctx.fillText('Tap or press SPACE to get back out there', this.width / 2, this.height / 2 + 25);
+
+        ctx.restore();
+    }
+
     triggerCrash(waveX = null, waveWidth = null) {
         this.lives--;
         this.crashTimer = this.crashDuration;
+        this.music.volume *= 0.5;
         console.log(`CRASH! Lives remaining: ${this.lives}`);
         
         // Setup crash animation
@@ -1647,18 +2125,18 @@ class OceanAnimation {
         
         ctx.save();
         
-        // Calculate wave size - keep it low in the frame
-        const waveHeight = this.height * 0.24 * (dw.sizeMultiplier || 1) * (dw.heightScale || 1); // 24% peak height
+        // Calculate wave size - ensure bottom edge is always off-screen
+        const waveY = this.getDangerWaveTopY();
+        const minHeight = this.height - waveY + 20; // must reach past canvas bottom
+        const baseHeight = this.height * 0.24 * (dw.sizeMultiplier || 1) * (dw.heightScale || 1);
+        const waveHeight = Math.max(baseHeight, minHeight);
         let waveWidth = waveHeight; // Default square aspect
-        
+
         // Use actual image aspect ratio if loaded
         if (img.complete && img.naturalWidth > 0) {
             const aspect = img.naturalWidth / img.naturalHeight;
             waveWidth = waveHeight * aspect;
         }
-        
-        // Position the wave so bottom edge touches screen bottom
-        const waveY = this.getDangerWaveTopY();
         const waveX = dw.x - waveWidth * 0.3; // Offset so curl hits at dw.x
         
         // Add subtle bobbing animation
@@ -2001,45 +2479,75 @@ class OceanAnimation {
     drawGameUI(ctx) {
         ctx.save();
         
-        // Score display (top right)
-        ctx.fillStyle = 'white';
+        // Score display (top right) with pop animation
+        const scoreX = this.width - 20;
+        const scoreY = 35;
+        const s = this.scorePopScale;
+        ctx.save();
+        ctx.translate(scoreX, scoreY);
+        ctx.scale(s, s);
+        ctx.fillStyle = s > 1.05 ? '#ffe066' : 'white';
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.lineWidth = 3;
         ctx.font = "bold 24px 'Lilita One', Arial";
         ctx.textAlign = 'right';
-        ctx.strokeText(`Score: ${this.score}`, this.width - 20, 35);
-        ctx.fillText(`Score: ${this.score}`, this.width - 20, 35);
-        
+        ctx.strokeText(`Score: ${this.score}`, 0, 0);
+        ctx.fillText(`Score: ${this.score}`, 0, 0);
+        ctx.restore();
+
         // Lives display (top left)
         ctx.textAlign = 'left';
         ctx.font = "24px 'Lilita One', Arial";
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 3;
         const livesText = `Lives: ${Math.max(0, this.lives)}`;
         ctx.strokeText(livesText, 20, 35);
         ctx.fillText(livesText, 20, 35);
-        
-        // Close call bonus feedback (animated text)
-        if (this.showCloseCall && this.closeCallTimer > 0) {
-            const progress = 1 - (this.closeCallTimer / 1.0); // 0 to 1 over 1 second
-            
-            // Green color for success, fades out
-            const alpha = Math.max(0, 1 - progress);
-            ctx.fillStyle = `rgba(50, 255, 100, ${alpha})`;
-            ctx.strokeStyle = `rgba(0, 100, 0, ${alpha})`;
-            ctx.lineWidth = 4;
-            
-            // Text rises and grows as it fades
-            const rise = progress * 30; // Rise 30 pixels
-            const scale = 1 + progress * 0.3; // Grow 30% larger
-            
-            ctx.font = `bold ${Math.floor(32 * scale)}px 'Lilita One', Arial`;
-            ctx.textAlign = 'center';
-            
-            const textY = this.height * 0.35 - rise;
-            ctx.strokeText('CLOSE CALL! +150', this.width / 2, textY);
-            ctx.fillText('CLOSE CALL! +150', this.width / 2, textY);
+
+        // Coin counter (top center)
+        const coinImg = this.images.coin;
+        if (coinImg.complete && coinImg.naturalWidth > 0) {
+            const coinHudSize = 22;
+            const coinTextX = this.width / 2;
+            const coinTextY = 35;
+            ctx.drawImage(coinImg, coinTextX - coinHudSize - 4, coinTextY - coinHudSize / 2 - 4, coinHudSize, coinHudSize);
+            ctx.textAlign = 'left';
+            ctx.font = "bold 22px 'Lilita One', Arial";
+            ctx.strokeText(`${this.coinsCollected}`, coinTextX + 2, coinTextY);
+            ctx.fillText(`${this.coinsCollected}`, coinTextX + 2, coinTextY);
         }
-        
-        // Golden wave bonus feedback removed
+
+        // Floating score numbers near the action
+        for (const fs of this.floatingScores) {
+            // Coin batch text: hold in place while batch is still active
+            const batchActive = fs.isCoinBatch && this.coinBatchTimer > 0;
+            const t = batchActive ? 0 : fs.timer / fs.duration; // freeze progress while batching
+            const alpha = Math.max(0, 1 - t * t);
+            const rise = t * 60;
+            let size = fs.text.includes('CLOSE') ? 28 : 22;
+            if (fs.fontSize === 'big') size = 34;
+            else if (fs.fontSize === 'medium') size = 28;
+
+            // Slight scale bump when batch text updates
+            let scaleBump = 1;
+            if (fs.isCoinBatch && fs.timer < 0.1) {
+                scaleBump = 1 + (0.1 - fs.timer) * 2; // quick 1.0→1.2 pop
+            }
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.font = `bold ${Math.round(size * scaleBump)}px 'Lilita One', Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = fs.color;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.lineWidth = 3;
+            const fx = Math.min(Math.max(fs.x, 60), this.width - 60);
+            const fy = fs.y - rise;
+            ctx.strokeText(fs.text, fx, fy);
+            ctx.fillText(fs.text, fx, fy);
+            ctx.restore();
+        }
         
         // Game over overlay
         if (this.gameOver) {
@@ -2170,13 +2678,26 @@ class OceanAnimation {
     restartGame() {
         this.state = 'playing';
         this.score = 0;
+        this.coinsCollected = 0;
         this.lives = 3;
         this.gameOver = false;
         this.crashTimer = 0;
         this.sprayParticles = [];
+        this.floatingScores = [];
+        this.coins = [];
+        this.coinSpawnTimer = 2;
+        this.jumpCoinCount = 0;
+        this.jumpCoinValue = 0;
+        this.scorePop = 0;
+        this.scorePopScale = 1;
+        this.comboCount = 0;
+        this.comboTimer = 0;
+        this.wavePattern.active = false;
+        this.wavePattern.wavesRemaining = 0;
         this.dangerWave.active = false;
+        this.dangerWave.speed = 325;
+        this.dangerWaveExtra.speed = 325;
         this.dangerWave.nextSpawnTime = this.elapsedTime + 3;
-        // Golden wave reset removed
         this.player.currentWaveIndex = 2;
         this.player.targetWaveIndex = 2;
         this.player.isJumping = false;
@@ -2288,7 +2809,7 @@ class OceanAnimation {
     
     loadImages() {
         let loadCount = 0;
-        const totalImages = 15; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves
+        const totalImages = 16; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves + 1 coin
         let playerLoaded = false;
         
         const checkLoaded = () => {
@@ -2421,6 +2942,10 @@ class OceanAnimation {
             checkLoaded();
         };
         this.images.dangerWave5.src = `../img/GraceWave5.png${versionTag}`;
+
+        this.images.coin.onload = checkLoaded;
+        this.images.coin.onerror = () => { console.error('Failed to load coin.png'); checkLoaded(); };
+        this.images.coin.src = `../img/coin.png${versionTag}`;
     }
     
     updateTitle(deltaTime) {
@@ -2436,19 +2961,38 @@ class OceanAnimation {
             }
         }
 
-        // Animate wave layers
+        // Animate wave layers (slower on title screen)
+        const waveDt = dt * 0.45;
         if (this.useGerstnerWaves) {
-            this.gerstnerWaves.update(dt, this.elapsedTime, this.score);
+            this.gerstnerWaves.update(waveDt, this.elapsedTime, this.score);
         }
         for (let i = 0; i < this.waves.length; i++) {
             const wave = this.waves[i];
             const image = this.images[`wave${i + 1}`];
             const metrics = this.getWaveMetrics(image, wave);
-            this.advanceWave(wave, dt, metrics.tileWidth);
+            this.advanceWave(wave, waveDt, metrics.tileWidth);
         }
 
         // Title music fade
         this.updateTitleMusicFade(dt);
+
+        // Ambient title coins — ride the wave surface
+        this.titleCoinTimer -= dt;
+        if (this.titleCoinTimer <= 0) {
+            const count = Math.random() < 0.3 ? 2 : 1;
+            for (let i = 0; i < count; i++) {
+                this.titleCoins.push({
+                    x: this.width + 30 + i * 40,
+                    surfaceWaveIndex: 2,
+                    pulsePhase: Math.random() * Math.PI * 2
+                });
+            }
+            this.titleCoinTimer = 15 + Math.random() * 25;
+        }
+        for (let i = this.titleCoins.length - 1; i >= 0; i--) {
+            this.titleCoins[i].x -= 55 * dt;
+            if (this.titleCoins[i].x < -40) this.titleCoins.splice(i, 1);
+        }
 
         if (dt > 0) {
             this.fps = 1 / dt;
@@ -2533,6 +3077,21 @@ class OceanAnimation {
             }
         }
 
+        // Ambient title coins
+        const coinImg = this.images.coin;
+        if (coinImg.complete && coinImg.naturalWidth > 0) {
+            for (const tc of this.titleCoins) {
+                ctx.save();
+                const surfaceY = this.getWaveSurfaceYAtX(tc.surfaceWaveIndex, tc.x);
+                const coinY = surfaceY - this.coinSize * 0.6;
+                const s = 1 + 0.12 * Math.sin(this.elapsedTime * 4 + tc.pulsePhase);
+                const sz = this.coinSize * s;
+                ctx.globalAlpha = 0.75;
+                ctx.drawImage(coinImg, tc.x - sz / 2, coinY - sz / 2, sz, sz);
+                ctx.restore();
+            }
+        }
+
         // Dark gradient overlay for text readability
         ctx.save();
         const overlay = ctx.createLinearGradient(0, 0, 0, this.height * 0.55);
@@ -2558,6 +3117,17 @@ class OceanAnimation {
 
         ctx.shadowBlur = 0;
         ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
+
+        // "Press SPACE or tap to play" prompt with gentle pulse
+        const promptAlpha = 0.6 + 0.4 * Math.sin(this.elapsedTime * 2.5);
+        ctx.globalAlpha = promptAlpha;
+        const promptSize = Math.min(24, this.width * 0.045);
+        ctx.font = `bold ${promptSize}px 'Lilita One', Arial`;
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 3;
+        ctx.strokeText('Press SPACE or tap to play', this.width / 2, this.height * 0.25);
+        ctx.fillText('Press SPACE or tap to play', this.width / 2, this.height * 0.25);
 
         ctx.restore();
 
@@ -2589,10 +3159,10 @@ class OceanAnimation {
 
         this.drawHorizon();
 
-        // Fading islands — both fade and sink out
+        // Fading islands — fade out in place
         const alpha = 1 - ease;
         const bob = 1.0 + Math.sin(this.elapsedTime * 1.5) * 0.02;
-        const sinkY = ease * this.height * 0.08;
+        const sinkY = 0;
 
         const islandLeftImg = this.images.islandLeft;
         if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
@@ -2682,16 +3252,21 @@ class OceanAnimation {
     }
 
     goToTitle() {
+        document.body.classList.remove('theatre');
         this.state = 'title';
         this.titleMusicTriggered = true; // already interacted
         this.gameOver = false;
         this.score = 0;
+        this.coinsCollected = 0;
         this.lives = 3;
         this.crashTimer = 0;
         this.speedBoostTriggered = false;
         this.speedBoostFlash = 0;
         this.sprayParticles = [];
+        this.coins = [];
         this.dangerWave.active = false;
+        this.titleCoins = [];
+        this.titleCoinTimer = 8 + Math.random() * 12;
         // Stop gameplay music, start title music with fade-in
         this.music.pause();
         this.music.currentTime = 0;
@@ -2703,6 +3278,8 @@ class OceanAnimation {
     }
 
     startPlaying() {
+        // Darken the page background like a theatre
+        document.body.classList.add('theatre');
         // Begin transition: fade the title island out before gameplay
         this.state = 'transition';
         this.transitionTimer = 0;
@@ -2723,12 +3300,26 @@ class OceanAnimation {
     finishTransition() {
         this.state = 'playing';
         this.score = 0;
+        this.coinsCollected = 0;
         this.lives = 3;
         this.gameOver = false;
         this.crashTimer = 0;
         this.sprayParticles = [];
+        this.floatingScores = [];
+        this.coins = [];
+        this.coinSpawnTimer = 2;
+        this.jumpCoinCount = 0;
+        this.jumpCoinValue = 0;
+        this.scorePop = 0;
+        this.scorePopScale = 1;
+        this.comboCount = 0;
+        this.wavePattern.active = false;
+        this.wavePattern.wavesRemaining = 0;
         this.dangerWave.active = false;
+        this.dangerWave.speed = 325;
+        this.dangerWaveExtra.speed = 325;
         this.dangerWave.nextSpawnTime = this.elapsedTime + 3;
+        this.islandFadeIn = 0; // fade gameplay islands in over 1.5s
         this.player.beginEntry();
     }
     
@@ -2752,6 +3343,11 @@ class OceanAnimation {
         // Drift islands slowly for parallax
         this.islandDriftX -= this.islandDriftSpeed * dt;
 
+        // Fade gameplay islands in
+        if (this.islandFadeIn < 1) {
+            this.islandFadeIn = Math.min(1, this.islandFadeIn + dt / 1.5);
+        }
+
         // Update each wave layer
         if (this.useGerstnerWaves) {
             this.gerstnerWaves.update(dt, this.elapsedTime, this.score);
@@ -2769,6 +3365,7 @@ class OceanAnimation {
         
         // Update dangerous wave system
         this.updateDangerWave(dt);
+        this.updateCoins(dt);
         
         // Update close call timer
         if (this.closeCallTimer > 0) {
@@ -2778,8 +3375,37 @@ class OceanAnimation {
                 this.showCloseCall = false;
             }
         }
+
+        // Reset combo when player lands
+        if (!this.player.isJumping && this.comboCount > 0) {
+            this.comboCount = 0;
+        }
         
-        // Golden bonus timer update removed
+        // Score pop animation
+        if (this.scorePop > 0) {
+            this.scorePop -= dt;
+            const t = 1 - (this.scorePop / 0.35); // 0→1
+            // Quick elastic: overshoot then settle
+            this.scorePopScale = 1 + 0.35 * Math.sin(t * Math.PI) * (1 - t * 0.5);
+        } else {
+            this.scorePopScale = 1;
+        }
+
+        // Floating score numbers
+        for (let i = this.floatingScores.length - 1; i >= 0; i--) {
+            const fs = this.floatingScores[i];
+            // Freeze coin batch text while still collecting
+            if (fs.isCoinBatch && this.coinBatchTimer > 0) {
+                // Keep it alive and anchored — follow player position
+                fs.x = this.player.x;
+                fs.y = this.player.y - 40;
+                continue;
+            }
+            fs.timer += dt;
+            if (fs.timer >= fs.duration) {
+                this.floatingScores.splice(i, 1);
+            }
+        }
 
         // Update player (but not during crash)
         if (this.crashTimer <= 0 && !this.gameOver) {
@@ -2826,7 +3452,7 @@ class OceanAnimation {
         // waves begin (0.55) so there is no gap.
         const oceanBgTop = this.height * 0.28;
         const oceanBgBottom = this.height * 0.62;
-        
+
         ctx.save();
         const oceanBg = ctx.createLinearGradient(0, oceanBgTop, 0, oceanBgBottom);
         // #325A9A-based ocean gradient (lighter near horizon, deeper below).
@@ -2843,6 +3469,10 @@ class OceanAnimation {
         ctx.fillStyle = oceanBg;
         ctx.fillRect(0, oceanBgTop, this.width, oceanBgBottom - oceanBgTop);
         ctx.restore();
+
+        // Solid fill below the gradient so wave bottoms never show
+        ctx.fillStyle = '#5ea0e0';
+        ctx.fillRect(0, oceanBgBottom, this.width, this.height - oceanBgBottom);
         
         // === LAYER 2: Warm horizon glow ===
         // A thin warm-toned band right at the horizon line that
@@ -2962,7 +3592,9 @@ class OceanAnimation {
             const cycle = this.width + islandWidth + 200;
             const leftX = ((leftBaseX + this.islandDriftX) % cycle + cycle) % cycle - islandWidth - 100;
 
+            const iAlpha = this.islandFadeIn != null ? this.islandFadeIn : 1;
             this.ctx.save();
+            this.ctx.globalAlpha = iAlpha;
             this.ctx.drawImage(islandLeftImg, leftX, islandY, islandWidth, islandHeight);
             this.ctx.restore();
 
@@ -2977,16 +3609,19 @@ class OceanAnimation {
                 const rightX = ((rightBaseX + this.islandDriftX) % cycleR + cycleR) % cycleR - islandRightWidth - 100;
 
                 this.ctx.save();
+                this.ctx.globalAlpha = iAlpha;
                 this.ctx.drawImage(islandRightImg, rightX, islandRightY, islandRightWidth, islandHeight);
                 this.ctx.restore();
             }
         }
         
+        // (ocean base fill handled above after gradient)
+
         // Draw waves in order (back to front)
         if (this.useGerstnerWaves) {
-            // Gerstner physics-based waves
+            // Gerstner physics-based waves — draw layers behind player (skip frontOcean layer 3)
             for (let i = 0; i < this.gerstnerWaves.layers.length; i++) {
-                if (this.visibleWaveLayers.includes(i)) {
+                if (this.visibleWaveLayers.includes(i) && i !== 3) {
                     this.gerstnerWaves.drawLayer(this.ctx, i, this.width, this.height);
                 }
                 // Fish lives behind the front wave but in front of the mid/back water.
@@ -3014,22 +3649,30 @@ class OceanAnimation {
                 }
             }
         }
-        
+
         // Draw danger waves above standard waves, but still behind Zeeb.
         this.drawDangerWave(this.ctx, this.dangerWave);
         if (this.showDangerWaveExtra) {
             this.drawDangerWave(this.ctx, this.dangerWaveExtra);
         }
 
+        // Draw coins above waves, behind player
+        this.drawCoins(this.ctx);
+
         // Draw water spray behind player
         this.drawSpray(this.ctx);
 
         // Draw player in front of all wave layers.
-        // Don't draw normal player during crash animation (he's being animated in drawCrashEffect)
-        if (!this.crashAnimation.active || this.crashTimer <= 0) {
+        // Don't draw normal player during crash animation or wipeout (board is drifting)
+        if (this.state !== 'wipeout' && (!this.crashAnimation.active || this.crashTimer <= 0)) {
             this.player.draw(this.ctx);
         }
-        
+
+        // Front ocean layer drawn AFTER player — overlaps Zeeb's lower body
+        if (this.useGerstnerWaves && this.visibleWaveLayers.includes(3)) {
+            this.gerstnerWaves.drawLayer(this.ctx, 3, this.width, this.height);
+        }
+
         // Draw crash effect overlay (includes Zeeb animation during crash)
         this.drawCrashEffect(this.ctx);
         
@@ -3407,6 +4050,11 @@ class OceanAnimation {
                     this.finishTransition();
                 }
                 this.drawTransition();
+            } else if (this.state === 'wipeout') {
+                // Keep ocean alive during wipeout
+                this.updateWipeout(deltaTime);
+                this.draw();
+                this.drawWipeoutOverlay(this.ctx);
             } else if (this.state === 'paused') {
                 // Freeze game, draw last frame with pause overlay
                 this.draw();

@@ -37,18 +37,28 @@ class GerstnerWaveSystem {
 
         // Speed tiers — each milestone bumps the wave speed with a surge
         this.speedTiers = [
-            { score: 0,    speed: 1.40 },  // Chill, learn the rhythm
-            { score: 200,  speed: 1.70 },  // Picking up
-            { score: 500,  speed: 2.00 },  // Cruising
-            { score: 900,  speed: 2.40 },  // Getting intense
-            { score: 1500, speed: 2.90 },  // Survival mode
-            { score: 2000, speed: 3.20 },  // White knuckle
+            { score: 0,    speed: 3.64 },  // Chill
+            { score: 200,  speed: 4.42 },  // Picking up
+            { score: 500,  speed: 5.20 },  // Cruising
+            { score: 900,  speed: 6.24 },  // Getting intense
+            { score: 1500, speed: 7.54 },  // Survival mode
+            { score: 2000, speed: 8.32 },  // White knuckle
+            { score: 3000, speed: 9.10 },  // Expert
+            { score: 4500, speed: 9.80 },  // Beast mode
+            { score: 6000, speed: 10.40 }, // Legendary
+            { score: 8000, speed: 11.00 }, // Untouchable
+            { score: 10000, speed: 11.60 }, // Insane
+            { score: 13000, speed: 12.10 }, // Godlike
+            { score: 16000, speed: 12.50 }, // Max
         ];
         this.currentTier = 0;
-        this.surgeAmount = 0;        // current surge overshoot (0–1)
-        this.surgeDuration = 2.0;    // seconds for surge to settle
-        this.surgeElapsed = 0;
-        this.surgeOvershoot = 0.12;  // 12% overshoot on each tier jump
+        this.currentSpeed = this.speedTiers[0].speed;
+        this.lerpRate = 0.4;         // how fast speed catches up (per second, 0-1)
+
+        // Amber flush on speed tier change
+        this.flushTimer = 0;         // counts down from flushDuration
+        this.flushDuration = 2.5;    // seconds for flush to fade
+        this.flushAmber = { r: 255, g: 230, b: 50 }; // bright gold-yellow target
     }
 
     /**
@@ -64,10 +74,10 @@ class GerstnerWaveSystem {
             // [0] backOceanWater — hidden but defined for index consistency
             new GerstnerWaveLayer({
                 name: 'backOceanWater',
-                fillColor: '#4A90E2',
-                crestColor: '#5da8f0',
-                deepColor: '#2a6bb5',
-                foamColor: 'rgba(255, 255, 255, 0.3)',
+                fillColor: '#7bbaf5',
+                crestColor: '#95d0ff',
+                deepColor: '#5ea0e0',
+                foamColor: 'rgba(255, 255, 255, 0.45)',
                 alpha: 1,
                 yPosition: 0.55,
                 speed: 1,
@@ -81,11 +91,11 @@ class GerstnerWaveSystem {
             // [1] midOceanWater — dark blue behind the front wave
             new GerstnerWaveLayer({
                 name: 'midOceanWater',
-                fillColor: '#263d83',
-                crestColor: '#3a5aaa',
-                deepColor: '#1a2a5c',
-                foamColor: 'rgba(200, 220, 255, 0.35)',
-                alpha: 0.8,
+                fillColor: '#4268b5',
+                crestColor: '#5880cc',
+                deepColor: '#334d8e',
+                foamColor: 'rgba(220, 235, 255, 0.5)',
+                alpha: 0.85,
                 yPosition: 0.72,
                 speed: 1,
                 components: [
@@ -98,11 +108,11 @@ class GerstnerWaveSystem {
             // [2] frontOceanWater — the wave Zeeb rides on
             new GerstnerWaveLayer({
                 name: 'frontOceanWater',
-                fillColor: '#1e88e5',
-                crestColor: '#42a5f5',
-                deepColor: '#0d5aa7',
-                foamColor: 'rgba(255, 255, 255, 0.7)',
-                alpha: 0.72,
+                fillColor: '#4db0f8',
+                crestColor: '#75c8ff',
+                deepColor: '#3088d5',
+                foamColor: 'rgba(255, 255, 255, 0.8)',
+                alpha: 0.78,
                 yPosition: 0.82,
                 speed: 1,
                 components: [
@@ -112,12 +122,29 @@ class GerstnerWaveSystem {
                 ]
             }),
 
-            // [3] bottomOceanWater — dark strip at bottom
+            // [3] frontOcean — fuller wave layer just under Zeeb's wave
+            new GerstnerWaveLayer({
+                name: 'frontOcean',
+                fillColor: '#2a78c8',
+                crestColor: '#4a9ae5',
+                deepColor: '#1c5a9e',
+                foamColor: 'rgba(230, 240, 255, 0.55)',
+                alpha: 0.82,
+                yPosition: 0.88,
+                speed: 1,
+                components: [
+                    { wavelength: 480, amplitude: 14, steepness: 0.2, speed: 130 },
+                    { wavelength: 260, amplitude: 7,  steepness: 0.12, speed: 85 },
+                    { wavelength: 140, amplitude: 3,  steepness: 0.08, speed: 55 },
+                ]
+            }),
+
+            // [4] bottomOceanWater — dark strip at bottom
             new GerstnerWaveLayer({
                 name: 'bottomOceanWater',
-                fillColor: '#1a2d6b',
-                crestColor: '#243a80',
-                deepColor: '#0c1530',
+                fillColor: '#334d95',
+                crestColor: '#4060aa',
+                deepColor: '#1e3468',
                 foamColor: 'rgba(200, 220, 255, 0.2)',
                 alpha: 0.9,
                 yPosition: 0.92,
@@ -134,21 +161,7 @@ class GerstnerWaveSystem {
      * Get the effective speed multiplier based on score tiers + surge.
      */
     getSpeedMultiplier() {
-        // Find current tier
-        let tierSpeed = this.speedTiers[0].speed;
-        for (const tier of this.speedTiers) {
-            if (this.score >= tier.score) tierSpeed = tier.speed;
-        }
-
-        // Add surge overshoot that decays
-        let surge = 0;
-        if (this.surgeElapsed < this.surgeDuration) {
-            const t = this.surgeElapsed / this.surgeDuration;
-            // Quick rise, smooth ease-out
-            surge = this.surgeOvershoot * tierSpeed * (1 - t * t);
-        }
-
-        return tierSpeed + surge;
+        return this.currentSpeed;
     }
 
     /**
@@ -159,23 +172,47 @@ class GerstnerWaveSystem {
         const prevScore = this.score;
         this.score = score;
 
-        // Detect tier jump
+        // Find target tier speed and detect tier change
+        let targetSpeed = this.speedTiers[0].speed;
         let prevTier = 0, newTier = 0;
         for (let i = 0; i < this.speedTiers.length; i++) {
             if (prevScore >= this.speedTiers[i].score) prevTier = i;
-            if (this.score >= this.speedTiers[i].score) newTier = i;
-        }
-        if (newTier > prevTier) {
-            // Trigger surge
-            this.currentTier = newTier;
-            this.surgeElapsed = 0;
+            if (this.score >= this.speedTiers[i].score) {
+                targetSpeed = this.speedTiers[i].speed;
+                newTier = i;
+            }
         }
 
-        this.surgeElapsed += dt;
+        // Speed tier flush disabled
+
+        // Smoothly lerp toward target speed
+        this.currentSpeed += (targetSpeed - this.currentSpeed) * this.lerpRate * dt;
 
         // Accumulate phase time using current speed — this only ever
         // increases, so waves can never visually reverse direction.
-        this.phaseTime += dt * this.getSpeedMultiplier();
+        this.phaseTime += dt * this.currentSpeed;
+    }
+
+    // Returns flush intensity 0-1 (0 = no flush, 1 = peak)
+    getFlushIntensity() {
+        if (this.flushTimer <= 0) return 0;
+        const t = this.flushTimer / this.flushDuration; // 1→0
+        // Quick peak then gradual fade
+        return t * t;
+    }
+
+    // Mix a CSS hex color toward amber by intensity (0-1)
+    flushColor(hexColor, intensity) {
+        if (intensity <= 0) return hexColor;
+        const r = parseInt(hexColor.slice(1, 3), 16);
+        const g = parseInt(hexColor.slice(3, 5), 16);
+        const b = parseInt(hexColor.slice(5, 7), 16);
+        const a = this.flushAmber;
+        const mix = intensity * 0.55; // max 55% amber blend — pops against blue
+        const mr = Math.round(r + (a.r - r) * mix);
+        const mg = Math.round(g + (a.g - g) * mix);
+        const mb = Math.round(b + (a.b - b) * mix);
+        return `#${mr.toString(16).padStart(2,'0')}${mg.toString(16).padStart(2,'0')}${mb.toString(16).padStart(2,'0')}`;
     }
 
     /**
@@ -201,7 +238,7 @@ class GerstnerWaveSystem {
         for (const comp of layer.components) {
             const k = (2 * Math.PI) / comp.wavelength;
             const omega = k * comp.speed;
-            xDisplacement += comp.steepness * comp.amplitude * Math.sin(k * x - omega * t);
+            xDisplacement += comp.steepness * comp.amplitude * Math.sin(k * x + omega * t);
         }
 
         // Second pass: evaluate Y at the displaced X position
@@ -210,7 +247,7 @@ class GerstnerWaveSystem {
         for (const comp of layer.components) {
             const k = (2 * Math.PI) / comp.wavelength;
             const omega = k * comp.speed;
-            yDisplacement += comp.amplitude * Math.cos(k * xShifted - omega * t);
+            yDisplacement += comp.amplitude * Math.cos(k * xShifted + omega * t);
         }
 
         return baseY - yDisplacement;
@@ -245,10 +282,16 @@ class GerstnerWaveSystem {
         ctx.globalAlpha = layer.alpha;
 
         // --- 1. Wave body with vertical gradient (crest color → deep color) ---
-        const grad = ctx.createLinearGradient(0, minY, 0, canvasHeight);
-        grad.addColorStop(0, layer.crestColor);
-        grad.addColorStop(0.35, layer.fillColor);
-        grad.addColorStop(1, layer.deepColor);
+        const flush = this.getFlushIntensity();
+        const crestC = flush > 0 ? this.flushColor(layer.crestColor, flush) : layer.crestColor;
+        const fillC  = flush > 0 ? this.flushColor(layer.fillColor, flush)  : layer.fillColor;
+        const deepC  = flush > 0 ? this.flushColor(layer.deepColor, flush)  : layer.deepColor;
+        const waveDepth = canvasHeight - minY;
+        const gradBottom = minY + waveDepth * 0.7; // gradient finishes within the wave body
+        const grad = ctx.createLinearGradient(0, minY, 0, gradBottom);
+        grad.addColorStop(0, crestC);
+        grad.addColorStop(0.3, fillC);
+        grad.addColorStop(1, deepC);
         ctx.fillStyle = grad;
 
         ctx.beginPath();

@@ -5,6 +5,8 @@ const episodeButtons = document.querySelectorAll('.episode');
 const video = document.getElementById('showVideo');
 const source = document.getElementById('showSource');
 const playerTitle = document.getElementById('playerTitle');
+const showDialog = showOverlay ? showOverlay.querySelector('.show-dialog') : null;
+const isPhoneLayout = () => window.matchMedia('(max-width: 720px)').matches;
 
 const openOverlay = () => {
   showOverlay.classList.remove('hidden');
@@ -24,6 +26,9 @@ const closeOverlay = () => {
   }
   if (playerTitle) {
     playerTitle.textContent = 'Select an episode to play';
+  }
+  if (showDialog) {
+    showDialog.classList.remove('has-selection');
   }
 };
 
@@ -81,7 +86,15 @@ episodeButtons.forEach((button) => {
 
     source.src = src;
     playerTitle.textContent = title;
+    if (showDialog) {
+      showDialog.classList.add('has-selection');
+    }
     video.load();
     video.play();
+    if (isPhoneLayout()) {
+      requestAnimationFrame(() => {
+        video.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    }
   });
 });
