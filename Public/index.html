@@ -10,55 +10,61 @@
   <link rel="stylesheet" href="menu.css" />
 </head>
 <body>
+  <div class="stars" aria-hidden="true"></div>
+
   <div class="scene">
     <header class="hero">
       <p class="eyebrow">Games by Grace</p>
-      <h1>Pick Your Adventure</h1>
-      <p class="lede">Jump into Astroid Dodger, ride the waves in Zeeb Islands, or relax with The Zeeb Show.</p>
+      <h1>Pick Your<br>Adventure</h1>
     </header>
 
     <section class="card-grid" aria-label="Main menu options">
       <article class="card card-space">
         <div class="card-top">
           <span class="badge">Arcade</span>
-          <span class="tag">Live</span>
+          <span class="tag">4 Levels</span>
         </div>
         <div class="card-art">
+          <div class="art-glow glow-space"></div>
           <img src="astroid-dodger/img/Rocket1.png" alt="Rocket" loading="lazy" />
         </div>
         <h2>Astroid Dodger</h2>
-        <p>Fast dodges, laser blasts, and coin collecting through space.</p>
-        <a class="cta" href="astroid-dodger/index.html">Play Astroid Dodger</a>
+        <p>Dodge asteroids, blast lasers, and collect every coin in the galaxy.</p>
+        <a class="cta" href="astroid-dodger/index.html">Launch Game</a>
       </article>
 
       <article class="card card-surf">
         <div class="card-top">
-          <span class="badge">Mini Game</span>
+          <span class="badge">Surf</span>
           <span class="tag">Beta</span>
         </div>
         <div class="card-art">
+          <div class="art-glow glow-surf"></div>
           <img src="Islands/img/blue.png" alt="Zeeb on surfboard" loading="lazy" />
         </div>
         <h2>Zeeb Islands</h2>
-        <p>Catch the rhythm of the waves and guide Zeeb across the ocean.</p>
-        <a class="cta" id="playIslands" href="Islands/level1/index.html">Play Zeeb Islands</a>
+        <p>Ride the ocean waves, jump the swells, and see how far Zeeb can go.</p>
+        <a class="cta" id="playIslands" href="Islands/level1/index.html">Catch a Wave</a>
       </article>
 
       <article class="card card-show">
         <div class="card-top">
           <span class="badge">Watch</span>
-          <span class="tag">3 episodes</span>
+          <span class="tag">3 Episodes</span>
         </div>
         <div class="card-art">
+          <div class="art-glow glow-show"></div>
           <img src="astroid-dodger/img/zeeb.png" alt="Zeeb" loading="lazy" />
         </div>
         <h2>The Zeeb Show</h2>
-        <p>Pick an episode and watch Zeeb on his latest adventures.</p>
-        <button class="cta" id="openShow" type="button">Watch The Zeeb Show</button>
+        <p>Sit back and watch Zeeb on his wildest adventures yet.</p>
+        <button class="cta" id="openShow" type="button">Watch Now</button>
       </article>
     </section>
 
-    <footer class="site-credit">Art, music, and games by Grace</footer>
+    <footer class="site-credit">
+      Made with love by Grace
+    </footer>
   </div>
 
   <div class="overlay hidden" id="showOverlay" role="dialog" aria-modal="true" aria-labelledby="showTitle">
@@ -88,7 +94,7 @@
         </div>
 
         <div class="player">
-          <div class="player-title" id="playerTitle">Select an episode to play</div>
+          <div class="player-title" id="playerTitle">Pick an episode above</div>
           <video id="showVideo" controls playsinline>
             <source id="showSource" src="" type="video/mp4" />
             Your browser does not support the video tag.
@@ -101,11 +107,11 @@
   <div class="overlay hidden" id="betaOverlay" role="dialog" aria-modal="true">
     <div class="dialog beta-dialog">
       <div class="beta-icon">🏄</div>
-      <h2>Heads Up!</h2>
-      <p class="beta-msg">Zeeb Islands is still in beta — some things might be a little wobbly. Jump in and have fun!</p>
+      <h2>Almost There!</h2>
+      <p class="beta-msg">Zeeb Islands is still being built — a few things might be wobbly, but the waves are real. Ready to ride?</p>
       <div class="beta-buttons">
-        <a class="cta" href="Islands/level1/index.html">Let's Go!</a>
-        <button class="ghost" id="betaCancel" type="button">Maybe Later</button>
+        <a class="cta" href="Islands/level1/index.html">Let's Surf!</a>
+        <button class="ghost" id="betaCancel" type="button">Not Yet</button>
       </div>
     </div>
   </div>
