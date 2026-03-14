@@ -819,6 +819,12 @@ class OceanAnimation {
                     e.preventDefault();
                     return;
                 }
+                // Tap anywhere else to jump (mobile)
+                if (this.crashTimer <= 0) {
+                    this.player.jump();
+                }
+                e.preventDefault();
+                return;
             }
 
             // Pause overlay button hit test (Resume / Main Menu)
@@ -841,6 +847,10 @@ class OceanAnimation {
 
             if (this.state === 'title') {
                 this.startPlaying();
+                return;
+            }
+            if (this.state === 'gameover') {
+                this.restartGame();
                 return;
             }
             if (this.state === 'confirm-quit' && this._confirmBtns) {
