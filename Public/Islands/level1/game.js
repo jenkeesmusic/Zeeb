@@ -857,6 +857,10 @@ class OceanAnimation {
         this.canvas.addEventListener('click', canvasClick);
         this.canvas.addEventListener('touchstart', canvasClick);
 
+        // Prevent mobile annoyances on canvas
+        this.canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
         // Home link — return to main menu
         const homeLink = document.getElementById('homeLink');
         if (homeLink) {
@@ -875,6 +879,9 @@ class OceanAnimation {
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => this.resize(), 100);
+        });
 
         // Audio
         this.titleMusic = new Audio('../Audio/The Drums Of Tiki.m4a');
