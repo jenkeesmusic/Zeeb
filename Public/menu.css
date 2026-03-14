@@ -219,7 +219,7 @@ body {
 .card:nth-child(3) .card-art img { animation-delay: 3.2s; }
 
 .card h2 {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: 0.01em;
   z-index: 1;
@@ -227,8 +227,8 @@ body {
 
 .card p {
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.55;
   z-index: 1;
 }
 
@@ -239,11 +239,11 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 13px 22px;
+  padding: 14px 24px;
   border-radius: 12px;
   border: none;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
@@ -583,20 +583,20 @@ body {
   }
 
   .card h2 {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .card p {
     color: rgba(245, 244, 239, 0.88);
-    font-size: 14px;
-    line-height: 1.45;
+    font-size: 15px;
+    line-height: 1.5;
   }
 
   .cta {
     width: 100%;
-    padding: 14px 18px;
-    font-size: 14px;
-    min-height: 50px;
+    padding: 15px 20px;
+    font-size: 15px;
+    min-height: 52px;
     border-radius: 14px;
   }
 
@@ -738,11 +738,11 @@ body {
   }
 
   .card h2 {
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .card p {
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.45;
   }
 
