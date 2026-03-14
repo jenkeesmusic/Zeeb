@@ -2543,22 +2543,21 @@ class OceanAnimation {
         ctx.fillRect(0, 0, this.width, this.height * 0.55);
         ctx.restore();
 
-        // Title text: "Zeeb's Island Adventure"
+        // Title text: "Zeeb's Island Adventure" — scales to fit canvas
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // Text shadow / glow
+        const titleSize = Math.min(52, this.width * 0.09);
         ctx.shadowColor = 'rgba(0, 80, 180, 0.6)';
         ctx.shadowBlur = 20;
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = "bold 52px Boogaloo, cursive";
-        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.22);
+        ctx.font = `bold ${titleSize}px Boogaloo, cursive`;
+        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
 
-        // Second pass for sharper text (no shadow)
         ctx.shadowBlur = 0;
-        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.22);
+        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
 
         ctx.restore();
 
@@ -2630,6 +2629,7 @@ class OceanAnimation {
 
         // Title text fades out too
         const titleAlpha = 1 - ease;
+        const titleSize2 = Math.min(52, this.width * 0.09);
         ctx.save();
         ctx.globalAlpha = titleAlpha;
         ctx.textAlign = 'center';
@@ -2637,10 +2637,10 @@ class OceanAnimation {
         ctx.shadowColor = 'rgba(0, 80, 180, 0.6)';
         ctx.shadowBlur = 20;
         ctx.fillStyle = '#ffffff';
-        ctx.font = "bold 52px Boogaloo, cursive";
-        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.22);
+        ctx.font = `bold ${titleSize2}px Boogaloo, cursive`;
+        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
         ctx.shadowBlur = 0;
-        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.22);
+        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
         ctx.restore();
     }
 
