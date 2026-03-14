@@ -10,24 +10,15 @@
   force = true
 
 # Serve real files - these rules ensure actual files are served
+
 [[redirects]]
-  from = "/level2/*"
-  to = "/level2/:splat"
+  from = "/astroid-dodger/*"
+  to = "/astroid-dodger/:splat"
   status = 200
 
 [[redirects]]
-  from = "/level3/*"
-  to = "/level3/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/level4/*"
-  to = "/level4/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/start/*"
-  to = "/start/:splat"
+  from = "/Islands/*"
+  to = "/Islands/:splat"
   status = 200
 
 [[redirects]]
@@ -36,29 +27,18 @@
   status = 200
 
 [[redirects]]
-  from = "/img/*"
-  to = "/img/:splat"
+  from = "/shared-assets/*"
+  to = "/shared-assets/:splat"
   status = 200
 
 [[redirects]]
-  from = "/audio/*"
-  to = "/audio/:splat"
-  status = 200
-
-# Root level files
-[[redirects]]
-  from = "/game.js"
-  to = "/game.js"
+  from = "/menu.css"
+  to = "/menu.css"
   status = 200
 
 [[redirects]]
-  from = "/styles.css"
-  to = "/styles.css"
-  status = 200
-
-[[redirects]]
-  from = "/stars.js"
-  to = "/stars.js"
+  from = "/menu.js"
+  to = "/menu.js"
   status = 200
 
 [[redirects]]

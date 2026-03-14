@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#000000" />
+  <title>Zeeb's Astroid Dodger</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preload" href="img/Rocket1.png?v=20251024T201542" as="image">
+  <link rel="preload" href="img/astroid1.png" as="image">
+  <link rel="preload" href="img/astroid2.png" as="image">
+  <link rel="preload" href="img/astroid3.png" as="image">
+  <link rel="preload" href="img/crash.png" as="image">
+  <link rel="preload" href="img/coin.png" as="image">
+  <link rel="preload" href="img/laser.png" as="image">
+  <link rel="preload" href="img/plamet_zeeb.png" as="image">
+  <link rel="preload" href="img/zeeb.png" as="image">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="start/start.css" />
+  <link rel="stylesheet" href="start/title-anim.css" />
+  <script src="stars.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <a href="../index.html" class="main-menu-link">← Main Menu</a>
+    <header class="title">Zeeb's Astroid Dodger</header>
+
+    <canvas id="gameCanvas" width="900" height="600" aria-label="Game canvas"></canvas>
+
+    <div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+      <div class="panel">
+        <div class="start-scene">
+          <div class="art">
+            <img src="img/plamet_zeeb.png" alt="Planet Zeeb" class="planet-zeeb" />
+            <img src="img/zeeb.png" alt="Zeeb" class="zeeb-hero" id="zeebHero" />
+          </div>
+          <h1 id="startTitle">Zeeb's Astroid Dodger</h1>
+          <p class="subtitle">Guide Zeeb's rocket away from astroids and collect coins!</p>
+          <div class="btn-row">
+            <button id="startBtn" class="btn">Start Adventure</button>
+            <button id="howToPlayBtn" class="btn btn-secondary">How to Play</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="gameOver" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+      <div class="panel">
+        <h2 id="gameOverTitle">Game Over</h2>
+        <p id="finalScore">Score: 0</p>
+        <button id="restartBtn" class="btn">Restart</button>
+      </div>
+    </div>
+
+    <div id="howToPlayOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="howToPlayTitle">
+      <div class="panel how-to-play-panel">
+        <h2 id="howToPlayTitle">🎮 How to Play</h2>
+        
+        <div class="instructions-section">
+          <h3>📱 Mobile / Tablet</h3>
+          <ul class="how-to-list">
+            <li><strong>Move:</strong> Drag your finger up/down on the screen</li>
+            <li><strong>Shoot:</strong> Tap the screen quickly</li>
+            <li><strong>Goal:</strong> Collect 10 coins to advance!</li>
+          </ul>
+        </div>
+        
+        <div class="instructions-section">
+          <h3>💻 PC / Keyboard</h3>
+          <ul class="how-to-list">
+            <li><strong>Move:</strong> W/S or Arrow Up/Down</li>
+            <li><strong>Shoot:</strong> Spacebar</li>
+            <li><strong>Pause:</strong> P</li>
+            <li><strong>Start:</strong> Enter or Spacebar</li>
+          </ul>
+        </div>
+        
+        <div class="instructions-section tips">
+          <h3>💡 Tips</h3>
+          <ul class="how-to-list">
+            <li>Shoot asteroids to get bonus coins!</li>
+            <li>Watch out for faster asteroids in later levels</li>
+            <li>Planet Zeeb is waiting for you - collect coins to get closer!</li>
+          </ul>
+        </div>
+        
+        <button id="closeHowToPlay" class="btn">Got it!</button>
+      </div>
+    </div>
+
+    <div id="videoPlayerOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+      <div class="video-player-container">
+        <button id="closeVideoPlayer" class="video-close-btn" aria-label="Close video">✕</button>
+        <video id="zeebShowVideo" class="zeeb-show-video" controls playsinline>
+          <source id="videoSource" src="" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    </div>
+
+    <div id="hud" class="hud">
+      <div>Score: <span id="scoreEl">0</span></div>
+      <div class="coin-counter"><img src="img/coin.png" alt="Coin" class="coin-icon"><span id="coinsEl">0</span></div>
+      <div>Best: <span id="bestEl">0</span></div>
+    </div>
+
+    <footer class="site-credit">art · music · game by Grace</footer>
+  </div>
+
+  <audio id="bgMusic" src="audio/zeeb_aoundtrack - level 1.m4a" loop preload="auto"></audio>
+  <script src="start/start.js" defer></script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>

@@ -2,147 +2,102 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#000000" />
-  <title>Zeeb's Astroid Dodger</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="preload" href="img/Rocket1.png?v=20251024T201542" as="image">
-  <link rel="preload" href="img/astroid1.png" as="image">
-  <link rel="preload" href="img/astroid2.png" as="image">
-  <link rel="preload" href="img/astroid3.png" as="image">
-  <link rel="preload" href="img/crash.png" as="image">
-  <link rel="preload" href="img/coin.png" as="image">
-  <link rel="preload" href="img/laser.png" as="image">
-  <link rel="preload" href="img/plamet_zeeb.png" as="image">
-  <link rel="preload" href="img/zeeb.png" as="image">
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="start/start.css" />
-  <link rel="stylesheet" href="start/title-anim.css" />
-  <script src="stars.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Games by Grace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Spline+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="menu.css" />
 </head>
 <body>
-  <div class="wrap">
-    <header class="title">Zeeb's Astroid Dodger</header>
+  <div class="scene">
+    <header class="hero">
+      <p class="eyebrow">Games by Grace</p>
+      <h1>Pick Your Adventure</h1>
+      <p class="lede">Jump into Astroid Dodger, ride the waves in Zeeb Islands, or relax with The Zeeb Show.</p>
+    </header>
 
-    <canvas id="gameCanvas" width="900" height="600" aria-label="Game canvas"></canvas>
-
-    <div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="startTitle">
-      <div class="panel">
-        <div class="start-scene">
-          <div class="art">
-            <img src="img/plamet_zeeb.png" alt="Planet Zeeb" class="planet-zeeb" />
-            <img src="img/zeeb.png" alt="Zeeb" class="zeeb-hero" id="zeebHero" />
-          </div>
-          <h1 id="startTitle">Zeeb's Astroid Dodger</h1>
-          <p class="subtitle">Guide Zeeb's rocket away from astroids and collect coins!</p>
-          <div class="btn-row">
-            <button id="startBtn" class="btn">Start Adventure</button>
-            <button id="howToPlayBtn" class="btn btn-secondary">How to Play</button>
-          </div>
-          <div class="btn-row">
-            <button id="zeebShowBtn" class="btn btn-show">The Zeeb Show · 3 Episodes <span class="new-badge">NEW!</span></button>
-          </div>
+    <section class="card-grid" aria-label="Main menu options">
+      <article class="card card-space">
+        <div class="card-top">
+          <span class="badge">Arcade</span>
+          <span class="tag">Live</span>
         </div>
-      </div>
-    </div>
-
-    <div id="gameOver" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
-      <div class="panel">
-        <h2 id="gameOverTitle">Game Over</h2>
-        <p id="finalScore">Score: 0</p>
-        <button id="restartBtn" class="btn">Restart</button>
-      </div>
-    </div>
-
-    <div id="howToPlayOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="howToPlayTitle">
-      <div class="panel how-to-play-panel">
-        <h2 id="howToPlayTitle">🎮 How to Play</h2>
-        
-        <div class="instructions-section">
-          <h3>📱 Mobile / Tablet</h3>
-          <ul class="how-to-list">
-            <li><strong>Move:</strong> Drag your finger up/down on the screen</li>
-            <li><strong>Shoot:</strong> Tap the screen quickly</li>
-            <li><strong>Goal:</strong> Collect 10 coins to advance!</li>
-          </ul>
+        <div class="card-art">
+          <img src="astroid-dodger/img/Rocket1.png" alt="Rocket" loading="lazy" />
         </div>
-        
-        <div class="instructions-section">
-          <h3>💻 PC / Keyboard</h3>
-          <ul class="how-to-list">
-            <li><strong>Move:</strong> W/S or Arrow Up/Down</li>
-            <li><strong>Shoot:</strong> Spacebar</li>
-            <li><strong>Pause:</strong> P</li>
-            <li><strong>Start:</strong> Enter or Spacebar</li>
-          </ul>
+        <h2>Astroid Dodger</h2>
+        <p>Fast dodges, laser blasts, and coin collecting through space.</p>
+        <a class="cta" href="astroid-dodger/index.html">Play Astroid Dodger</a>
+      </article>
+
+      <article class="card card-surf">
+        <div class="card-top">
+          <span class="badge">Mini Game</span>
+          <span class="tag">Beta</span>
         </div>
-        
-        <div class="instructions-section tips">
-          <h3>💡 Tips</h3>
-          <ul class="how-to-list">
-            <li>Shoot asteroids to get bonus coins!</li>
-            <li>Watch out for faster asteroids in later levels</li>
-            <li>Planet Zeeb is waiting for you - collect coins to get closer!</li>
-          </ul>
+        <div class="card-art">
+          <img src="Islands/img/blue.png" alt="Zeeb on surfboard" loading="lazy" />
         </div>
-        
-        <button id="closeHowToPlay" class="btn">Got it!</button>
-      </div>
-    </div>
+        <h2>Zeeb Islands</h2>
+        <p>Catch the rhythm of the waves and guide Zeeb across the ocean.</p>
+        <a class="cta" href="Islands/level1/index.html">Play Zeeb Islands</a>
+      </article>
 
-    <div id="zeebShowOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="zeebShowTitle">
-      <div class="panel zeeb-show-panel">
-        <h2 id="zeebShowTitle">📺 The Zeeb Show</h2>
-        <p class="show-subtitle">Pick an episode to watch!</p>
-        
-        <div class="episode-grid">
-          <button class="episode-card" data-episode="1" data-src="zeeb-show/episode1-new.mp4">
-            <div class="episode-number">Episode 1</div>
-            <div class="episode-title">Zeeb's Rollercoaster</div>
-            <div class="play-icon">▶</div>
-          </button>
-          
-          <button class="episode-card" data-episode="2" data-src="zeeb-show/episode2-outer-space.mp4">
-            <div class="episode-number">Episode 2</div>
-            <div class="episode-title">Outer Space</div>
-            <div class="play-icon">▶</div>
-          </button>
-          
-          <button class="episode-card" data-episode="3" data-src="zeeb-show/episode3-video-game.mp4">
-            <div class="episode-number">Episode 3</div>
-            <div class="episode-title">Video Game</div>
-            <div class="play-icon">▶</div>
-          </button>
+      <article class="card card-show">
+        <div class="card-top">
+          <span class="badge">Watch</span>
+          <span class="tag">3 episodes</span>
         </div>
-        
-        <button id="closeZeebShow" class="btn btn-secondary">Back to Menu</button>
-      </div>
-    </div>
+        <div class="card-art">
+          <img src="astroid-dodger/img/zeeb.png" alt="Zeeb" loading="lazy" />
+        </div>
+        <h2>The Zeeb Show</h2>
+        <p>Pick an episode and watch Zeeb on his latest adventures.</p>
+        <button class="cta" id="openShow" type="button">Watch The Zeeb Show</button>
+      </article>
+    </section>
 
-    <div id="videoPlayerOverlay" class="overlay hidden" role="dialog" aria-modal="true">
-      <div class="video-player-container">
-        <button id="closeVideoPlayer" class="video-close-btn" aria-label="Close video">✕</button>
-        <video id="zeebShowVideo" class="zeeb-show-video" controls playsinline>
-          <source id="videoSource" src="" type="video/mp4">
-          Your browser does not support the video tag.
-        </video>
-      </div>
-    </div>
-
-    <div id="hud" class="hud">
-      <div>Score: <span id="scoreEl">0</span></div>
-      <div class="coin-counter"><img src="img/coin.png" alt="Coin" class="coin-icon"><span id="coinsEl">0</span></div>
-      <div>Best: <span id="bestEl">0</span></div>
-    </div>
-
-    <footer class="site-credit">art · music · game by Grace</footer>
+    <footer class="site-credit">Art, music, and games by Grace</footer>
   </div>
 
-  <audio id="bgMusic" src="audio/zeeb_aoundtrack - level 1.m4a" loop preload="auto"></audio>
-  <script src="start/start.js" defer></script>
-  <script type="module" src="game.js"></script>
+  <div class="overlay hidden" id="showOverlay" role="dialog" aria-modal="true" aria-labelledby="showTitle">
+    <div class="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">The Zeeb Show</p>
+          <h2 id="showTitle">Choose an Episode</h2>
+        </div>
+        <button class="ghost" id="closeShow" type="button" aria-label="Close">Close</button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="episode-list">
+          <button class="episode" data-title="Zeeb's Rollercoaster" data-src="zeeb-show/episode1-zeebs_rollercoaster.mp4" type="button">
+            <span class="episode-number">Episode 1</span>
+            <span class="episode-title">Zeeb's Rollercoaster</span>
+          </button>
+          <button class="episode" data-title="Outer Space" data-src="zeeb-show/episode2-outer-space.mp4" type="button">
+            <span class="episode-number">Episode 2</span>
+            <span class="episode-title">Outer Space</span>
+          </button>
+          <button class="episode" data-title="Video Game" data-src="zeeb-show/episode3-video-game.mp4" type="button">
+            <span class="episode-number">Episode 3</span>
+            <span class="episode-title">Video Game</span>
+          </button>
+        </div>
+
+        <div class="player">
+          <div class="player-title" id="playerTitle">Select an episode to play</div>
+          <video id="showVideo" controls playsinline>
+            <source id="showSource" src="" type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="menu.js"></script>
 </body>
 </html>

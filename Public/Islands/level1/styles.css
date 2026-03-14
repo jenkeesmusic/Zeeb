@@ -1,0 +1,111 @@
+/* Level 1: Ocean Animation Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Lilita One', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+.game-container {
+    text-align: center;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(4px);
+}
+
+.title {
+    color: white;
+    font-family: 'Boogaloo', cursive;
+    font-size: 28px;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+#gameCanvas {
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    box-shadow: 
+        0 10px 40px rgba(0, 0, 0, 0.3),
+        inset 0 0 20px rgba(255, 255, 255, 0.1);
+    display: block;
+    margin: 0 auto;
+    width: 900px;
+    height: 600px;
+    background: #001f3f; /* Dark blue fallback */
+}
+
+.controls {
+    margin-top: 20px;
+    color: white;
+    font-size: 16px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.controls p {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: 5px;
+    display: inline-block;
+}
+
+/* Responsive adjustments */
+@media (max-width: 960px) {
+    .game-container {
+        padding: 10px;
+    }
+    
+    .title {
+        font-size: 20px;
+        margin-bottom: 10px;
+    }
+    
+    #gameCanvas {
+        width: 100%;
+        height: auto;
+        max-width: 900px;
+    }
+}
+
+/* Mobile landscape optimization */
+@media (max-width: 768px) and (orientation: landscape) {
+    body {
+        padding: 10px;
+    }
+    
+    .title {
+        font-size: 18px;
+        margin-bottom: 5px;
+    }
+    
+    #gameCanvas {
+        max-height: 80vh;
+    }
+}
+
+.home-link {
+    display: inline-block;
+    margin-top: 14px;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: 'Lilita One', Arial, sans-serif;
+    font-size: 13px;
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    transition: color 0.2s;
+}
+.home-link:hover {
+    color: rgba(255, 255, 255, 0.85);
+}
