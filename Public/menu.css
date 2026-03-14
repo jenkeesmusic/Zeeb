@@ -511,72 +511,88 @@ body {
   }
 
   .scene {
-    padding: 28px 16px 36px;
-    gap: 28px;
+    padding: 32px 18px 40px;
+    gap: 32px;
   }
 
   .hero {
-    gap: 12px;
+    gap: 14px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.24em;
   }
 
   .hero h1 {
-    font-size: clamp(28px, 8vw, 40px);
+    font-size: clamp(30px, 9vw, 44px);
     line-height: 1.15;
   }
 
   .card-grid {
-    gap: 18px;
+    gap: 20px;
     grid-template-columns: 1fr;
   }
 
   .card {
-    padding: 22px 20px 24px;
+    padding: 24px 22px 28px;
     border-radius: 16px;
-    gap: 12px;
+    gap: 14px;
   }
 
   .card-art {
-    height: 120px;
+    height: 130px;
   }
 
   .card-art img {
-    max-height: 110px;
+    max-height: 115px;
     animation: none;
   }
 
   .art-glow {
-    width: 120px;
-    height: 120px;
-    filter: blur(30px);
+    width: 130px;
+    height: 130px;
+    filter: blur(32px);
+  }
+
+  .badge {
+    font-size: 11px;
+    padding: 5px 12px;
+  }
+
+  .tag {
+    font-size: 13px;
   }
 
   .card h2 {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .card p {
-    font-size: 14px;
+    font-size: 15px;
+    line-height: 1.55;
   }
 
   .cta {
     width: 100%;
-    padding: 14px 18px;
-    font-size: 14px;
-    min-height: 48px;
+    padding: 15px 20px;
+    font-size: 15px;
+    min-height: 52px;
+    border-radius: 14px;
   }
 
   .site-credit {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .overlay {
-    padding: 14px;
+    padding: 16px;
   }
 
   .dialog {
     border-radius: 16px;
-    padding: 20px;
-    gap: 16px;
+    padding: 22px;
+    gap: 18px;
   }
 
   .dialog-header {
@@ -585,17 +601,29 @@ body {
     gap: 10px;
   }
 
+  .dialog-header h2 {
+    font-size: 20px;
+  }
+
   .dialog-body {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 16px;
   }
 
   .episode {
-    padding: 12px 14px;
-    min-height: 50px;
+    padding: 14px 16px;
+    min-height: 54px;
     display: flex;
     flex-direction: column;
     justify-content: center;
+  }
+
+  .episode-number {
+    font-size: 11px;
+  }
+
+  .episode-title {
+    font-size: 17px;
   }
 
   .player video {
@@ -604,6 +632,8 @@ body {
 
   .ghost {
     align-self: flex-end;
+    font-size: 14px;
+    padding: 11px 20px;
   }
 
   .stars {
@@ -615,54 +645,60 @@ body {
 
 @media (max-width: 480px) {
   .scene {
-    padding: 22px 12px 28px;
-    gap: 22px;
+    padding: 28px 14px 32px;
+    gap: 26px;
   }
 
   .eyebrow {
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.2em;
   }
 
+  .hero h1 {
+    font-size: clamp(26px, 8.5vw, 38px);
+  }
+
   .card {
-    padding: 18px 16px 22px;
+    padding: 20px 18px 24px;
     border-radius: 14px;
+    gap: 12px;
   }
 
   .card-art {
-    height: 100px;
+    height: 110px;
   }
 
   .card-art img {
-    max-height: 90px;
+    max-height: 100px;
   }
 
   .card h2 {
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .card p {
-    font-size: 13px;
+    font-size: 14px;
+    line-height: 1.55;
   }
 
   .cta {
-    font-size: 13px;
-    padding: 13px 16px;
-    min-height: 44px;
+    font-size: 14px;
+    padding: 14px 18px;
+    min-height: 48px;
   }
 
   .dialog {
-    padding: 16px;
+    padding: 18px;
     border-radius: 14px;
   }
 
   .episode {
-    padding: 10px 12px;
-    min-height: 44px;
+    padding: 12px 14px;
+    min-height: 48px;
   }
 
   .episode-title {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .player video {
