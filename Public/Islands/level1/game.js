@@ -109,7 +109,7 @@ class Player {
     }
     
     loadImages(onComplete) {
-        // Load surfboard with Zeeb (green.png includes Zeeb on the board)
+        // Load surfboard with Zeeb (red.png includes Zeeb on the board)
         this.surfboardImage.onload = () => {
             if (this.surfboardImage.naturalWidth > 0) {
                 this.boardAspect = this.surfboardImage.naturalHeight / this.surfboardImage.naturalWidth;
@@ -122,7 +122,7 @@ class Player {
             this.imagesLoaded = true;
             if (onComplete) onComplete();
         };
-        this.surfboardImage.src = '../img/green.png';
+        this.surfboardImage.src = '../img/red.png';
     }
 
     beginEntry() {
@@ -889,7 +889,9 @@ class OceanAnimation {
                 this.showDebug = !this.showDebug;
             } else if (event.key === ' ' || event.key === 'Spacebar') {
                 event.preventDefault(); // Prevent page scroll
-                if (this.state === 'title') {
+                if (this.introVideoPlaying) {
+                    this.skipIntroVideo();
+                } else if (this.state === 'title') {
                     this.startPlaying();
                 } else if (this.state === 'wipeout') {
                     this.resumeAfterWipeout();
@@ -954,6 +956,11 @@ class OceanAnimation {
                         return;
                     }
                 }
+            }
+
+            if (this.introVideoPlaying) {
+                this.skipIntroVideo();
+                return;
             }
 
             if (this.state === 'title') {
@@ -3227,7 +3234,7 @@ class OceanAnimation {
     }
 
     startTitleMusic() {
-        if (this.titleMusicStarted) return;
+        if (this.titleMusicStarted || this.introVideoPlaying) return;
         this.titleMusicStarted = true;
         this.titleMusic.volume = 0;
         this.titleMusic.play().catch(() => {});
@@ -3235,7 +3242,7 @@ class OceanAnimation {
     }
 
     updateTitleMusicFade(dt) {
-        if (!this.titleMusicFade) return;
+        if (!this.titleMusicFade || this.introVideoPlaying) return;
         this.titleMusicFade.elapsed += dt;
         const t = Math.min(1, this.titleMusicFade.elapsed / this.titleMusicFade.duration);
         if (this.titleMusicFade.dir === 'in') {
@@ -3278,6 +3285,57 @@ class OceanAnimation {
     }
 
     startPlaying() {
+        // Show intro video on first play this session
+        if (!this.introPlayed) {
+            this.introPlayed = true;
+            this.playIntroVideo();
+            return;
+        }
+        this.beginGameplay();
+    }
+
+    playIntroVideo() {
+        const overlay = document.getElementById('introOverlay');
+        const video = document.getElementById('introVideo');
+        const skipBtn = document.getElementById('skipIntro');
+
+        // Stop all music during intro video
+        this.titleMusic.pause();
+        this.titleMusic.currentTime = 0;
+        this.titleMusicFade = null;
+        this.titleMusicStarted = false;
+        this.music.pause();
+        this.music.currentTime = 0;
+        this.musicStarted = false;
+
+        this.introVideoPlaying = true;
+        overlay.classList.remove('hidden');
+        video.currentTime = 0;
+        video.play().catch(() => {});
+
+        const finishIntro = () => {
+            if (!this.introVideoPlaying) return;
+            this.introVideoPlaying = false;
+            video.pause();
+            overlay.classList.add('hidden');
+            this.beginGameplay();
+        };
+
+        video.addEventListener('ended', finishIntro, { once: true });
+        skipBtn.addEventListener('click', finishIntro, { once: true });
+    }
+
+    skipIntroVideo() {
+        if (!this.introVideoPlaying) return;
+        const video = document.getElementById('introVideo');
+        const overlay = document.getElementById('introOverlay');
+        this.introVideoPlaying = false;
+        video.pause();
+        overlay.classList.add('hidden');
+        this.beginGameplay();
+    }
+
+    beginGameplay() {
         // Darken the page background like a theatre
         document.body.classList.add('theatre');
         // Begin transition: fade the title island out before gameplay
@@ -3833,9 +3891,9 @@ class OceanAnimation {
         }
 
         if (this.crashAnimation.active && this.crashTimer > 0) {
-            drawLabel('player (green.png)', this.crashAnimation.zeebX + 12, this.crashAnimation.zeebY - 12);
+            drawLabel('player (red.png)', this.crashAnimation.zeebX + 12, this.crashAnimation.zeebY - 12);
         } else {
-            drawLabel('player (green.png)', this.player.x + 12, this.player.y - 12);
+            drawLabel('player (red.png)', this.player.x + 12, this.player.y - 12);
         }
 
         ctx.restore();
