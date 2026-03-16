@@ -8,6 +8,7 @@
 
 html, body {
     height: 100%;
+    height: 100dvh;
     overflow: hidden;
     background: radial-gradient(ellipse at 50% 80%, #6ab7d9 0%, #4a9ec4 30%, #2e7aab 60%, #1b5a8a 100%);
     transition: background 1.5s ease;
@@ -152,6 +153,7 @@ body.theatre #gameCanvas {
         display: flex;
         flex-direction: column;
         height: 100%;
+        height: 100dvh;
     }
 
     #gameCanvas {
@@ -169,12 +171,78 @@ body.theatre #gameCanvas {
     }
 
     .home-link {
+        top: calc(4px + env(safe-area-inset-top));
+        left: calc(4px + env(safe-area-inset-left));
+        min-height: 36px;
+        padding: 8px 11px;
+        font-size: 11px;
+        opacity: 0.7;
+    }
+}
+
+/* ─── Standalone (Add to Home Screen): true fullscreen ─── */
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+    html, body {
+        height: 100%;
+    }
+
+    .home-link {
         top: calc(8px + env(safe-area-inset-top));
         left: calc(8px + env(safe-area-inset-left));
-        min-height: 44px;
-        padding: 10px 13px;
-        font-size: 12px;
     }
+}
+
+/* ─── Add to Home Screen prompt ─── */
+
+.a2hs-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 20px;
+}
+
+.a2hs-card {
+  max-width: 360px;
+  padding: 28px 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(10, 30, 50, 0.95), rgba(15, 40, 60, 0.95));
+  border: 1px solid rgba(100, 180, 240, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+
+.a2hs-text {
+  font-family: 'Lilita One', Arial, sans-serif;
+  font-size: 18px;
+  color: #e8f2ff;
+  margin: 0 0 14px 0;
+  line-height: 1.4;
+}
+
+.a2hs-steps {
+  font-family: 'Lilita One', Arial, sans-serif;
+  font-size: 14px;
+  color: #b0c8e8;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+}
+
+.a2hs-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(100, 180, 240, 0.5);
+  background: linear-gradient(180deg, #1a4a6a, #0f3050);
+  color: #e8f2ff;
+  font-family: 'Lilita One', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 /* ─── Intro video overlay ─── */

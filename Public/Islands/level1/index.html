@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
     <title>Zeeb's Island Adventure</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,6 +29,36 @@
             <button id="skipIntro" class="skip-btn">Skip Intro</button>
         </div>
     </div>
+    <!-- Add to Home Screen prompt (mobile only) -->
+    <div id="a2hsPrompt" class="a2hs-prompt" style="display:none">
+      <div class="a2hs-card">
+        <p class="a2hs-text">For the best fullscreen experience, add this game to your home screen!</p>
+        <p class="a2hs-steps"></p>
+        <button id="a2hsDismiss" class="a2hs-btn">Got it</button>
+      </div>
+    </div>
+    <script>
+    (function() {
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      var isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+      var dismissed = sessionStorage.getItem('a2hs_dismissed');
+      if (isMobile && !isStandalone && !dismissed) {
+        var el = document.getElementById('a2hsPrompt');
+        var steps = el.querySelector('.a2hs-steps');
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+          steps.innerHTML = 'Tap <strong>Share</strong> ↗ then <strong>"Add to Home Screen"</strong>';
+        } else {
+          steps.innerHTML = 'Tap <strong>⋮ Menu</strong> then <strong>"Add to Home Screen"</strong>';
+        }
+        el.style.display = 'flex';
+        document.getElementById('a2hsDismiss').onclick = function() {
+          el.style.display = 'none';
+          sessionStorage.setItem('a2hs_dismissed', '1');
+        };
+      }
+    })();
+    </script>
+
     <script src="cloud-system.js?v=20260314a"></script>
     <script src="wave-system.js?v=20260314a"></script>
     <script src="game.js?v=20260314a"></script>
