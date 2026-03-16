@@ -540,7 +540,8 @@ class OceanAnimation {
             dangerWave3: new Image(),
             dangerWave4: new Image(),
             dangerWave5: new Image(),
-            coin: new Image()
+            coin: new Image(),
+            sunsetSky: new Image()
         };
         
         // Danger wave image rotation - cycles through GraceWave2, 3, 4
@@ -737,6 +738,10 @@ class OceanAnimation {
         this.scorePop = 0;          // 0 = idle, counts down from 0.35
         this.scorePopScale = 1;     // current scale for score text
 
+        // Coin HUD pop animation
+        this.coinPop = 0;
+        this.coinPopScale = 1;
+
         // Floating score numbers
         this.floatingScores = [];   // { x, y, text, timer, duration, color }
 
@@ -885,6 +890,15 @@ class OceanAnimation {
                 this.speedHack = 1.0 + (parseInt(event.key) - 1) * 0.3125; // 1=1.0x, 9=3.5x
                 return;
             }
+            if (event.key === 's' || event.key === 'S') {
+                if (this.state === 'playing') { this.score += 500; return; }
+            }
+            if (event.key === 'n' || event.key === 'N') {
+                if (this.state === 'playing') { this.score = Math.max(this.score, 3000); return; }
+            }
+            if (event.key === 'i' || event.key === 'I') {
+                if (this.state === 'playing') { this.player.invisible = !this.player.invisible; return; }
+            }
             if (event.key === 'd' || event.key === 'D') {
                 this.showDebug = !this.showDebug;
             } else if (event.key === ' ' || event.key === 'Spacebar') {
@@ -895,7 +909,7 @@ class OceanAnimation {
                     this.startPlaying();
                 } else if (this.state === 'wipeout') {
                     this.resumeAfterWipeout();
-                } else if (this.state === 'gameover') {
+                } else if (this.state === 'gameover' || this.state === 'victory') {
                     this.restartGame();
                 } else if (this.state === 'playing' && this.crashTimer <= 0) {
                     this.player.jump();
@@ -967,7 +981,7 @@ class OceanAnimation {
                 this.startPlaying();
                 return;
             }
-            if (this.state === 'gameover') {
+            if (this.state === 'gameover' || this.state === 'victory') {
                 this.restartGame();
                 return;
             }
@@ -1795,12 +1809,8 @@ class OceanAnimation {
                 coin.collected = true;
                 coin.collectTimer = 0.25;
 
-                this.jumpCoinCount++;
                 this.coinsCollected++;
-                this.jumpCoinValue += this.coinPointValue;
-                this.score += this.coinPointValue;
-                this.scorePop = Math.min(0.5, 0.2 + this.jumpCoinCount * 0.05);
-                this.coinBatchTimer = 0.5;
+                this.coinPop = 0.3;
             }
 
             if (coin.x < -50) {
@@ -2089,6 +2099,33 @@ class OceanAnimation {
         ctx.fillStyle = 'white';
         ctx.strokeText('Tap or press SPACE to get back out there', this.width / 2, this.height / 2 + 25);
         ctx.fillText('Tap or press SPACE to get back out there', this.width / 2, this.height / 2 + 25);
+
+        ctx.restore();
+    }
+
+    drawVictoryOverlay(ctx) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        ctx.font = "bold 42px 'Lilita One', Arial";
+        ctx.fillStyle = '#ffd700';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.lineWidth = 4;
+        ctx.strokeText('Level Complete!', this.width / 2, this.height / 2 - 30);
+        ctx.fillText('Level Complete!', this.width / 2, this.height / 2 - 30);
+
+        ctx.font = "24px 'Lilita One', Arial";
+        ctx.fillStyle = 'white';
+        ctx.strokeText(`Score: ${this.score}  |  Coins: ${this.coinsCollected}`, this.width / 2, this.height / 2 + 15);
+        ctx.fillText(`Score: ${this.score}  |  Coins: ${this.coinsCollected}`, this.width / 2, this.height / 2 + 15);
+
+        const promptAlpha = 0.6 + 0.4 * Math.sin(this.elapsedTime * 2.5);
+        ctx.globalAlpha = promptAlpha;
+        ctx.strokeText('Tap or press SPACE to play again', this.width / 2, this.height / 2 + 55);
+        ctx.fillText('Tap or press SPACE to play again', this.width / 2, this.height / 2 + 55);
 
         ctx.restore();
     }
@@ -2512,17 +2549,25 @@ class OceanAnimation {
         ctx.strokeText(livesText, 20, 35);
         ctx.fillText(livesText, 20, 35);
 
-        // Coin counter (top center)
+        // Coin counter (top center) with pop animation on collect
         const coinImg = this.images.coin;
         if (coinImg.complete && coinImg.naturalWidth > 0) {
             const coinHudSize = 22;
             const coinTextX = this.width / 2;
             const coinTextY = 35;
-            ctx.drawImage(coinImg, coinTextX - coinHudSize - 4, coinTextY - coinHudSize / 2 - 4, coinHudSize, coinHudSize);
+            const cs = this.coinPopScale;
+            ctx.save();
+            ctx.translate(coinTextX, coinTextY);
+            ctx.scale(cs, cs);
+            ctx.fillStyle = cs > 1.05 ? '#ffe066' : 'white';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.lineWidth = 3;
+            ctx.drawImage(coinImg, -coinHudSize - 4, -coinHudSize / 2 - 4, coinHudSize, coinHudSize);
             ctx.textAlign = 'left';
             ctx.font = "bold 22px 'Lilita One', Arial";
-            ctx.strokeText(`${this.coinsCollected}`, coinTextX + 2, coinTextY);
-            ctx.fillText(`${this.coinsCollected}`, coinTextX + 2, coinTextY);
+            ctx.strokeText(`${this.coinsCollected}`, 2, 0);
+            ctx.fillText(`${this.coinsCollected}`, 2, 0);
+            ctx.restore();
         }
 
         // Floating score numbers near the action
@@ -2697,6 +2742,8 @@ class OceanAnimation {
         this.jumpCoinValue = 0;
         this.scorePop = 0;
         this.scorePopScale = 1;
+        this.coinPop = 0;
+        this.coinPopScale = 1;
         this.comboCount = 0;
         this.comboTimer = 0;
         this.wavePattern.active = false;
@@ -2714,6 +2761,7 @@ class OceanAnimation {
         this.fish.lastInitialSpawn = 0;
         const frontWave = this.waves[2];
         this.fish.nextSpawnLoop = Math.ceil((frontWave.loopCount || 0)) + this.getNextFishSpawnGap();
+        this.music.volume = 0.5;
         this.player.beginEntry();
     }
 
@@ -2846,6 +2894,9 @@ class OceanAnimation {
         };
         const versionTag = this.assetVersion ? `?v=${this.assetVersion}` : '';
         this.images.sky.src = `../img/sky.jpeg${versionTag}`;
+
+        // Load sunset sky (non-blocking — fades in during gameplay)
+        this.images.sunsetSky.src = `../img/Sky2.png${versionTag}`;
         
         // Load island (left)
         this.images.islandLeft.onload = checkLoaded;
@@ -3370,6 +3421,8 @@ class OceanAnimation {
         this.jumpCoinValue = 0;
         this.scorePop = 0;
         this.scorePopScale = 1;
+        this.coinPop = 0;
+        this.coinPopScale = 1;
         this.comboCount = 0;
         this.wavePattern.active = false;
         this.wavePattern.wavesRemaining = 0;
@@ -3449,6 +3502,15 @@ class OceanAnimation {
             this.scorePopScale = 1;
         }
 
+        // Coin HUD pop animation
+        if (this.coinPop > 0) {
+            this.coinPop -= dt;
+            const t = 1 - (this.coinPop / 0.3);
+            this.coinPopScale = 1 + 0.4 * Math.sin(t * Math.PI) * (1 - t * 0.5);
+        } else {
+            this.coinPopScale = 1;
+        }
+
         // Floating score numbers
         for (let i = this.floatingScores.length - 1; i >= 0; i--) {
             const fs = this.floatingScores[i];
@@ -3463,6 +3525,13 @@ class OceanAnimation {
             if (fs.timer >= fs.duration) {
                 this.floatingScores.splice(i, 1);
             }
+        }
+
+        // Win condition: level complete at 6000 points
+        if (this.score >= 6000 && !this.gameOver && this.state === 'playing') {
+            this.state = 'victory';
+            this.music.volume *= 0.5;
+            this.floatingScores = [];
         }
 
         // Update player (but not during crash)
@@ -3607,6 +3676,15 @@ class OceanAnimation {
             this.ctx.fillStyle = gradient;
             this.ctx.fillRect(0, 0, this.width, this.height);
         }
+        // Sunset: crossfade to orange sky from 3K to 6K
+        const sunsetImg = this.images.sunsetSky;
+        if (this.score >= 3000 && sunsetImg.complete && sunsetImg.naturalWidth > 0) {
+            const t = Math.min(1, (this.score - 3000) / 3000);
+            this.ctx.save();
+            this.ctx.globalAlpha = t;
+            this.ctx.drawImage(sunsetImg, 0, 0, this.width, this.height);
+            this.ctx.restore();
+        }
         // Soft cyan sky gradient overlay
         const skyGradientTop = this.height * 0.14;
         const skyGradientBottom = this.height * 0.56;
@@ -3721,8 +3799,8 @@ class OceanAnimation {
         this.drawSpray(this.ctx);
 
         // Draw player in front of all wave layers.
-        // Don't draw normal player during crash animation or wipeout (board is drifting)
-        if (this.state !== 'wipeout' && (!this.crashAnimation.active || this.crashTimer <= 0)) {
+        // Don't draw normal player during crash animation, wipeout, or invisible hack
+        if (!this.player.invisible && this.state !== 'wipeout' && (!this.crashAnimation.active || this.crashTimer <= 0)) {
             this.player.draw(this.ctx);
         }
 
@@ -3734,6 +3812,9 @@ class OceanAnimation {
         // Draw crash effect overlay (includes Zeeb animation during crash)
         this.drawCrashEffect(this.ctx);
         
+
+
+
         // Draw game UI (score, lives, game over)
         this.drawGameUI(this.ctx);
 
@@ -3754,7 +3835,14 @@ class OceanAnimation {
             this.ctx.fillText(`■ [2] FRONT OCEAN (wave3.svg) — cyan dashes ← Zeeb`, 10, 96);
             this.ctx.fillStyle = 'white';
             this.ctx.fillText(`Press SPACEBAR to jump!`, 10, 116);
-            
+
+            // Cheat keys
+            this.ctx.fillStyle = '#ffcc00';
+            this.ctx.fillText(`--- Cheats ---`, 10, 140);
+            this.ctx.fillStyle = '#ccc';
+            this.ctx.fillText(`1-9: speed hack  |  S: +500 pts  |  N: skip to sunset`, 10, 156);
+            this.ctx.fillText(`I: invisible  |  D: debug toggle`, 10, 172);
+
             // Draw ruler on left side (inches with quarter-inch marks)
             this.drawDebugRuler(this.ctx);
             this.drawDebugLabels(this.ctx);
@@ -4121,6 +4209,10 @@ class OceanAnimation {
                 // Freeze game, draw paused frame with dialog
                 this.draw();
                 this.drawConfirmQuit();
+            } else if (this.state === 'victory') {
+                this.updateWipeout(deltaTime); // keep ocean alive
+                this.draw();
+                this.drawVictoryOverlay(this.ctx);
             } else {
                 this.update(deltaTime);
                 this.draw();
