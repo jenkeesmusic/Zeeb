@@ -321,6 +321,67 @@ img { display: block; }
   }
 }
 
+/* Mobile landscape: fill the screen */
+@media (max-width: 960px) and (orientation: landscape) {
+  .wrap {
+    padding: 0;
+    gap: 0;
+    grid-template-rows: 1fr;
+  }
+
+  .title {
+    display: none;
+  }
+
+  .footer, .site-credit {
+    display: none;
+  }
+
+  #gameCanvas {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .hud {
+    top: calc(4px + env(safe-area-inset-top));
+    font-size: 12px;
+    padding: 4px 8px;
+    gap: 8px;
+  }
+
+  .main-menu-link {
+    display: none;
+  }
+
+  .overlay {
+    padding: 10px;
+  }
+
+  .panel {
+    padding: 14px 12px;
+  }
+
+  .panel h1 {
+    font-size: 20px;
+    margin: 4px 0 6px 0;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    margin: 2px 0 8px 0;
+  }
+
+  .start-scene .art {
+    height: min(200px, 30vh);
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+}
+
 /* Prevent long-press context menus and selection on mobile */
 body, button, canvas {
   -webkit-user-select: none;
