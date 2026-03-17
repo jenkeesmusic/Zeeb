@@ -31,11 +31,10 @@
     </div>
     <!-- Add to Home Screen prompt (mobile only) -->
     <div id="a2hsPrompt" class="a2hs-prompt" style="display:none">
-      <div class="a2hs-card">
-        <p class="a2hs-text">For the best fullscreen experience, add this game to your home screen!</p>
-        <p class="a2hs-steps"></p>
-        <button id="a2hsDismiss" class="a2hs-btn">Got it</button>
-      </div>
+      <p class="a2hs-text">Add this game to your home screen for fullscreen play!</p>
+      <p class="a2hs-steps"></p>
+      <button id="a2hsDismiss" class="a2hs-btn">Got it</button>
+      <div class="a2hs-arrow" id="a2hsArrow"></div>
     </div>
     <script>
     (function() {
@@ -45,10 +44,15 @@
       if (isMobile && !isStandalone && !dismissed) {
         var el = document.getElementById('a2hsPrompt');
         var steps = el.querySelector('.a2hs-steps');
+        var arrow = document.getElementById('a2hsArrow');
         if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-          steps.innerHTML = 'Tap <strong>Share</strong> ↗ then <strong>"Add to Home Screen"</strong>';
+          steps.innerHTML = 'Tap <strong>Share</strong> then<br><strong>"Add to Home Screen"</strong>';
+          arrow.innerHTML = '↓';
+          arrow.classList.add('a2hs-arrow-ios');
         } else {
-          steps.innerHTML = 'Tap <strong>⋮ Menu</strong> then <strong>"Add to Home Screen"</strong>';
+          steps.innerHTML = 'Tap <strong>⋮&nbsp;Menu</strong> then<br><strong>"Add to Home Screen"</strong>';
+          arrow.innerHTML = '↑';
+          arrow.classList.add('a2hs-arrow-android');
         }
         el.style.display = 'flex';
         document.getElementById('a2hsDismiss').onclick = function() {
