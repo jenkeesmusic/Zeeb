@@ -541,7 +541,9 @@ class OceanAnimation {
             dangerWave4: new Image(),
             dangerWave5: new Image(),
             coin: new Image(),
-            sunsetSky: new Image()
+            sunsetSky: new Image(),
+            sun: new Image(),
+            sunSunset: new Image()
         };
         
         // Danger wave image rotation - cycles through GraceWave2, 3, 4
@@ -894,7 +896,14 @@ class OceanAnimation {
                 if (this.state === 'playing') { this.score += 500; return; }
             }
             if (event.key === 'n' || event.key === 'N') {
-                if (this.state === 'playing') { this.score = Math.max(this.score, 3000); return; }
+                if (this.state === 'playing') {
+                    this.score = Math.max(this.score, 3000);
+                    // Also advance sun arc to match sunset
+                    if (this.gameStartTime != null) {
+                        this.gameStartTime = Math.min(this.gameStartTime, this.elapsedTime - 180);
+                    }
+                    return;
+                }
             }
             if (event.key === 'i' || event.key === 'I') {
                 if (this.state === 'playing') { this.player.invisible = !this.player.invisible; return; }
@@ -1024,6 +1033,8 @@ class OceanAnimation {
         window.addEventListener('orientationchange', () => {
             setTimeout(() => this.resize(), 100);
         });
+        document.addEventListener('fullscreenchange', () => this.resize());
+        document.addEventListener('webkitfullscreenchange', () => this.resize());
 
         // Audio
         this.titleMusic = new Audio('../Audio/The Drums Of Tiki.m4a');
@@ -1074,6 +1085,25 @@ class OceanAnimation {
         // Cache and return
         this.glowCache.set(img, glowCanvas);
         return glowCanvas;
+    }
+
+    tryFullscreen() {
+        // On mobile, nudge Safari to collapse its address/tab bars
+        const isMobile = 'ontouchstart' in window && window.innerWidth <= 960;
+        if (!isMobile) return;
+        // Fullscreen API (works on Android Chrome, not iOS Safari)
+        const el = document.documentElement;
+        const rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+        if (rfs) {
+            rfs.call(el).then(() => {
+                setTimeout(() => this.resize(), 150);
+            }).catch(() => {});
+        }
+        // scrollTo trick — nudges iOS Safari to collapse its chrome
+        setTimeout(() => {
+            window.scrollTo(0, 1);
+            setTimeout(() => this.resize(), 300);
+        }, 50);
     }
 
     resize() {
@@ -2897,6 +2927,10 @@ class OceanAnimation {
 
         // Load sunset sky (non-blocking — fades in during gameplay)
         this.images.sunsetSky.src = `../img/Sky2.png${versionTag}`;
+
+        // Load Grace's suns (non-blocking)
+        this.images.sun.src = `../img/Sun1.png${versionTag}`;
+        this.images.sunSunset.src = `../img/Sun2.png${versionTag}`;
         
         // Load island (left)
         this.images.islandLeft.onload = checkLoaded;
@@ -3073,13 +3107,29 @@ class OceanAnimation {
             ctx.fillRect(0, 0, this.width, this.height);
         }
 
-        // Clouds
+        // Back clouds
         if (this.cloudSystem) {
-            try {
-                this.cloudSystem.draw(ctx);
-            } catch (err) {
-                this.cloudSystem = null;
-            }
+            try { this.cloudSystem.drawLayer(ctx, 0); }
+            catch (err) { this.cloudSystem = null; }
+        }
+
+        // Grace's sun
+        const sunImg = this.images.sun;
+        if (sunImg.complete && sunImg.naturalWidth > 0) {
+            const sunH = this.height * 0.9;
+            const sunW = sunH * (2732 / 1821);
+            const sunX = this.width * 0.40 - sunW * 0.55;
+            const sunY = this.height * 0.20 - sunH * 0.45;
+            ctx.save();
+            ctx.globalAlpha = 0.9;
+            ctx.drawImage(sunImg, sunX, sunY, sunW, sunH);
+            ctx.restore();
+        }
+
+        // Front clouds
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(ctx, 1); }
+            catch (err) { this.cloudSystem = null; }
         }
 
         // Horizon
@@ -3211,8 +3261,27 @@ class OceanAnimation {
             ctx.fillRect(0, 0, this.width, this.height);
         }
 
+        // Back clouds
         if (this.cloudSystem) {
-            try { this.cloudSystem.draw(ctx); } catch (err) { this.cloudSystem = null; }
+            try { this.cloudSystem.drawLayer(ctx, 0); } catch (err) { this.cloudSystem = null; }
+        }
+
+        // Grace's sun
+        const sunImgT = this.images.sun;
+        if (sunImgT.complete && sunImgT.naturalWidth > 0) {
+            const sunH = this.height * 0.9;
+            const sunW = sunH * (2732 / 1821);
+            const sunX = this.width * 0.40 - sunW * 0.55;
+            const sunY = this.height * 0.20 - sunH * 0.45;
+            ctx.save();
+            ctx.globalAlpha = 0.9;
+            ctx.drawImage(sunImgT, sunX, sunY, sunW, sunH);
+            ctx.restore();
+        }
+
+        // Front clouds
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(ctx, 1); } catch (err) { this.cloudSystem = null; }
         }
 
         this.drawHorizon();
@@ -3387,6 +3456,8 @@ class OceanAnimation {
     }
 
     beginGameplay() {
+        // In mobile landscape, request fullscreen to hide Safari nav bar
+        this.tryFullscreen();
         // Darken the page background like a theatre
         document.body.classList.add('theatre');
         // Begin transition: fade the title island out before gameplay
@@ -3408,6 +3479,7 @@ class OceanAnimation {
 
     finishTransition() {
         this.state = 'playing';
+        this.gameStartTime = this.elapsedTime;
         this.score = 0;
         this.coinsCollected = 0;
         this.lives = 3;
@@ -3684,6 +3756,21 @@ class OceanAnimation {
             this.ctx.globalAlpha = t;
             this.ctx.drawImage(sunsetImg, 0, 0, this.width, this.height);
             this.ctx.restore();
+
+            // Lift the dark band near the horizon that the sunset image creates
+            const horizonY = this.height * 0.35;
+            const horizonH = this.height * 0.20;
+            this.ctx.save();
+            const horizLift = this.ctx.createLinearGradient(0, horizonY, 0, horizonY + horizonH);
+            horizLift.addColorStop(0,    'rgba(200, 170, 120, 0)');
+            horizLift.addColorStop(0.25, 'rgba(210, 180, 130, 0.18)');
+            horizLift.addColorStop(0.5,  'rgba(220, 190, 145, 0.25)');
+            horizLift.addColorStop(0.75, 'rgba(200, 175, 130, 0.15)');
+            horizLift.addColorStop(1,    'rgba(180, 160, 120, 0)');
+            this.ctx.globalAlpha = t; // same fade-in as sunset
+            this.ctx.fillStyle = horizLift;
+            this.ctx.fillRect(0, horizonY, this.width, horizonH);
+            this.ctx.restore();
         }
         // Soft cyan sky gradient overlay
         const skyGradientTop = this.height * 0.14;
@@ -3699,19 +3786,52 @@ class OceanAnimation {
         this.ctx.fillRect(0, skyGradientTop, this.width, skyGradientBottom - skyGradientTop);
         this.ctx.restore();
 
-        // Cloud System: always-on parallax cloud layers over the sky.
+        // Back cloud layer (behind sun)
         if (this.cloudSystem) {
-            try {
-                this.cloudSystem.draw(this.ctx);
-            } catch (err) {
-                console.warn('Cloud system draw failed; disabling clouds.', err);
-                this.cloudSystem = null;
+            try { this.cloudSystem.drawLayer(this.ctx, 0); }
+            catch (err) { this.cloudSystem = null; }
+        }
+
+        // Grace's sun — between back and front clouds, same as title screen
+        {
+            const sunH = this.height * 0.9;
+            const sunW = sunH * (2732 / 1821);
+            const gameTime = this.elapsedTime - (this.gameStartTime || 0);
+            const arcT = Math.min(1, gameTime / 300);
+            const startX = this.width * 0.40 - sunW * 0.55;
+            const endX = this.width * 0.7;
+            const sunX = startX + (endX - startX) * arcT;
+            const startY = this.height * 0.20 - sunH * 0.45;
+            const setY = this.height * 0.50 - sunH * 0.45;
+            const sunY = startY + (setY - startY) * arcT;
+
+            const sunDay = this.images.sun;
+            const sunSet = this.images.sunSunset;
+            const sunsetT = this.score >= 3000 ? Math.min(1, (this.score - 3000) / 3000) : 0;
+
+            if (sunDay.complete && sunDay.naturalWidth > 0) {
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.9 * (1 - sunsetT);
+                this.ctx.drawImage(sunDay, sunX, sunY, sunW, sunH);
+                this.ctx.restore();
+            }
+            if (sunsetT > 0 && sunSet.complete && sunSet.naturalWidth > 0) {
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.9 * sunsetT;
+                this.ctx.drawImage(sunSet, sunX, sunY, sunW, sunH);
+                this.ctx.restore();
             }
         }
-        
+
+        // Front cloud layer (in front of sun)
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(this.ctx, 1); }
+            catch (err) { this.cloudSystem = null; }
+        }
+
         // Draw horizon and distant water (between sky and waves)
         this.drawHorizon();
-        
+
         // Draw distant islands with slow parallax drift
         const islandLeftImg = this.images.islandLeft;
         if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
@@ -3845,9 +3965,54 @@ class OceanAnimation {
 
             // Draw ruler on left side (inches with quarter-inch marks)
             this.drawDebugRuler(this.ctx);
+            this.drawDebugGrid(this.ctx);
             this.drawDebugLabels(this.ctx);
             this.drawDebugDangerWaveBoxes(this.ctx);
         }
+    }
+
+    drawDebugGrid(ctx) {
+        ctx.save();
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+
+        // Horizontal lines (Y percentages)
+        for (let pct = 0; pct <= 100; pct += 10) {
+            const y = this.height * pct / 100;
+            const isMajor = pct % 20 === 0;
+            ctx.strokeStyle = isMajor ? 'rgba(255, 255, 0, 0.35)' : 'rgba(255, 255, 0, 0.15)';
+            ctx.lineWidth = isMajor ? 1.5 : 0.75;
+            ctx.setLineDash(isMajor ? [] : [4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(this.width, y);
+            ctx.stroke();
+            // Label
+            if (isMajor) {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+                ctx.fillText(`${pct}%`, this.width - 40, y - 3);
+            }
+        }
+
+        // Vertical lines (X percentages)
+        for (let pct = 0; pct <= 100; pct += 10) {
+            const x = this.width * pct / 100;
+            const isMajor = pct % 20 === 0;
+            ctx.strokeStyle = isMajor ? 'rgba(0, 255, 255, 0.3)' : 'rgba(0, 255, 255, 0.12)';
+            ctx.lineWidth = isMajor ? 1.5 : 0.75;
+            ctx.setLineDash(isMajor ? [] : [4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, this.height);
+            ctx.stroke();
+            if (isMajor && pct > 0 && pct < 100) {
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+                ctx.fillText(`${pct}%`, x + 2, 12);
+            }
+        }
+
+        ctx.setLineDash([]);
+        ctx.restore();
     }
 
     drawDebugLabels(ctx) {
@@ -4203,10 +4368,12 @@ class OceanAnimation {
                 this.drawWipeoutOverlay(this.ctx);
             } else if (this.state === 'paused') {
                 // Freeze game, draw last frame with pause overlay
+                this.lastTime = currentTime; // prevent time jump on unpause
                 this.draw();
                 this.drawPauseOverlay();
             } else if (this.state === 'confirm-quit') {
                 // Freeze game, draw paused frame with dialog
+                this.lastTime = currentTime;
                 this.draw();
                 this.drawConfirmQuit();
             } else if (this.state === 'victory') {

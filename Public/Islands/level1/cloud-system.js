@@ -330,11 +330,16 @@
 
             // Draw back clouds first, then front clouds.
             for (let layerIndex = 0; layerIndex < this.layers.length; layerIndex++) {
-                for (const cloud of this.clouds) {
-                    if (cloud.layer !== layerIndex) continue;
-                    const y = cloud.y + Math.sin(cloud.bobPhase) * cloud.bobAmp;
-                    this.drawCloudSprite(ctx, cloud, y);
-                }
+                this.drawLayer(ctx, layerIndex);
+            }
+        }
+
+        drawLayer(ctx, layerIndex) {
+            if (!ctx) return;
+            for (const cloud of this.clouds) {
+                if (cloud.layer !== layerIndex) continue;
+                const y = cloud.y + Math.sin(cloud.bobPhase) * cloud.bobAmp;
+                this.drawCloudSprite(ctx, cloud, y);
             }
         }
 

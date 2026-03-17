@@ -1,0 +1,9 @@
+{
+    "name": "Zeeb's Island Adventure",
+    "short_name": "Islands",
+    "start_url": ".",
+    "display": "fullscreen",
+    "orientation": "landscape",
+    "background_color": "#1a5a8a",
+    "theme_color": "#1a5a8a"
+}
