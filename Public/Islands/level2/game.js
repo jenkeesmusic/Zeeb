@@ -775,8 +775,8 @@ class OceanAnimation {
             active: false,
             x: 0,
             y: 0,
-            width: 140,
-            height: 60,
+            width: 360,
+            height: 360,
             speed: 280,             // px/s — faster than waves
             surfaceWaveIndex: 2,    // rides front wave
             depthOffset: 8,         // pixels below wave surface
@@ -3190,9 +3190,9 @@ class OceanAnimation {
         this.images.coin.onerror = () => { console.error('Failed to load coin.png'); checkLoaded(); };
         this.images.coin.src = `../img/coin.png${versionTag}`;
 
-        this.images.shark.onload = checkLoaded;
-        this.images.shark.onerror = () => { console.error('Failed to load Shark_Grace.png'); checkLoaded(); };
-        this.images.shark.src = `Shark_Grace.png${versionTag}`;
+        this.images.shark.onload = () => { console.log('Shark loaded OK', this.images.shark.naturalWidth, this.images.shark.naturalHeight); checkLoaded(); };
+        this.images.shark.onerror = (e) => { console.error('Failed to load Shark_Grace.png', e); checkLoaded(); };
+        this.images.shark.src = `./Shark_Grace.png${versionTag}`;
     }
     
     updateTitle(deltaTime) {
@@ -3282,10 +3282,12 @@ class OceanAnimation {
         // Horizon
         this.drawHorizon();
 
-        // Islands (gentle pulsate)
+        // Islands (gentle pulsate, darkened for night)
         const s = 1.0 + Math.sin(this.elapsedTime * 1.5) * 0.02;
         const islandLeftImg = this.images.islandLeft;
         if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
+            ctx.save();
+            ctx.filter = 'brightness(0.45) saturate(0.6)';
             const pixelsPerInch = 96;
             const baseH = pixelsPerInch * 1;
             const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
@@ -3310,6 +3312,7 @@ class OceanAnimation {
                 const rightDrawY = rightBaseY - (rightDrawH - baseH) / 2;
                 ctx.drawImage(islandRightImg, rightDrawX, rightDrawY, rightDrawW, rightDrawH);
             }
+            ctx.restore();
         }
 
         // Wave layers (no fish, no danger waves)
@@ -3439,6 +3442,7 @@ class OceanAnimation {
 
             ctx.save();
             ctx.globalAlpha = alpha;
+            ctx.filter = 'brightness(0.45) saturate(0.6)';
             ctx.drawImage(islandLeftImg, this.width * 0.08, 400 * 0.75 + sinkY, baseW, baseH);
             ctx.restore();
 
@@ -3449,6 +3453,7 @@ class OceanAnimation {
 
                 ctx.save();
                 ctx.globalAlpha = alpha;
+                ctx.filter = 'brightness(0.45) saturate(0.6)';
                 ctx.drawImage(islandRightImg, this.width * 0.92 - rightBaseW, 425 * 0.75 + sinkY, rightBaseW, baseH);
                 ctx.restore();
             }
