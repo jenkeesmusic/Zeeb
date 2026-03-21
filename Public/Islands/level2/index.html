@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <title>Zeeb's Island Adventure - Night Mode</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Lilita+One&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=20260319a">
+</head>
+<body>
+    <div class="game-container">
+        <h1 class="title">Zeeb's Island Adventure - Night Mode</h1>
+        <canvas id="gameCanvas"></canvas>
+        <div class="controls">
+            <p>Press <strong>SPACEBAR</strong> to jump! • <strong>P</strong> or <strong>⏸</strong> to pause</p>
+        </div>
+        <a href="../../index.html" class="home-link" id="homeLink">Main Menu</a>
+    </div>
+    <!-- Add to Home Screen prompt (mobile only) -->
+    <div id="a2hsPrompt" class="a2hs-prompt" style="display:none">
+      <p class="a2hs-text">Add this game to your home screen for fullscreen play!</p>
+      <p class="a2hs-steps"></p>
+      <button id="a2hsDismiss" class="a2hs-btn">Got it</button>
+      <div class="a2hs-arrow" id="a2hsArrow"></div>
+    </div>
+    <script>
+    (function() {
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      var isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+      var dismissed = sessionStorage.getItem('a2hs_dismissed');
+      if (isMobile && !isStandalone && !dismissed) {
+        var el = document.getElementById('a2hsPrompt');
+        var steps = el.querySelector('.a2hs-steps');
+        var arrow = document.getElementById('a2hsArrow');
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+          steps.innerHTML = 'Tap <strong>Share</strong> then<br><strong>"Add to Home Screen"</strong>';
+          arrow.innerHTML = '↓';
+          arrow.classList.add('a2hs-arrow-ios');
+        } else {
+          steps.innerHTML = 'Tap <strong>⋮&nbsp;Menu</strong> then<br><strong>"Add to Home Screen"</strong>';
+          arrow.innerHTML = '↑';
+          arrow.classList.add('a2hs-arrow-android');
+        }
+        el.style.display = 'flex';
+        document.getElementById('a2hsDismiss').onclick = function() {
+          el.style.display = 'none';
+          sessionStorage.setItem('a2hs_dismissed', '1');
+        };
+      }
+    })();
+    </script>
+
+    <script src="cloud-system.js?v=20260319a"></script>
+    <script src="wave-system.js?v=20260319a"></script>
+    <script src="game.js?v=20260319a"></script>
+</body>
+</html>

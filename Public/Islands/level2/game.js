@@ -1,5 +1,5 @@
-// Level 1: Ocean Animation with Zeeb Surfing
-// Focus: Wave-hopping mechanic with multiple wave layers
+// Level 2: Night Mode — Ocean Animation with Zeeb Surfing
+// Focus: Wave-hopping mechanic with multiple wave layers (dark night theme)
 
 class Player {
     constructor(ocean) {
@@ -109,7 +109,8 @@ class Player {
     }
     
     loadImages(onComplete) {
-        // Load surfboard with Zeeb (red.png includes Zeeb on the board)
+        // Load surfboard — use the board chosen in the shop (or red as default)
+        const chosenBoard = localStorage.getItem('zeeb_board') || 'red.png';
         this.surfboardImage.onload = () => {
             if (this.surfboardImage.naturalWidth > 0) {
                 this.boardAspect = this.surfboardImage.naturalHeight / this.surfboardImage.naturalWidth;
@@ -118,11 +119,11 @@ class Player {
             if (onComplete) onComplete();
         };
         this.surfboardImage.onerror = () => {
-            console.error('Failed to load green surfboard with Zeeb');
+            console.error('Failed to load surfboard:', chosenBoard);
             this.imagesLoaded = true;
             if (onComplete) onComplete();
         };
-        this.surfboardImage.src = '../img/red.png';
+        this.surfboardImage.src = '../img/' + chosenBoard;
     }
 
     beginEntry() {
@@ -541,6 +542,7 @@ class OceanAnimation {
             dangerWave4: new Image(),
             dangerWave5: new Image(),
             coin: new Image(),
+            shark: new Image(),
             sunsetSky: new Image(),
             sun: new Image(),
             sunSunset: new Image()
@@ -768,6 +770,23 @@ class OceanAnimation {
         this.titleCoins = [];
         this.titleCoinTimer = 8 + Math.random() * 12; // first one after 8-20s
 
+        // Shark system
+        this.shark = {
+            active: false,
+            x: 0,
+            y: 0,
+            width: 140,
+            height: 60,
+            speed: 280,             // px/s — faster than waves
+            surfaceWaveIndex: 2,    // rides front wave
+            depthOffset: 8,         // pixels below wave surface
+            nextSpawnScore: 800,    // first shark after 800 pts
+            spawnScoreInterval: { min: 1200, max: 2400 }, // score gap between sharks
+            warning: false,         // true while warning is showing
+            warningTimer: 0,        // counts down during warning
+            warningDuration: 1.8    // seconds of warning before shark appears
+        };
+
         // Jump combo tracker
         this.comboCount = 0;        // waves cleared in current jump sequence
         this.comboTimer = 0;        // resets when landing
@@ -820,6 +839,19 @@ class OceanAnimation {
             burstFoamLife: 0.7,
             burstFoamSize: { min: 4, max: 8 }
         };
+
+        // Star field (night mode)
+        this.stars = [];
+        for (let i = 0; i < 100; i++) {
+            this.stars.push({
+                x: Math.random(),
+                y: Math.random() * 0.40, // sky only — well above horizon
+                size: 0.4 + Math.random() * 1.0,
+                twinkleSpeed: 0.15 + Math.random() * 0.5,
+                twinkleOffset: Math.random() * Math.PI * 2,
+                brightness: 0.3 + Math.random() * 0.5
+            });
+        }
 
         // Animation timing
         this.elapsedTime = 0;
@@ -898,10 +930,6 @@ class OceanAnimation {
             if (event.key === 'n' || event.key === 'N') {
                 if (this.state === 'playing') {
                     this.score = Math.max(this.score, 3000);
-                    // Also advance sun arc to match sunset
-                    if (this.gameStartTime != null) {
-                        this.gameStartTime = Math.min(this.gameStartTime, this.elapsedTime - 180);
-                    }
                     return;
                 }
             }
@@ -918,10 +946,8 @@ class OceanAnimation {
                     this.startPlaying();
                 } else if (this.state === 'wipeout') {
                     this.resumeAfterWipeout();
-                } else if (this.state === 'gameover') {
+                } else if (this.state === 'gameover' || this.state === 'victory') {
                     this.restartGame();
-                } else if (this.state === 'victory') {
-                    this.goToShop();
                 } else if (this.state === 'playing' && this.crashTimer <= 0) {
                     this.player.jump();
                 }
@@ -992,12 +1018,8 @@ class OceanAnimation {
                 this.startPlaying();
                 return;
             }
-            if (this.state === 'gameover') {
+            if (this.state === 'gameover' || this.state === 'victory') {
                 this.restartGame();
-                return;
-            }
-            if (this.state === 'victory') {
-                this.goToShop();
                 return;
             }
             if (this.state === 'confirm-quit' && this._confirmBtns) {
@@ -2160,8 +2182,8 @@ class OceanAnimation {
 
         const promptAlpha = 0.6 + 0.4 * Math.sin(this.elapsedTime * 2.5);
         ctx.globalAlpha = promptAlpha;
-        ctx.strokeText('Tap or press SPACE to pick your next board!', this.width / 2, this.height / 2 + 55);
-        ctx.fillText('Tap or press SPACE to pick your next board!', this.width / 2, this.height / 2 + 55);
+        ctx.strokeText('Tap or press SPACE to play again', this.width / 2, this.height / 2 + 55);
+        ctx.fillText('Tap or press SPACE to play again', this.width / 2, this.height / 2 + 55);
 
         ctx.restore();
     }
@@ -2637,6 +2659,31 @@ class OceanAnimation {
             ctx.restore();
         }
         
+        // Shark warning overlay
+        if (this.shark.warning && !this.shark.active) {
+            const pulse = Math.sin(this.elapsedTime * 14) * 0.5 + 0.5;
+            // Red vignette
+            ctx.save();
+            const vg = ctx.createRadialGradient(
+                this.width / 2, this.height / 2, this.height * 0.25,
+                this.width / 2, this.height / 2, this.height * 0.75
+            );
+            vg.addColorStop(0, 'rgba(255, 0, 0, 0)');
+            vg.addColorStop(1, `rgba(255, 0, 0, ${0.08 + pulse * 0.12})`);
+            ctx.fillStyle = vg;
+            ctx.fillRect(0, 0, this.width, this.height);
+            // Warning text
+            ctx.textAlign = 'center';
+            ctx.font = "bold 38px 'Lilita One', Arial";
+            ctx.fillStyle = `rgba(255, 60, 60, ${0.6 + pulse * 0.4})`;
+            ctx.strokeStyle = `rgba(0, 0, 0, ${0.5 + pulse * 0.3})`;
+            ctx.lineWidth = 5;
+            const warnY = this.height * 0.30;
+            ctx.strokeText('SHARK!', this.width / 2, warnY);
+            ctx.fillText('SHARK!', this.width / 2, warnY);
+            ctx.restore();
+        }
+
         // Game over overlay
         if (this.gameOver) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -2763,13 +2810,6 @@ class OceanAnimation {
         ctx.restore();
     }
 
-    goToShop() {
-        // Save earned coins to localStorage and go to surfboard shop
-        localStorage.setItem('zeeb_coins', this.coinsCollected.toString());
-        localStorage.setItem('zeeb_score', this.score.toString());
-        window.location.href = '../shop/index.html';
-    }
-
     restartGame() {
         this.state = 'playing';
         this.score = 0;
@@ -2800,6 +2840,11 @@ class OceanAnimation {
         this.player.isJumping = false;
         this.player.jumpCount = 0;
         this.player.velocityY = 0;
+        // Reset shark
+        this.shark.active = false;
+        this.shark.warning = false;
+        this.shark.warningTimer = 0;
+        this.shark.nextSpawnScore = 800;
         // Reset fish spawning for initial phase
         this.fish.lastInitialSpawn = 0;
         const frontWave = this.waves[2];
@@ -2847,6 +2892,104 @@ class OceanAnimation {
         }
 
         ctx.restore();
+    }
+
+    // ── Shark system ─────────────────────────────────────────────
+    updateShark(dt) {
+        const shark = this.shark;
+
+        // Don't spawn sharks during crash or wipeout
+        if (this.crashTimer > 0 || this.state !== 'playing') return;
+
+        if (!shark.active && !shark.warning) {
+            // Check if it's time to spawn next shark
+            if (this.score >= shark.nextSpawnScore) {
+                shark.warning = true;
+                shark.warningTimer = shark.warningDuration;
+            }
+            return;
+        }
+
+        // Warning countdown
+        if (shark.warning && !shark.active) {
+            shark.warningTimer -= dt;
+            if (shark.warningTimer <= 0) {
+                // Spawn the shark from the right
+                shark.warning = false;
+                shark.active = true;
+                shark.x = this.width + shark.width;
+                const surfY = this.getWaveSurfaceYAtX(shark.surfaceWaveIndex, shark.x);
+                shark.y = surfY + shark.depthOffset;
+            }
+            return;
+        }
+
+        // Move shark left along wave surface
+        shark.x -= shark.speed * this.speedHack * dt;
+        const surfY = this.getWaveSurfaceYAtX(shark.surfaceWaveIndex, shark.x);
+        shark.y = surfY + shark.depthOffset;
+
+        // Off-screen left → despawn
+        if (shark.x < -shark.width * 2) {
+            shark.active = false;
+            const gap = shark.spawnScoreInterval;
+            shark.nextSpawnScore = this.score + gap.min + Math.random() * (gap.max - gap.min);
+            return;
+        }
+
+        // Collision with Zeeb (only if not invisible and not already crashing)
+        if (!this.player.invisible && this.crashTimer <= 0 && !this.gameOver) {
+            const zeebX = this.player.x;
+            const zeebY = this.player.y;
+            const zeebW = this.player.surfboardWidth * 0.35;
+            const zeebH = this.player.getSurfboardHeight() * 0.5;
+            const sharkW = shark.width * 0.5;
+            const sharkH = shark.height * 0.4;
+
+            const hit =
+                Math.abs(zeebX - shark.x) < (zeebW + sharkW) * 0.5 &&
+                Math.abs(zeebY - shark.y) < (zeebH + sharkH) * 0.5;
+
+            if (hit) {
+                shark.active = false;
+                const gap = shark.spawnScoreInterval;
+                shark.nextSpawnScore = this.score + gap.min + Math.random() * (gap.max - gap.min);
+                this.triggerCrash(shark.x, shark.width);
+            }
+        }
+    }
+
+    drawShark(ctx) {
+        const shark = this.shark;
+        if (!shark.active) return;
+
+        const img = this.images.shark;
+        if (img.complete && img.naturalWidth > 0) {
+            ctx.save();
+            // Image already faces left — draw directly
+            const aspect = img.naturalWidth / img.naturalHeight;
+            const drawH = shark.height;
+            const drawW = drawH * aspect;
+            ctx.drawImage(
+                img,
+                shark.x - drawW * 0.5,
+                shark.y - drawH * 0.5,
+                drawW,
+                drawH
+            );
+            ctx.restore();
+        } else {
+            // Fallback: simple gray triangle fin
+            ctx.save();
+            ctx.fillStyle = '#6a7a8a';
+            ctx.beginPath();
+            ctx.moveTo(shark.x, shark.y - 20);
+            ctx.lineTo(shark.x + 15, shark.y + 5);
+            ctx.lineTo(shark.x - 15, shark.y + 5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
     }
 
     drawTiledWave(image, metrics, offset, yOffset = 0, alpha = 1, waveIndex = 0) {
@@ -2907,7 +3050,7 @@ class OceanAnimation {
     
     loadImages() {
         let loadCount = 0;
-        const totalImages = 16; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves + 1 coin
+        const totalImages = 17; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves + 1 coin + 1 shark
         let playerLoaded = false;
         
         const checkLoaded = () => {
@@ -2938,12 +3081,7 @@ class OceanAnimation {
         const versionTag = this.assetVersion ? `?v=${this.assetVersion}` : '';
         this.images.sky.src = `../img/sky.jpeg${versionTag}`;
 
-        // Load sunset sky (non-blocking — fades in during gameplay)
-        this.images.sunsetSky.src = `../img/Sky2.png${versionTag}`;
-
-        // Load Grace's suns (non-blocking)
-        this.images.sun.src = `../img/Sun1.png${versionTag}`;
-        this.images.sunSunset.src = `../img/Sun2.png${versionTag}`;
+        // (No sunset sky or sun images in night mode)
         
         // Load island (left)
         this.images.islandLeft.onload = checkLoaded;
@@ -3051,6 +3189,10 @@ class OceanAnimation {
         this.images.coin.onload = checkLoaded;
         this.images.coin.onerror = () => { console.error('Failed to load coin.png'); checkLoaded(); };
         this.images.coin.src = `../img/coin.png${versionTag}`;
+
+        this.images.shark.onload = checkLoaded;
+        this.images.shark.onerror = () => { console.error('Failed to load Shark_Grace.png'); checkLoaded(); };
+        this.images.shark.src = `Shark_Grace.png${versionTag}`;
     }
     
     updateTitle(deltaTime) {
@@ -3114,11 +3256,14 @@ class OceanAnimation {
             ctx.drawImage(this.images.sky, 0, 0, this.width, this.height);
         } else {
             const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
-            gradient.addColorStop(0, '#87CEEB');
-            gradient.addColorStop(1, '#98D8E8');
+            gradient.addColorStop(0, '#0a1628');
+            gradient.addColorStop(1, '#0d1f3a');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, this.width, this.height);
         }
+
+        // Stars (night mode)
+        this.drawStars(ctx);
 
         // Back clouds
         if (this.cloudSystem) {
@@ -3126,18 +3271,7 @@ class OceanAnimation {
             catch (err) { this.cloudSystem = null; }
         }
 
-        // Grace's sun
-        const sunImg = this.images.sun;
-        if (sunImg.complete && sunImg.naturalWidth > 0) {
-            const sunH = this.height * 0.9;
-            const sunW = sunH * (2732 / 1821);
-            const sunX = this.width * 0.40 - sunW * 0.55;
-            const sunY = this.height * 0.20 - sunH * 0.45;
-            ctx.save();
-            ctx.globalAlpha = 0.9;
-            ctx.drawImage(sunImg, sunX, sunY, sunW, sunH);
-            ctx.restore();
-        }
+        // (No sun in night mode)
 
         // Front clouds
         if (this.cloudSystem) {
@@ -3223,7 +3357,7 @@ class OceanAnimation {
         ctx.fillRect(0, 0, this.width, this.height * 0.55);
         ctx.restore();
 
-        // Title text: "Zeeb's Island Adventure" — scales to fit canvas
+        // Title text: "Zeeb's Island Adventure - Night Mode" — scales to fit canvas
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -3234,10 +3368,10 @@ class OceanAnimation {
 
         ctx.fillStyle = '#ffffff';
         ctx.font = `bold ${titleSize}px Boogaloo, cursive`;
-        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
+        ctx.fillText("Zeeb's Island Adventure - Night Mode", this.width / 2, this.height * 0.15);
 
         ctx.shadowBlur = 0;
-        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
+        ctx.fillText("Zeeb's Island Adventure - Night Mode", this.width / 2, this.height * 0.15);
 
         // "Press SPACE or tap to play" prompt with gentle pulse
         const promptAlpha = 0.6 + 0.4 * Math.sin(this.elapsedTime * 2.5);
@@ -3268,29 +3402,21 @@ class OceanAnimation {
             ctx.drawImage(this.images.sky, 0, 0, this.width, this.height);
         } else {
             const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
-            gradient.addColorStop(0, '#87CEEB');
-            gradient.addColorStop(1, '#98D8E8');
+            gradient.addColorStop(0, '#0a1628');
+            gradient.addColorStop(1, '#0d1f3a');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, this.width, this.height);
         }
+
+        // Stars (night mode)
+        this.drawStars(ctx);
 
         // Back clouds
         if (this.cloudSystem) {
             try { this.cloudSystem.drawLayer(ctx, 0); } catch (err) { this.cloudSystem = null; }
         }
 
-        // Grace's sun
-        const sunImgT = this.images.sun;
-        if (sunImgT.complete && sunImgT.naturalWidth > 0) {
-            const sunH = this.height * 0.9;
-            const sunW = sunH * (2732 / 1821);
-            const sunX = this.width * 0.40 - sunW * 0.55;
-            const sunY = this.height * 0.20 - sunH * 0.45;
-            ctx.save();
-            ctx.globalAlpha = 0.9;
-            ctx.drawImage(sunImgT, sunX, sunY, sunW, sunH);
-            ctx.restore();
-        }
+        // (No sun in night mode)
 
         // Front clouds
         if (this.cloudSystem) {
@@ -3348,9 +3474,9 @@ class OceanAnimation {
         ctx.shadowBlur = 20;
         ctx.fillStyle = '#ffffff';
         ctx.font = `bold ${titleSize2}px Boogaloo, cursive`;
-        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
+        ctx.fillText("Zeeb's Island Adventure - Night Mode", this.width / 2, this.height * 0.15);
         ctx.shadowBlur = 0;
-        ctx.fillText("Zeeb's Island Adventure", this.width / 2, this.height * 0.15);
+        ctx.fillText("Zeeb's Island Adventure - Night Mode", this.width / 2, this.height * 0.15);
         ctx.restore();
     }
 
@@ -3418,12 +3544,6 @@ class OceanAnimation {
     }
 
     startPlaying() {
-        // Show intro video on first play this session
-        if (!this.introPlayed) {
-            this.introPlayed = true;
-            this.playIntroVideo();
-            return;
-        }
         this.beginGameplay();
     }
 
@@ -3561,6 +3681,7 @@ class OceanAnimation {
         
         // Update dangerous wave system
         this.updateDangerWave(dt);
+        this.updateShark(dt);
         this.updateCoins(dt);
         
         // Update close call timer
@@ -3638,6 +3759,20 @@ class OceanAnimation {
         }
     }
     
+    drawStars(ctx) {
+        for (const star of this.stars) {
+            const twinkle = 0.5 + 0.5 * Math.sin(this.elapsedTime * star.twinkleSpeed + star.twinkleOffset);
+            const alpha = star.brightness * twinkle;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(star.x * this.width, star.y * this.height, star.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
     drawHorizon() {
         const ctx = this.ctx;
         const t = this.elapsedTime; // For animations
@@ -3648,11 +3783,11 @@ class OceanAnimation {
         const skyGradientBottom = this.height * 0.56;
         ctx.save();
         const skyGradient = ctx.createLinearGradient(0, skyGradientTop, 0, skyGradientBottom);
-        skyGradient.addColorStop(0,    'rgba(205, 242, 248, 0)');
-        skyGradient.addColorStop(0.28, 'rgba(205, 242, 248, 0.06)');
-        skyGradient.addColorStop(0.52, 'rgba(196, 238, 246, 0.14)');
-        skyGradient.addColorStop(0.74, 'rgba(188, 233, 244, 0.11)');
-        skyGradient.addColorStop(1,    'rgba(180, 228, 240, 0)');
+        skyGradient.addColorStop(0,    'rgba(10, 22, 40, 0)');
+        skyGradient.addColorStop(0.28, 'rgba(10, 22, 40, 0.06)');
+        skyGradient.addColorStop(0.52, 'rgba(10, 22, 40, 0.14)');
+        skyGradient.addColorStop(0.74, 'rgba(10, 22, 40, 0.11)');
+        skyGradient.addColorStop(1,    'rgba(10, 22, 40, 0)');
         ctx.fillStyle = skyGradient;
         ctx.fillRect(0, skyGradientTop, this.width, skyGradientBottom - skyGradientTop);
         ctx.restore();
@@ -3668,56 +3803,56 @@ class OceanAnimation {
         ctx.save();
         const oceanBg = ctx.createLinearGradient(0, oceanBgTop, 0, oceanBgBottom);
         // #325A9A-based ocean gradient (lighter near horizon, deeper below).
-        oceanBg.addColorStop(0,    'rgba(92, 126, 184, 0)');
-        oceanBg.addColorStop(0.10, 'rgba(86, 120, 178, 0.03)');
-        oceanBg.addColorStop(0.22, 'rgba(74, 109, 168, 0.08)');
-        oceanBg.addColorStop(0.34, 'rgba(63, 99, 158, 0.14)');
-        oceanBg.addColorStop(0.46, 'rgba(56, 92, 152, 0.22)');
-        oceanBg.addColorStop(0.58, 'rgba(50, 90, 154, 0.34)');     // Base #325A9A
-        oceanBg.addColorStop(0.70, 'rgba(46, 84, 144, 0.46)');
-        oceanBg.addColorStop(0.82, 'rgba(41, 76, 130, 0.56)');
-        oceanBg.addColorStop(0.92, 'rgba(36, 68, 118, 0.63)');
-        oceanBg.addColorStop(1,    'rgba(31, 60, 108, 0.68)');
+        oceanBg.addColorStop(0,    'rgba(15, 25, 50, 0)');
+        oceanBg.addColorStop(0.10, 'rgba(15, 25, 50, 0.03)');
+        oceanBg.addColorStop(0.22, 'rgba(15, 25, 50, 0.08)');
+        oceanBg.addColorStop(0.34, 'rgba(15, 25, 50, 0.14)');
+        oceanBg.addColorStop(0.46, 'rgba(15, 25, 50, 0.22)');
+        oceanBg.addColorStop(0.58, 'rgba(15, 25, 50, 0.34)');     // Base #325A9A
+        oceanBg.addColorStop(0.70, 'rgba(15, 25, 50, 0.46)');
+        oceanBg.addColorStop(0.82, 'rgba(15, 25, 50, 0.56)');
+        oceanBg.addColorStop(0.92, 'rgba(15, 25, 50, 0.63)');
+        oceanBg.addColorStop(1,    'rgba(15, 25, 50, 0.68)');
         ctx.fillStyle = oceanBg;
         ctx.fillRect(0, oceanBgTop, this.width, oceanBgBottom - oceanBgTop);
         ctx.restore();
 
         // Solid fill below the gradient so wave bottoms never show
-        ctx.fillStyle = '#5ea0e0';
+        ctx.fillStyle = '#0c1830';
         ctx.fillRect(0, oceanBgBottom, this.width, this.height - oceanBgBottom);
         
-        // === LAYER 2: Warm horizon glow ===
-        // A thin warm-toned band right at the horizon line that
-        // suggests atmospheric scattering / golden hour light.
+        // === LAYER 2: Cool moonlight glow ===
+        // A thin pale blue-silver band right at the horizon line that
+        // suggests moonlight on distant water.
         const glowY = this.height * 0.43;
         const glowH = this.height * 0.035;
-        
+
         ctx.save();
         const glow = ctx.createLinearGradient(0, glowY, 0, glowY + glowH);
-        glow.addColorStop(0,   'rgba(180, 160, 120, 0)');
-        glow.addColorStop(0.3, 'rgba(180, 160, 120, 0.06)');
-        glow.addColorStop(0.5, 'rgba(200, 175, 130, 0.09)');
-        glow.addColorStop(0.7, 'rgba(180, 160, 120, 0.06)');
-        glow.addColorStop(1,   'rgba(180, 160, 120, 0)');
+        glow.addColorStop(0,   'rgba(100, 140, 200, 0)');
+        glow.addColorStop(0.3, 'rgba(100, 140, 200, 0.03)');
+        glow.addColorStop(0.5, 'rgba(110, 150, 210, 0.05)');
+        glow.addColorStop(0.7, 'rgba(100, 140, 200, 0.03)');
+        glow.addColorStop(1,   'rgba(100, 140, 200, 0)');
         ctx.fillStyle = glow;
         ctx.fillRect(0, glowY, this.width, glowH);
         ctx.restore();
         
-        // === LAYER 3: Animated light sheen on distant water ===
-        // A subtle brightness band that slowly drifts vertically,
+        // === LAYER 3: Animated moonlight sheen on distant water ===
+        // A subtle pale band that slowly drifts vertically,
         // giving the distant ocean a living, breathing quality.
         const sheenBase = this.height * 0.47;
         const sheenDrift = Math.sin(t * 0.4) * (this.height * 0.008); // slow drift
         const sheenY = sheenBase + sheenDrift;
         const sheenH = this.height * 0.045;
-        
+
         ctx.save();
         const sheen = ctx.createLinearGradient(0, sheenY, 0, sheenY + sheenH);
-        sheen.addColorStop(0,   'rgba(120, 180, 205, 0)');
-        sheen.addColorStop(0.35,'rgba(120, 180, 205, 0.02)');
-        sheen.addColorStop(0.5, 'rgba(130, 190, 212, 0.03)');
-        sheen.addColorStop(0.65,'rgba(120, 180, 205, 0.02)');
-        sheen.addColorStop(1,   'rgba(120, 180, 205, 0)');
+        sheen.addColorStop(0,   'rgba(60, 90, 140, 0)');
+        sheen.addColorStop(0.35,'rgba(60, 90, 140, 0.02)');
+        sheen.addColorStop(0.5, 'rgba(70, 100, 150, 0.03)');
+        sheen.addColorStop(0.65,'rgba(60, 90, 140, 0.02)');
+        sheen.addColorStop(1,   'rgba(60, 90, 140, 0)');
         ctx.fillStyle = sheen;
         ctx.fillRect(0, sheenY, this.width, sheenH);
         ctx.restore();
@@ -3756,123 +3891,38 @@ class OceanAnimation {
             this.ctx.drawImage(this.images.sky, 0, 0, this.width, this.height);
         } else {
             const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
-            gradient.addColorStop(0, '#87CEEB');
-            gradient.addColorStop(1, '#98D8E8');
+            gradient.addColorStop(0, '#0a1628');
+            gradient.addColorStop(1, '#0d1f3a');
             this.ctx.fillStyle = gradient;
             this.ctx.fillRect(0, 0, this.width, this.height);
         }
-        // Sunset: crossfade to orange sky from 3K to 6K
-        const sunsetImg = this.images.sunsetSky;
-        if (this.score >= 3000 && sunsetImg.complete && sunsetImg.naturalWidth > 0) {
-            const t = Math.min(1, (this.score - 3000) / 3000);
-            this.ctx.save();
-            this.ctx.globalAlpha = t;
-            this.ctx.drawImage(sunsetImg, 0, 0, this.width, this.height);
-            this.ctx.restore();
-
-            // Lift the dark band near the horizon that the sunset image creates
-            const horizonY = this.height * 0.35;
-            const horizonH = this.height * 0.20;
-            this.ctx.save();
-            const horizLift = this.ctx.createLinearGradient(0, horizonY, 0, horizonY + horizonH);
-            horizLift.addColorStop(0,    'rgba(200, 170, 120, 0)');
-            horizLift.addColorStop(0.25, 'rgba(210, 180, 130, 0.18)');
-            horizLift.addColorStop(0.5,  'rgba(220, 190, 145, 0.25)');
-            horizLift.addColorStop(0.75, 'rgba(200, 175, 130, 0.15)');
-            horizLift.addColorStop(1,    'rgba(180, 160, 120, 0)');
-            this.ctx.globalAlpha = t; // same fade-in as sunset
-            this.ctx.fillStyle = horizLift;
-            this.ctx.fillRect(0, horizonY, this.width, horizonH);
-            this.ctx.restore();
-        }
-        // Soft cyan sky gradient overlay
+        // (No sunset crossfade in night mode)
+        // Soft indigo sky gradient overlay
         const skyGradientTop = this.height * 0.14;
         const skyGradientBottom = this.height * 0.56;
         this.ctx.save();
         const skyGrad = this.ctx.createLinearGradient(0, skyGradientTop, 0, skyGradientBottom);
-        skyGrad.addColorStop(0,    'rgba(205, 242, 248, 0)');
-        skyGrad.addColorStop(0.28, 'rgba(205, 242, 248, 0.06)');
-        skyGrad.addColorStop(0.52, 'rgba(196, 238, 246, 0.14)');
-        skyGrad.addColorStop(0.74, 'rgba(188, 233, 244, 0.11)');
-        skyGrad.addColorStop(1,    'rgba(180, 228, 240, 0)');
+        skyGrad.addColorStop(0,    'rgba(10, 22, 40, 0)');
+        skyGrad.addColorStop(0.28, 'rgba(10, 22, 40, 0.06)');
+        skyGrad.addColorStop(0.52, 'rgba(10, 22, 40, 0.14)');
+        skyGrad.addColorStop(0.74, 'rgba(10, 22, 40, 0.11)');
+        skyGrad.addColorStop(1,    'rgba(10, 22, 40, 0)');
         this.ctx.fillStyle = skyGrad;
         this.ctx.fillRect(0, skyGradientTop, this.width, skyGradientBottom - skyGradientTop);
         this.ctx.restore();
 
-        // Back cloud layer (behind sun)
+        // Stars (night mode)
+        this.drawStars(this.ctx);
+
+        // Back cloud layer
         if (this.cloudSystem) {
             try { this.cloudSystem.drawLayer(this.ctx, 0); }
             catch (err) { this.cloudSystem = null; }
         }
 
-        // Grace's sun — tropical descent (mostly vertical, slight drift right)
-        {
-            const baseSunH = this.height * 0.9;
-            const aspect = 2732 / 1821;
-            const gameTime = this.elapsedTime - (this.gameStartTime || 0);
-            const arcT = Math.min(1, gameTime / 300);
+        // (No sun/moon in night mode — placeholder for future moon)
 
-            // Tropical sun: drops mostly straight down, slight rightward drift
-            const startX = this.width * 0.40;
-            const endX = this.width * 0.48; // subtle drift, not a big arc
-            const centerX = startX + (endX - startX) * arcT;
-
-            const startCY = this.height * 0.20;
-            const endCY = this.height * 0.58; // dips to horizon
-            const centerY = startCY + (endCY - startCY) * arcT;
-
-            // Scale up ~1.3x as it nears horizon (atmospheric magnification)
-            const scale = 1 + 0.3 * arcT;
-            const sunH = baseSunH * scale;
-            const sunW = sunH * aspect;
-
-            // Flatten near horizon (atmospheric refraction squish)
-            const flattenT = arcT > 0.85 ? (arcT - 0.85) / 0.15 : 0;
-            const squish = 1 - flattenT * 0.15; // squish to 85% height at max
-            const drawH = sunH * squish;
-
-            // Position image so visible sun circle lands at centerX/centerY
-            // Sun circle is at ~55% across and ~45% down within the PNG
-            const sunX = centerX - sunW * 0.55;
-            const sunY = centerY - drawH * 0.45;
-
-            // Warm glow halo — grows as sun descends
-            const glowIntensity = 0.08 + arcT * 0.22; // 0.08 → 0.30
-            const glowRadius = sunH * (0.35 + arcT * 0.2);
-            const glow = this.ctx.createRadialGradient(
-                centerX, centerY, glowRadius * 0.1,
-                centerX, centerY, glowRadius
-            );
-            const sunsetT = this.score >= 3000 ? Math.min(1, (this.score - 3000) / 3000) : 0;
-            // Glow shifts from golden to warm orange with sunset
-            const glowR = Math.round(255 - sunsetT * 20);
-            const glowG = Math.round(220 - sunsetT * 80);
-            const glowB = Math.round(100 - sunsetT * 60);
-            glow.addColorStop(0, `rgba(${glowR}, ${glowG}, ${glowB}, ${glowIntensity})`);
-            glow.addColorStop(1, 'rgba(255, 200, 50, 0)');
-            this.ctx.save();
-            this.ctx.fillStyle = glow;
-            this.ctx.fillRect(centerX - glowRadius, centerY - glowRadius, glowRadius * 2, glowRadius * 2);
-            this.ctx.restore();
-
-            const sunDay = this.images.sun;
-            const sunSet = this.images.sunSunset;
-
-            if (sunDay.complete && sunDay.naturalWidth > 0) {
-                this.ctx.save();
-                this.ctx.globalAlpha = 0.9 * (1 - sunsetT);
-                this.ctx.drawImage(sunDay, sunX, sunY, sunW, drawH);
-                this.ctx.restore();
-            }
-            if (sunsetT > 0 && sunSet.complete && sunSet.naturalWidth > 0) {
-                this.ctx.save();
-                this.ctx.globalAlpha = 0.9 * sunsetT;
-                this.ctx.drawImage(sunSet, sunX, sunY, sunW, drawH);
-                this.ctx.restore();
-            }
-        }
-
-        // Front cloud layer (in front of sun)
+        // Front cloud layer
         if (this.cloudSystem) {
             try { this.cloudSystem.drawLayer(this.ctx, 1); }
             catch (err) { this.cloudSystem = null; }
@@ -3961,6 +4011,9 @@ class OceanAnimation {
             this.drawDangerWave(this.ctx, this.dangerWaveExtra);
         }
 
+        // Draw shark (rides wave surface, behind player)
+        this.drawShark(this.ctx);
+
         // Draw coins above waves, behind player
         this.drawCoins(this.ctx);
 
@@ -4009,7 +4062,7 @@ class OceanAnimation {
             this.ctx.fillStyle = '#ffcc00';
             this.ctx.fillText(`--- Cheats ---`, 10, 140);
             this.ctx.fillStyle = '#ccc';
-            this.ctx.fillText(`1-9: speed hack  |  S: +500 pts  |  N: skip to sunset`, 10, 156);
+            this.ctx.fillText(`1-9: speed hack  |  S: +500 pts  |  N: +3000 pts`, 10, 156);
             this.ctx.fillText(`I: invisible  |  D: debug toggle`, 10, 172);
 
             // Draw ruler on left side (inches with quarter-inch marks)
@@ -4436,8 +4489,8 @@ class OceanAnimation {
         } else {
             // Show loading message on sky-colored background
             const loadGrad = this.ctx.createLinearGradient(0, 0, 0, this.height);
-            loadGrad.addColorStop(0, '#87CEEB');
-            loadGrad.addColorStop(1, '#98D8E8');
+            loadGrad.addColorStop(0, '#0a1628');
+            loadGrad.addColorStop(1, '#0d1f3a');
             this.ctx.fillStyle = loadGrad;
             this.ctx.fillRect(0, 0, this.width, this.height);
             this.ctx.fillStyle = 'white';

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Surfboard Shop - Zeeb's Island Adventure</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Lilita+One&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            min-height: 100%; min-height: 100dvh;
+            overflow-y: auto;
+            background: #1b5a8a;
+            font-family: 'Lilita One', Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        body {
+            background: linear-gradient(180deg, #0e3d5e, #1b6a9a, #2486b5, #3ab8e0, #1b6a9a, #0e3d5e);
+            background-size: 100% 300%;
+            position: relative;
+            overflow: hidden;
+            animation: oceanDrift 12s ease-in-out infinite alternate;
+        }
+
+        @keyframes oceanDrift {
+            0%   { background-position: 50% 0%; }
+            100% { background-position: 50% 100%; }
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                radial-gradient(ellipse 600px 300px at 30% 40%, rgba(100,210,255,0.18), transparent),
+                radial-gradient(ellipse 500px 250px at 70% 60%, rgba(0,180,220,0.15), transparent),
+                radial-gradient(ellipse 400px 350px at 50% 30%, rgba(60,200,240,0.12), transparent),
+                radial-gradient(ellipse 550px 280px at 20% 70%, rgba(0,160,200,0.10), transparent);
+            pointer-events: none;
+            animation: waterMove 8s ease-in-out infinite alternate;
+        }
+
+        @keyframes waterMove {
+            0%   { transform: translate(0, 0) rotate(0deg); }
+            33%  { transform: translate(2%, -1.5%) rotate(0.5deg); }
+            66%  { transform: translate(-1.5%, 1%) rotate(-0.3deg); }
+            100% { transform: translate(1%, -0.5%) rotate(0.2deg); }
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            inset: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                radial-gradient(ellipse 450px 200px at 60% 50%, rgba(255,255,255,0.06), transparent),
+                radial-gradient(ellipse 350px 300px at 35% 65%, rgba(80,200,240,0.10), transparent),
+                radial-gradient(ellipse 500px 220px at 75% 35%, rgba(255,255,255,0.05), transparent);
+            pointer-events: none;
+            animation: waterMove2 10s ease-in-out infinite alternate;
+        }
+
+        @keyframes waterMove2 {
+            0%   { transform: translate(0, 0) rotate(0deg); }
+            50%  { transform: translate(-2%, 1.5%) rotate(-0.4deg); }
+            100% { transform: translate(1.5%, -1%) rotate(0.3deg); }
+        }
+
+        .shop {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 20px;
+            max-width: 800px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .shop-title {
+            font-size: clamp(28px, 6vw, 48px);
+            text-shadow: 2px 3px 6px rgba(0,0,0,0.4);
+            margin-bottom: 6px;
+        }
+
+        .coin-balance {
+            font-size: clamp(20px, 4vw, 32px);
+            color: #ffd700;
+            text-shadow: 1px 2px 4px rgba(0,0,0,0.4);
+            margin-bottom: 24px;
+        }
+
+        .coin-icon {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            vertical-align: middle;
+            margin-right: 4px;
+        }
+
+        .boards {
+            display: flex;
+            justify-content: center;
+            gap: clamp(12px, 3vw, 28px);
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+        }
+
+        .board-card {
+            background: linear-gradient(170deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 100%);
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 18px;
+            padding: 12px 10px 12px;
+            width: clamp(120px, 20vw, 150px);
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+            position: relative;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2);
+        }
+
+        .board-card:hover:not(.locked) {
+            transform: translateY(-6px) scale(1.03);
+            border-color: rgba(255,255,255,0.7);
+            background: linear-gradient(170deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.12) 100%);
+            box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+
+        .board-card.selected {
+            border-color: #ffd700;
+            background: linear-gradient(170deg, rgba(255,215,0,0.28) 0%, rgba(255,215,0,0.10) 100%);
+            transform: translateY(-6px) scale(1.03);
+            box-shadow: 0 6px 24px rgba(255,215,0,0.3), 0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.25);
+        }
+
+        .board-card.locked {
+            cursor: not-allowed;
+        }
+
+        .board-card.locked .board-img {
+            filter: saturate(0.6) brightness(0.85);
+        }
+
+        .board-card.locked .board-price {
+            color: #ffaa00;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        }
+
+        .board-card.locked::after {
+            content: 'Need more coins!';
+            display: block;
+            position: relative;
+            margin-top: 8px;
+            font-size: 13px;
+            color: #fff;
+            background: linear-gradient(135deg, #e05555, #c03030);
+            border-radius: 8px;
+            padding: 4px 10px;
+            font-family: 'Lilita One', Arial, sans-serif;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.4);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            white-space: nowrap;
+        }
+
+        .board-img {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3));
+        }
+
+        .board-name {
+            font-size: clamp(14px, 2.5vw, 19px);
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+            margin-bottom: 4px;
+        }
+
+        .board-price {
+            font-size: clamp(13px, 2.2vw, 17px);
+            color: #ffe44d;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .board-price.free {
+            color: #7dff7d;
+        }
+
+        .go-btn {
+            display: inline-block;
+            padding: 14px 48px;
+            border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.5);
+            background: linear-gradient(180deg, #2a8a3a, #1a6a2a);
+            color: white;
+            font-family: 'Lilita One', Arial, sans-serif;
+            font-size: clamp(20px, 4vw, 28px);
+            cursor: pointer;
+            text-shadow: 1px 2px 3px rgba(0,0,0,0.4);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .go-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+
+        .go-btn.ready {
+            animation: btnPulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes btnPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+            50%      { transform: scale(1.05); box-shadow: 0 8px 28px rgba(50,180,80,0.4); }
+        }
+
+        .go-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .floaty {
+            position: fixed;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0;
+            animation: floatUp linear infinite;
+        }
+
+        .floaty.bubble {
+            color: rgba(200,230,255,0.5);
+            text-shadow: 0 0 6px rgba(255,255,255,0.4);
+        }
+
+        .floaty.sway {
+            animation: floatUpSway linear infinite;
+        }
+
+        @keyframes floatUp {
+            0%   { transform: translateY(0) rotate(0deg) scale(0.8); opacity: 0; }
+            5%   { opacity: 0.85; }
+            85%  { opacity: 0.85; }
+            100% { transform: translateY(-110vh) rotate(360deg) scale(1.1); opacity: 0; }
+        }
+
+        @keyframes floatUpSway {
+            0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+            5%   { opacity: 0.8; }
+            25%  { transform: translateY(-25vh) translateX(35px) rotate(90deg); opacity: 0.8; }
+            50%  { transform: translateY(-50vh) translateX(-25px) rotate(180deg); opacity: 0.8; }
+            75%  { transform: translateY(-75vh) translateX(30px) rotate(270deg); opacity: 0.75; }
+            100% { transform: translateY(-110vh) translateX(-15px) rotate(360deg); opacity: 0; }
+        }
+
+        @media (max-width: 500px) {
+            .boards {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                padding: 0 8px;
+            }
+            .board-card {
+                width: 100%;
+                padding: 10px 8px 16px;
+            }
+            .shop { padding: 16px 4px; }
+            .coin-balance { margin-bottom: 16px; }
+            .go-btn { padding: 12px 36px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shop">
+        <h1 class="shop-title">Pick Your Board!</h1>
+        <p class="coin-balance">
+            <img class="coin-icon" src="../img/coin.png" alt="coin">
+            <span id="coinBalance">0</span> coins
+        </p>
+
+        <div class="boards" id="boardGrid"></div>
+
+        <button class="go-btn" id="goBtn" disabled>Surf's Up!</button>
+    </div>
+
+    <script>
+    (function() {
+        const coins = parseInt(localStorage.getItem('zeeb_coins') || '0', 10);
+        document.getElementById('coinBalance').textContent = coins;
+
+        const boards = [
+            { color: 'red',    name: 'Red',    price: 0,  file: 'red.png' },
+            { color: 'green',  name: 'Green',  price: 25, file: 'green.png' },
+            { color: 'purple', name: 'Purple', price: 30, file: 'purple.png' },
+            { color: 'blue',   name: 'Blue',   price: 45, file: 'blue.png' },
+        ];
+
+        const grid = document.getElementById('boardGrid');
+        const goBtn = document.getElementById('goBtn');
+        let selected = null;
+
+        boards.forEach(b => {
+            const card = document.createElement('div');
+            card.className = 'board-card';
+            const canAfford = coins >= b.price;
+            if (!canAfford) card.classList.add('locked');
+
+            card.innerHTML = `
+                <img class="board-img" src="../img/${b.file}" alt="${b.name} surfboard">
+                <div class="board-name">${b.name}</div>
+                <div class="board-price ${b.price === 0 ? 'free' : ''}">
+                    ${b.price === 0 ? 'Free!' : b.price + ' coins'}
+                </div>
+            `;
+
+            if (canAfford) {
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.board-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    selected = b;
+                    goBtn.disabled = false;
+                    goBtn.classList.add('ready');
+                });
+            }
+
+            grid.appendChild(card);
+        });
+
+        goBtn.addEventListener('click', () => {
+            if (!selected) return;
+            const remaining = coins - selected.price;
+            localStorage.setItem('zeeb_coins', remaining.toString());
+            localStorage.setItem('zeeb_board', selected.file);
+            window.location.href = '../level2/index.html';
+        });
+    })();
+
+    // Floaty background critters
+    (function() {
+        const MAX = 30;
+        let count = 0;
+
+        function spawn(immediate) {
+            if (count >= MAX) return;
+            const el = document.createElement('span');
+            el.className = 'floaty' + (Math.random() > 0.5 ? ' sway' : '') + ' bubble';
+            el.textContent = '○';
+            const size = 8 + Math.random() * 28;
+            const dur = 8 + Math.random() * 18;
+            el.style.cssText = `
+                left: ${Math.random() * 92}%;
+                bottom: -40px;
+                font-size: ${size}px;
+                animation-duration: ${dur}s;
+                animation-delay: ${immediate ? -(Math.random() * dur) : 0}s;
+            `;
+            document.body.appendChild(el);
+            count++;
+            el.addEventListener('animationiteration', () => {
+                el.style.left = Math.random() * 92 + '%';
+            });
+            el.addEventListener('animationend', () => {
+                el.remove();
+                count--;
+            });
+        }
+
+        // Immediate batch — already mid-flight
+        for (let i = 0; i < 20; i++) spawn(true);
+        // Keep spawning
+        setInterval(() => spawn(false), 800);
+    })();
+    </script>
+</body>
+</html>
