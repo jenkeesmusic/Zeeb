@@ -3293,7 +3293,7 @@ class OceanAnimation {
             const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
             const baseW = baseH * islandAspect;
             const baseX = this.width * 0.08;
-            const baseY = 400 * 0.75;
+            const baseY = this.height * 0.52;
             const drawW = baseW * s;
             const drawH = baseH * s;
             const drawX = baseX - (drawW - baseW) / 2;
@@ -3306,7 +3306,7 @@ class OceanAnimation {
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const rightBaseW = baseH * rightAspect;
                 const rightBaseX = this.width * 0.92 - rightBaseW;
-                const rightBaseY = 425 * 0.75;
+                const rightBaseY = this.height * 0.54;
                 const rightDrawW = rightBaseW * s;
                 const rightDrawH = baseH * s;
                 const rightDrawX = rightBaseX - (rightDrawW - rightBaseW) / 2;
@@ -3444,7 +3444,7 @@ class OceanAnimation {
             const nightLeft = this.nightIslandLeft || islandLeftImg;
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.drawImage(nightLeft, this.width * 0.08, 400 * 0.75 + sinkY, baseW, baseH);
+            ctx.drawImage(nightLeft, this.width * 0.08, this.height * 0.52 + sinkY, baseW, baseH);
             ctx.restore();
 
             const islandRightImg = this.images.islandRight;
@@ -3455,7 +3455,7 @@ class OceanAnimation {
 
                 ctx.save();
                 ctx.globalAlpha = alpha;
-                ctx.drawImage(nightRight, this.width * 0.92 - rightBaseW, 425 * 0.75 + sinkY, rightBaseW, baseH);
+                ctx.drawImage(nightRight, this.width * 0.92 - rightBaseW, this.height * 0.54 + sinkY, rightBaseW, baseH);
                 ctx.restore();
             }
         }
@@ -3958,7 +3958,7 @@ class OceanAnimation {
 
             // Base positions + drift offset
             const leftBaseX = this.width * 0.08;
-            const islandY = 400 * 0.75;
+            const islandY = this.height * 0.52;
 
             // Wrap: total cycle width is screen + island so it reappears from right
             const cycle = this.width + islandWidth + 200;
@@ -3976,7 +3976,7 @@ class OceanAnimation {
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const islandRightWidth = islandHeight * rightAspect;
                 const rightBaseX = this.width * 0.92 - islandRightWidth;
-                const islandRightY = 425 * 0.75;
+                const islandRightY = this.height * 0.54;
 
                 const cycleR = this.width + islandRightWidth + 200;
                 const rightX = ((rightBaseX + this.islandDriftX) % cycleR + cycleR) % cycleR - islandRightWidth - 100;
@@ -4163,7 +4163,7 @@ class OceanAnimation {
             const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
             const islandWidth = islandHeight * islandAspect;
             const islandX = this.width * 0.08;
-            const islandY = 400 * 0.75;
+            const islandY = this.height * 0.52;
             drawLabel('islandLeft (Island Left.svg)', islandX, islandY - 6);
 
             const islandRightImg = this.images.islandRight;
@@ -4171,7 +4171,7 @@ class OceanAnimation {
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const islandRightWidth = islandHeight * rightAspect;
                 const islandRightX = this.width * 0.92 - islandRightWidth;
-                const islandRightY = 425 * 0.75;
+                const islandRightY = this.height * 0.54;
                 drawLabel('islandRight (Island Right.svg)', islandRightX, islandRightY - 6);
             }
         }
