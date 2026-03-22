@@ -3514,25 +3514,13 @@ class OceanAnimation {
         } else {
             ir.onload = () => { this.nightIslandRight = this.createNightImage(ir, 0.6); };
         }
-        // Create night-tinted danger wave images (light tint — 0.15, keep wave shape visible)
-        this.nightDangerWaves = {};
-        const waveKeys = ['dangerWave2', 'dangerWave3', 'dangerWave4', 'dangerWave5'];
-        waveKeys.forEach(key => {
-            const img = this.images[key];
-            if (img.complete && img.naturalWidth > 0) {
-                this.nightDangerWaves[key] = this.createNightImage(img, 0.15);
-            } else {
-                img.onload = () => {
-                    this.nightDangerWaves[key] = this.createNightImage(img, 0.15);
-                    // Rebuild rotation array when late-loaded
-                    this.dangerWaveImages = waveKeys.map(k =>
-                        this.nightDangerWaves[k] || this.images[k]);
-                };
-            }
-        });
-        // Build danger wave image rotation array
-        this.dangerWaveImages = waveKeys.map(k =>
-            this.nightDangerWaves[k] || this.images[k]);
+        // Danger waves use original images — blue waves look fine against dark ocean
+        this.dangerWaveImages = [
+            this.images.dangerWave2,
+            this.images.dangerWave3,
+            this.images.dangerWave4,
+            this.images.dangerWave5
+        ];
         this.dangerWaveImageIndex = 0;
         this.resize();
         this.state = 'title';
