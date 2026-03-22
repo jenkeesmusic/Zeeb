@@ -13,7 +13,7 @@
         html, body {
             min-height: 100%; min-height: 100dvh;
             overflow-y: auto;
-            background: #1b5a8a;
+            background: #0e3d5e;
             font-family: 'Lilita One', Arial, sans-serif;
             display: flex;
             align-items: center;
@@ -34,6 +34,7 @@
             100% { background-position: 50% 100%; }
         }
 
+        /* Caustic light layers */
         body::before {
             content: '';
             position: fixed;
@@ -76,28 +77,101 @@
             100% { transform: translate(1.5%, -1%) rotate(0.3deg); }
         }
 
+        /* Vignette overlay */
+        .vignette {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 3;
+            background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(5,20,40,0.45) 100%);
+        }
+
+        /* Light rays from top */
+        .light-rays {
+            position: fixed;
+            top: -30%;
+            left: -10%;
+            width: 120%;
+            height: 80%;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                conic-gradient(from 260deg at 50% 0%,
+                    transparent 0deg, rgba(255,255,255,0.03) 2deg, transparent 5deg,
+                    transparent 15deg, rgba(255,255,255,0.04) 17deg, transparent 20deg,
+                    transparent 32deg, rgba(255,255,255,0.03) 34deg, transparent 37deg,
+                    transparent 48deg, rgba(255,255,255,0.05) 50deg, transparent 53deg,
+                    transparent 65deg, rgba(255,255,255,0.03) 67deg, transparent 70deg,
+                    transparent 80deg
+                );
+            opacity: 0.7;
+            animation: rayShift 20s ease-in-out infinite alternate;
+        }
+
+        @keyframes rayShift {
+            0%   { transform: rotate(-3deg) scaleX(1); }
+            100% { transform: rotate(3deg) scaleX(1.1); }
+        }
+
+        /* === SHOP LAYOUT === */
         .shop {
             position: relative;
-            z-index: 1;
+            z-index: 2;
             text-align: center;
             padding: 20px;
             max-width: 800px;
             width: 100%;
-            position: relative;
-            z-index: 1;
+            animation: shopEnter 0.8s cubic-bezier(.23,1,.32,1) both;
         }
 
+        @keyframes shopEnter {
+            from { opacity: 0; transform: translateY(30px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* === TITLE === */
         .shop-title {
-            font-size: clamp(28px, 6vw, 48px);
-            text-shadow: 2px 3px 6px rgba(0,0,0,0.4);
+            font-size: clamp(32px, 7vw, 56px);
             margin-bottom: 6px;
+            color: #fff;
+            -webkit-text-stroke: 1.5px rgba(0,60,120,0.4);
+            text-shadow:
+                0 2px 8px rgba(0,0,0,0.4),
+                0 0 30px rgba(100,200,255,0.15);
+            animation: titleDrop 0.7s cubic-bezier(.23,1,.32,1) both;
+            position: relative;
+            display: inline-block;
         }
 
+        @keyframes titleDrop {
+            from { opacity: 0; transform: translateY(-20px) scale(1.1); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Shimmer sweep across title */
+        .shop-title::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 60%;
+            height: 100%;
+            background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%);
+            animation: titleShimmer 0.8s ease-in-out 1.2s both;
+            pointer-events: none;
+        }
+
+        @keyframes titleShimmer {
+            from { left: -100%; }
+            to   { left: 160%; }
+        }
+
+        /* === COIN BALANCE === */
         .coin-balance {
             font-size: clamp(20px, 4vw, 32px);
             color: #ffd700;
             text-shadow: 1px 2px 4px rgba(0,0,0,0.4);
             margin-bottom: 24px;
+            animation: shopEnter 0.8s cubic-bezier(.23,1,.32,1) 0.15s both;
         }
 
         .coin-icon {
@@ -106,8 +180,15 @@
             height: 28px;
             vertical-align: middle;
             margin-right: 4px;
+            animation: coinSpin 1s cubic-bezier(.23,1,.32,1) 0.6s both;
         }
 
+        @keyframes coinSpin {
+            from { transform: rotateY(180deg) scale(0.5); opacity: 0; }
+            to   { transform: rotateY(0deg) scale(1); opacity: 1; }
+        }
+
+        /* === BOARD GRID === */
         .boards {
             display: flex;
             justify-content: center;
@@ -116,32 +197,100 @@
             margin-bottom: 28px;
         }
 
+        /* === BOARD CARDS === */
         .board-card {
             background: linear-gradient(170deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 100%);
             border: 3px solid rgba(255,255,255,0.3);
             border-radius: 18px;
-            padding: 12px 10px 12px;
+            padding: 14px 12px 14px;
             width: clamp(120px, 20vw, 150px);
             cursor: pointer;
-            transition: transform 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+            transition: transform 0.25s cubic-bezier(.23,1,.32,1), border-color 0.2s, background 0.2s, box-shadow 0.25s;
             position: relative;
             box-shadow: 0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2);
+            overflow: hidden;
+            /* Stagger entrance — set via JS */
+            animation: cardPop 0.5s cubic-bezier(.23,1,.32,1) both;
+        }
+
+        @keyframes cardPop {
+            from { opacity: 0; transform: translateY(40px) scale(0.85) rotate(-2deg); }
+            to   { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+        }
+
+        /* Idle bob — like floating on water */
+        .board-card.idle {
+            animation: cardBob 3s ease-in-out infinite;
+        }
+
+        @keyframes cardBob {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-4px); }
+        }
+
+        /* Shine glint sweep */
+        .board-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -75%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.12) 50%, transparent 70%);
+            transition: none;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .board-card:hover::before, .board-card.selected::before {
+            animation: cardShine 0.6s ease-out forwards;
+        }
+
+        @keyframes cardShine {
+            to { left: 150%; }
         }
 
         .board-card:hover:not(.locked) {
-            transform: translateY(-6px) scale(1.03);
+            transform: translateY(-8px) scale(1.05);
             border-color: rgba(255,255,255,0.7);
             background: linear-gradient(170deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.12) 100%);
-            box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.3);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.3);
         }
 
         .board-card.selected {
             border-color: #ffd700;
             background: linear-gradient(170deg, rgba(255,215,0,0.28) 0%, rgba(255,215,0,0.10) 100%);
-            transform: translateY(-6px) scale(1.03);
-            box-shadow: 0 6px 24px rgba(255,215,0,0.3), 0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.25);
+            transform: translateY(-8px) scale(1.05);
+            box-shadow:
+                0 0 20px rgba(255,215,0,0.25),
+                0 8px 28px rgba(0,0,0,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.25);
         }
 
+        /* Golden check badge on selected */
+        .board-card .check-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ffdc40, #f5a623);
+            border: 2px solid #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            z-index: 2;
+            transform: scale(0);
+            transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
+        }
+
+        .board-card.selected .check-badge {
+            transform: scale(1);
+        }
+
+        /* === LOCKED STATE === */
         .board-card.locked {
             cursor: not-allowed;
         }
@@ -171,12 +320,20 @@
             white-space: nowrap;
         }
 
+        /* === BOARD IMAGE === */
         .board-img {
             width: 100%;
             height: auto;
             border-radius: 10px;
             margin-bottom: 10px;
-            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3));
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.35));
+            transition: filter 0.2s, transform 0.3s cubic-bezier(.23,1,.32,1);
+        }
+
+        .board-card:hover:not(.locked) .board-img,
+        .board-card.selected .board-img {
+            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.4));
+            transform: scale(1.03);
         }
 
         .board-name {
@@ -195,12 +352,13 @@
             color: #7dff7d;
         }
 
+        /* === GO BUTTON === */
         .go-btn {
             display: inline-block;
             padding: 14px 48px;
-            border-radius: 12px;
+            border-radius: 14px;
             border: 2px solid rgba(255,255,255,0.5);
-            background: linear-gradient(180deg, #2a8a3a, #1a6a2a);
+            background: linear-gradient(180deg, #2e9e42, #1a6a2a);
             color: white;
             font-family: 'Lilita One', Arial, sans-serif;
             font-size: clamp(20px, 4vw, 28px);
@@ -208,28 +366,58 @@
             text-shadow: 1px 2px 3px rgba(0,0,0,0.4);
             box-shadow: 0 6px 20px rgba(0,0,0,0.3);
             transition: transform 0.15s, box-shadow 0.15s;
+            position: relative;
+            overflow: hidden;
+            animation: shopEnter 0.8s cubic-bezier(.23,1,.32,1) 0.7s both;
+        }
+
+        /* Sweeping shine on button */
+        .go-btn::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 60%;
+            height: 100%;
+            background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .go-btn.ready::after {
+            animation: btnShine 3s ease-in-out 0.5s infinite;
+        }
+
+        @keyframes btnShine {
+            0%, 100% { left: -100%; }
+            30%, 50% { left: 160%; }
         }
 
         .go-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 10px 28px rgba(0,0,0,0.4);
+        }
+
+        .go-btn:active {
+            transform: translateY(1px) scale(0.98);
+            box-shadow: 0 3px 12px rgba(0,0,0,0.3);
         }
 
         .go-btn.ready {
-            animation: btnPulse 1.8s ease-in-out infinite;
+            animation: btnPulse 2s ease-in-out infinite;
+            border-color: rgba(255,230,100,0.6);
         }
 
         @keyframes btnPulse {
-            0%, 100% { transform: scale(1); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
-            50%      { transform: scale(1.05); box-shadow: 0 8px 28px rgba(50,180,80,0.4); }
+            0%, 100% { transform: scale(1); box-shadow: 0 6px 20px rgba(0,0,0,0.3), 0 0 0 0 rgba(50,200,80,0); }
+            50%      { transform: scale(1.04); box-shadow: 0 8px 28px rgba(50,180,80,0.35), 0 0 15px 2px rgba(50,200,80,0.15); }
         }
 
         .go-btn:disabled {
-            opacity: 0.4;
+            opacity: 0.35;
             cursor: not-allowed;
             transform: none;
         }
 
+        /* === FLOATIES === */
         .floaty {
             position: fixed;
             pointer-events: none;
@@ -263,6 +451,7 @@
             100% { transform: translateY(-110vh) translateX(-15px) rotate(360deg); opacity: 0; }
         }
 
+        /* === MOBILE === */
         @media (max-width: 500px) {
             .boards {
                 display: grid;
@@ -281,6 +470,9 @@
     </style>
 </head>
 <body>
+    <div class="light-rays"></div>
+    <div class="vignette"></div>
+
     <div class="shop">
         <h1 class="shop-title">Pick Your Board!</h1>
         <p class="coin-balance">
@@ -309,13 +501,16 @@
         const goBtn = document.getElementById('goBtn');
         let selected = null;
 
-        boards.forEach(b => {
+        boards.forEach((b, idx) => {
             const card = document.createElement('div');
             card.className = 'board-card';
+            card.style.animationDelay = (0.25 + idx * 0.1) + 's';
             const canAfford = coins >= b.price;
             if (!canAfford) card.classList.add('locked');
 
+            // Add check badge (hidden until selected)
             card.innerHTML = `
+                <div class="check-badge">&#10003;</div>
                 <img class="board-img" src="../img/${b.file}" alt="${b.name} surfboard">
                 <div class="board-name">${b.name}</div>
                 <div class="board-price ${b.price === 0 ? 'free' : ''}">
@@ -323,9 +518,22 @@
                 </div>
             `;
 
+            // Start idle bob after entrance
+            card.addEventListener('animationend', (e) => {
+                if (e.animationName === 'cardPop') {
+                    card.classList.add('idle');
+                    // Offset each card's bob so they don't sync
+                    card.style.animationDelay = (idx * 0.4) + 's';
+                }
+            }, { once: true });
+
             if (canAfford) {
                 card.addEventListener('click', () => {
-                    document.querySelectorAll('.board-card').forEach(c => c.classList.remove('selected'));
+                    document.querySelectorAll('.board-card').forEach(c => {
+                        c.classList.remove('selected');
+                        // Reset shine
+                        c.querySelector('::before');
+                    });
                     card.classList.add('selected');
                     selected = b;
                     goBtn.disabled = false;
