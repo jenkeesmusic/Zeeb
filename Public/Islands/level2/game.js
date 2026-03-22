@@ -849,7 +849,7 @@ class OceanAnimation {
                 size: 0.4 + Math.random() * 1.0,
                 twinkleSpeed: 0.15 + Math.random() * 0.5,
                 twinkleOffset: Math.random() * Math.PI * 2,
-                brightness: 0.3 + Math.random() * 0.5
+                brightness: 0.5 + Math.random() * 0.5
             });
         }
 
@@ -2247,13 +2247,13 @@ class OceanAnimation {
         // Optional squash animation for more dynamic feel
         const squashScale = 1 + Math.sin(this.elapsedTime * 4) * 0.05;
         
-        // === LAYER 1: Soft glow behind the wave ===
+        // === LAYER 1: Soft glow behind the wave (dimmed for night) ===
         if (img.complete && img.naturalWidth > 0) {
             const glowCanvas = this.getGlowCanvas(img);
             if (glowCanvas) {
                 ctx.save();
                 ctx.globalCompositeOperation = 'screen';
-                ctx.globalAlpha = 0.2;
+                ctx.globalAlpha = 0.06;
                 
                 // Draw glow just slightly larger for subtle edge separation
                 const glowScale = 1.05;
@@ -2289,7 +2289,7 @@ class OceanAnimation {
             ctx.restore();
         } else {
             // Fallback if image not loaded - simple curved shape
-            ctx.fillStyle = 'rgba(64, 164, 223, 0.8)';
+            ctx.fillStyle = 'rgba(20, 50, 90, 0.8)';
             ctx.beginPath();
             ctx.arc(dw.x, this.height * 0.5, 60, 0, Math.PI * 2);
             ctx.fill();
@@ -3251,16 +3251,17 @@ class OceanAnimation {
         ctx.clearRect(0, 0, this.width, this.height);
 
         // Sky background (full opacity + cyan gradient overlay)
-        const hasSky = this.images.sky.complete && this.images.sky.naturalWidth > 0;
-        if (hasSky) {
-            ctx.drawImage(this.images.sky, 0, 0, this.width, this.height);
-        } else {
-            const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
-            gradient.addColorStop(0, '#0a1628');
-            gradient.addColorStop(1, '#0d1f3a');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, this.width, this.height);
-        }
+        // Night sky — smooth gradient with extra stops to prevent banding
+        const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
+        gradient.addColorStop(0,    '#050d1a');
+        gradient.addColorStop(0.2,  '#071221');
+        gradient.addColorStop(0.4,  '#0a1628');
+        gradient.addColorStop(0.55, '#0c1b31');
+        gradient.addColorStop(0.7,  '#0d1f3a');
+        gradient.addColorStop(0.85, '#0f2242');
+        gradient.addColorStop(1,    '#10254a');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, this.width, this.height);
 
         // Stars (night mode)
         this.drawStars(ctx);
@@ -3282,12 +3283,11 @@ class OceanAnimation {
         // Horizon
         this.drawHorizon();
 
-        // Islands (gentle pulsate, darkened for night)
+        // Islands (gentle pulsate, pre-tinted night versions)
         const s = 1.0 + Math.sin(this.elapsedTime * 1.5) * 0.02;
         const islandLeftImg = this.images.islandLeft;
         if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
-            ctx.save();
-            ctx.filter = 'brightness(0.45) saturate(0.6)';
+            const nightLeft = this.nightIslandLeft || islandLeftImg;
             const pixelsPerInch = 96;
             const baseH = pixelsPerInch * 1;
             const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
@@ -3298,10 +3298,11 @@ class OceanAnimation {
             const drawH = baseH * s;
             const drawX = baseX - (drawW - baseW) / 2;
             const drawY = baseY - (drawH - baseH) / 2;
-            ctx.drawImage(islandLeftImg, drawX, drawY, drawW, drawH);
+            ctx.drawImage(nightLeft, drawX, drawY, drawW, drawH);
 
             const islandRightImg = this.images.islandRight;
             if (islandRightImg.complete && islandRightImg.naturalWidth > 0) {
+                const nightRight = this.nightIslandRight || islandRightImg;
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const rightBaseW = baseH * rightAspect;
                 const rightBaseX = this.width * 0.92 - rightBaseW;
@@ -3310,9 +3311,8 @@ class OceanAnimation {
                 const rightDrawH = baseH * s;
                 const rightDrawX = rightBaseX - (rightDrawW - rightBaseW) / 2;
                 const rightDrawY = rightBaseY - (rightDrawH - baseH) / 2;
-                ctx.drawImage(islandRightImg, rightDrawX, rightDrawY, rightDrawW, rightDrawH);
+                ctx.drawImage(nightRight, rightDrawX, rightDrawY, rightDrawW, rightDrawH);
             }
-            ctx.restore();
         }
 
         // Wave layers (no fish, no danger waves)
@@ -3400,16 +3400,17 @@ class OceanAnimation {
         // Draw the same scene as title (sky, clouds, horizon, waves)
         ctx.clearRect(0, 0, this.width, this.height);
 
-        const hasSky = this.images.sky.complete && this.images.sky.naturalWidth > 0;
-        if (hasSky) {
-            ctx.drawImage(this.images.sky, 0, 0, this.width, this.height);
-        } else {
-            const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
-            gradient.addColorStop(0, '#0a1628');
-            gradient.addColorStop(1, '#0d1f3a');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, this.width, this.height);
-        }
+        // Night sky — smooth gradient with extra stops to prevent banding
+        const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
+        gradient.addColorStop(0,    '#050d1a');
+        gradient.addColorStop(0.2,  '#071221');
+        gradient.addColorStop(0.4,  '#0a1628');
+        gradient.addColorStop(0.55, '#0c1b31');
+        gradient.addColorStop(0.7,  '#0d1f3a');
+        gradient.addColorStop(0.85, '#0f2242');
+        gradient.addColorStop(1,    '#10254a');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, this.width, this.height);
 
         // Stars (night mode)
         this.drawStars(ctx);
@@ -3440,21 +3441,21 @@ class OceanAnimation {
             const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
             const baseW = baseH * islandAspect;
 
+            const nightLeft = this.nightIslandLeft || islandLeftImg;
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.filter = 'brightness(0.45) saturate(0.6)';
-            ctx.drawImage(islandLeftImg, this.width * 0.08, 400 * 0.75 + sinkY, baseW, baseH);
+            ctx.drawImage(nightLeft, this.width * 0.08, 400 * 0.75 + sinkY, baseW, baseH);
             ctx.restore();
 
             const islandRightImg = this.images.islandRight;
             if (islandRightImg.complete && islandRightImg.naturalWidth > 0) {
+                const nightRight = this.nightIslandRight || islandRightImg;
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const rightBaseW = baseH * rightAspect;
 
                 ctx.save();
                 ctx.globalAlpha = alpha;
-                ctx.filter = 'brightness(0.45) saturate(0.6)';
-                ctx.drawImage(islandRightImg, this.width * 0.92 - rightBaseW, 425 * 0.75 + sinkY, rightBaseW, baseH);
+                ctx.drawImage(nightRight, this.width * 0.92 - rightBaseW, 425 * 0.75 + sinkY, rightBaseW, baseH);
                 ctx.restore();
             }
         }
@@ -3485,10 +3486,53 @@ class OceanAnimation {
         ctx.restore();
     }
 
+    // Pre-render darkened night versions of images (avoids alpha bleed)
+    createNightImage(img, tintAlpha = 0.6) {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const cx = c.getContext('2d');
+        cx.drawImage(img, 0, 0);
+        cx.globalCompositeOperation = 'source-atop';
+        cx.fillStyle = `rgba(8, 15, 35, ${tintAlpha})`;
+        cx.fillRect(0, 0, c.width, c.height);
+        return c;
+    }
+
     start() {
         console.log('Starting ocean animation');
+        // Create night-tinted island images (heavy tint — 0.6)
+        const il = this.images.islandLeft;
+        if (il.complete && il.naturalWidth > 0) {
+            this.nightIslandLeft = this.createNightImage(il, 0.6);
+        } else {
+            il.onload = () => { this.nightIslandLeft = this.createNightImage(il, 0.6); };
+        }
+        const ir = this.images.islandRight;
+        if (ir.complete && ir.naturalWidth > 0) {
+            this.nightIslandRight = this.createNightImage(ir, 0.6);
+        } else {
+            ir.onload = () => { this.nightIslandRight = this.createNightImage(ir, 0.6); };
+        }
+        // Create night-tinted danger wave images (light tint — 0.15, keep wave shape visible)
+        this.nightDangerWaves = {};
+        const waveKeys = ['dangerWave2', 'dangerWave3', 'dangerWave4', 'dangerWave5'];
+        waveKeys.forEach(key => {
+            const img = this.images[key];
+            if (img.complete && img.naturalWidth > 0) {
+                this.nightDangerWaves[key] = this.createNightImage(img, 0.15);
+            } else {
+                img.onload = () => {
+                    this.nightDangerWaves[key] = this.createNightImage(img, 0.15);
+                    // Rebuild rotation array when late-loaded
+                    this.dangerWaveImages = waveKeys.map(k =>
+                        this.nightDangerWaves[k] || this.images[k]);
+                };
+            }
+        });
         // Build danger wave image rotation array
-        this.dangerWaveImages = [this.images.dangerWave2, this.images.dangerWave3, this.images.dangerWave4, this.images.dangerWave5];
+        this.dangerWaveImages = waveKeys.map(k =>
+            this.nightDangerWaves[k] || this.images[k]);
         this.dangerWaveImageIndex = 0;
         this.resize();
         this.state = 'title';
@@ -3803,44 +3847,38 @@ class OceanAnimation {
         // the horizon into deep ocean.  Extends well past where
         // waves begin (0.55) so there is no gap.
         const oceanBgTop = this.height * 0.28;
-        const oceanBgBottom = this.height * 0.62;
 
         ctx.save();
-        const oceanBg = ctx.createLinearGradient(0, oceanBgTop, 0, oceanBgBottom);
-        // #325A9A-based ocean gradient (lighter near horizon, deeper below).
+        const oceanBg = ctx.createLinearGradient(0, oceanBgTop, 0, this.height);
         oceanBg.addColorStop(0,    'rgba(15, 25, 50, 0)');
-        oceanBg.addColorStop(0.10, 'rgba(15, 25, 50, 0.03)');
-        oceanBg.addColorStop(0.22, 'rgba(15, 25, 50, 0.08)');
-        oceanBg.addColorStop(0.34, 'rgba(15, 25, 50, 0.14)');
-        oceanBg.addColorStop(0.46, 'rgba(15, 25, 50, 0.22)');
-        oceanBg.addColorStop(0.58, 'rgba(15, 25, 50, 0.34)');     // Base #325A9A
-        oceanBg.addColorStop(0.70, 'rgba(15, 25, 50, 0.46)');
-        oceanBg.addColorStop(0.82, 'rgba(15, 25, 50, 0.56)');
-        oceanBg.addColorStop(0.92, 'rgba(15, 25, 50, 0.63)');
-        oceanBg.addColorStop(1,    'rgba(15, 25, 50, 0.68)');
+        oceanBg.addColorStop(0.08, 'rgba(15, 25, 50, 0.03)');
+        oceanBg.addColorStop(0.16, 'rgba(15, 25, 50, 0.08)');
+        oceanBg.addColorStop(0.24, 'rgba(15, 25, 50, 0.14)');
+        oceanBg.addColorStop(0.32, 'rgba(15, 25, 50, 0.22)');
+        oceanBg.addColorStop(0.40, 'rgba(15, 25, 50, 0.34)');
+        oceanBg.addColorStop(0.50, 'rgba(15, 25, 50, 0.50)');
+        oceanBg.addColorStop(0.65, 'rgba(12, 24, 48, 0.80)');
+        oceanBg.addColorStop(0.80, 'rgba(12, 24, 48, 0.95)');
+        oceanBg.addColorStop(1,    'rgba(12, 24, 48, 1)');
         ctx.fillStyle = oceanBg;
-        ctx.fillRect(0, oceanBgTop, this.width, oceanBgBottom - oceanBgTop);
+        ctx.fillRect(0, oceanBgTop, this.width, this.height - oceanBgTop);
         ctx.restore();
-
-        // Solid fill below the gradient so wave bottoms never show
-        ctx.fillStyle = '#0c1830';
-        ctx.fillRect(0, oceanBgBottom, this.width, this.height - oceanBgBottom);
         
-        // === LAYER 2: Cool moonlight glow ===
-        // A thin pale blue-silver band right at the horizon line that
-        // suggests moonlight on distant water.
-        const glowY = this.height * 0.43;
-        const glowH = this.height * 0.035;
-
+        // === LAYER 2: Horizon glow ===
+        // Soft moonlit horizon — a visible lighter band where sky meets ocean
+        const horizonY = this.height * 0.52;
+        const glowH = this.height * 0.16;
         ctx.save();
-        const glow = ctx.createLinearGradient(0, glowY, 0, glowY + glowH);
-        glow.addColorStop(0,   'rgba(100, 140, 200, 0)');
-        glow.addColorStop(0.3, 'rgba(100, 140, 200, 0.03)');
-        glow.addColorStop(0.5, 'rgba(110, 150, 210, 0.05)');
-        glow.addColorStop(0.7, 'rgba(100, 140, 200, 0.03)');
-        glow.addColorStop(1,   'rgba(100, 140, 200, 0)');
+        const glow = ctx.createLinearGradient(0, horizonY - glowH * 0.5, 0, horizonY + glowH * 0.5);
+        glow.addColorStop(0,    'rgba(100, 150, 220, 0)');
+        glow.addColorStop(0.20, 'rgba(110, 160, 230, 0.06)');
+        glow.addColorStop(0.40, 'rgba(130, 180, 245, 0.14)');
+        glow.addColorStop(0.50, 'rgba(145, 195, 255, 0.18)');
+        glow.addColorStop(0.60, 'rgba(130, 180, 245, 0.14)');
+        glow.addColorStop(0.80, 'rgba(110, 160, 230, 0.06)');
+        glow.addColorStop(1,    'rgba(100, 150, 220, 0)');
         ctx.fillStyle = glow;
-        ctx.fillRect(0, glowY, this.width, glowH);
+        ctx.fillRect(0, horizonY - glowH * 0.5, this.width, glowH);
         ctx.restore();
         
         // === LAYER 3: Animated moonlight sheen on distant water ===
@@ -3890,31 +3928,17 @@ class OceanAnimation {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.width, this.height);
         
-        // Draw sky background (full opacity + cyan gradient overlay)
-        const hasSky = this.images.sky.complete && this.images.sky.naturalWidth > 0;
-        if (hasSky) {
-            this.ctx.drawImage(this.images.sky, 0, 0, this.width, this.height);
-        } else {
-            const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
-            gradient.addColorStop(0, '#0a1628');
-            gradient.addColorStop(1, '#0d1f3a');
-            this.ctx.fillStyle = gradient;
-            this.ctx.fillRect(0, 0, this.width, this.height);
-        }
-        // (No sunset crossfade in night mode)
-        // Soft indigo sky gradient overlay
-        const skyGradientTop = this.height * 0.14;
-        const skyGradientBottom = this.height * 0.56;
-        this.ctx.save();
-        const skyGrad = this.ctx.createLinearGradient(0, skyGradientTop, 0, skyGradientBottom);
-        skyGrad.addColorStop(0,    'rgba(10, 22, 40, 0)');
-        skyGrad.addColorStop(0.28, 'rgba(10, 22, 40, 0.06)');
-        skyGrad.addColorStop(0.52, 'rgba(10, 22, 40, 0.14)');
-        skyGrad.addColorStop(0.74, 'rgba(10, 22, 40, 0.11)');
-        skyGrad.addColorStop(1,    'rgba(10, 22, 40, 0)');
-        this.ctx.fillStyle = skyGrad;
-        this.ctx.fillRect(0, skyGradientTop, this.width, skyGradientBottom - skyGradientTop);
-        this.ctx.restore();
+        // Night sky — same gradient as title screen (no sky.jpeg for night mode)
+        const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
+        gradient.addColorStop(0,    '#050d1a');
+        gradient.addColorStop(0.2,  '#071221');
+        gradient.addColorStop(0.4,  '#0a1628');
+        gradient.addColorStop(0.55, '#0c1b31');
+        gradient.addColorStop(0.7,  '#0d1f3a');
+        gradient.addColorStop(0.85, '#0f2242');
+        gradient.addColorStop(1,    '#10254a');
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(0, 0, this.width, this.height);
 
         // Stars (night mode)
         this.drawStars(this.ctx);
@@ -3953,9 +3977,10 @@ class OceanAnimation {
             const leftX = ((leftBaseX + this.islandDriftX) % cycle + cycle) % cycle - islandWidth - 100;
 
             const iAlpha = this.islandFadeIn != null ? this.islandFadeIn : 1;
+            const nightLeft = this.nightIslandLeft || islandLeftImg;
             this.ctx.save();
             this.ctx.globalAlpha = iAlpha;
-            this.ctx.drawImage(islandLeftImg, leftX, islandY, islandWidth, islandHeight);
+            this.ctx.drawImage(nightLeft, leftX, islandY, islandWidth, islandHeight);
             this.ctx.restore();
 
             const islandRightImg = this.images.islandRight;
@@ -3968,9 +3993,10 @@ class OceanAnimation {
                 const cycleR = this.width + islandRightWidth + 200;
                 const rightX = ((rightBaseX + this.islandDriftX) % cycleR + cycleR) % cycleR - islandRightWidth - 100;
 
+                const nightRight = this.nightIslandRight || islandRightImg;
                 this.ctx.save();
                 this.ctx.globalAlpha = iAlpha;
-                this.ctx.drawImage(islandRightImg, rightX, islandRightY, islandRightWidth, islandHeight);
+                this.ctx.drawImage(nightRight, rightX, islandRightY, islandRightWidth, islandHeight);
                 this.ctx.restore();
             }
         }
