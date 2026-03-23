@@ -555,9 +555,10 @@
 
     // Shop music — try autoplay (works when navigated from user click), fall back to first interaction
     (function() {
-        const music = new Audio('../Audio/Zeeb Islands - Pick Your Surfboard.m4a');
+        const music = new Audio(encodeURI('../Audio/Zeeb Islands - Pick Your Surfboard.m4a'));
         music.loop = true;
         music.volume = 0;
+        music.onerror = (e) => console.error('Shop music failed to load', e);
         let started = false;
         function fadeIn() {
             if (started) return;
