@@ -3169,7 +3169,7 @@ class OceanAnimation {
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const rightBaseW = baseH * rightAspect;
                 const rightBaseX = this.width * 0.92 - rightBaseW;
-                const rightBaseY = this.height * 0.61;
+                const rightBaseY = this.height * 0.59;
                 const rightDrawW = rightBaseW * s;
                 const rightDrawH = baseH * s;
                 const rightDrawX = rightBaseX - (rightDrawW - rightBaseW) / 2;
@@ -3323,7 +3323,7 @@ class OceanAnimation {
 
                 ctx.save();
                 ctx.globalAlpha = alpha;
-                ctx.drawImage(islandRightImg, this.width * 0.92 - rightBaseW, this.height * 0.61 + sinkY, rightBaseW, baseH);
+                ctx.drawImage(islandRightImg, this.width * 0.92 - rightBaseW, this.height * 0.59 + sinkY, rightBaseW, baseH);
                 ctx.restore();
             }
         }
@@ -3908,7 +3908,7 @@ class OceanAnimation {
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const islandRightWidth = islandHeight * rightAspect;
                 const rightBaseX = this.width * 0.92 - islandRightWidth;
-                const islandRightY = this.height * 0.61;
+                const islandRightY = this.height * 0.59;
 
                 const cycleR = this.width + islandRightWidth + 200;
                 const rightX = ((rightBaseX + this.islandDriftX) % cycleR + cycleR) % cycleR - islandRightWidth - 100;
@@ -4099,7 +4099,7 @@ class OceanAnimation {
                 const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
                 const islandRightWidth = islandHeight * rightAspect;
                 const islandRightX = this.width * 0.92 - islandRightWidth;
-                const islandRightY = this.height * 0.61;
+                const islandRightY = this.height * 0.59;
                 drawLabel('islandRight (Island Right.svg)', islandRightX, islandRightY - 6);
             }
         }
