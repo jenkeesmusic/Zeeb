@@ -96,11 +96,11 @@ class GerstnerWaveSystem {
                 deepColor: '#0c1a2d',
                 foamColor: 'rgba(160, 185, 210, 0.3)',
                 alpha: 0.85,
-                yPosition: 0.72,
+                yPosition: 0.76,
                 speed: 1,
                 components: [
-                    { wavelength: 600, amplitude: 16, steepness: 0.2, speed: 105 },
-                    { wavelength: 350, amplitude: 8,  steepness: 0.15, speed: 75 },
+                    { wavelength: 600, amplitude: 14, steepness: 0.2, speed: 105 },
+                    { wavelength: 350, amplitude: 6,  steepness: 0.15, speed: 75 },
                     { wavelength: 180, amplitude: 3,  steepness: 0.1,  speed: 50 },
                 ]
             }),
@@ -113,12 +113,12 @@ class GerstnerWaveSystem {
                 deepColor: '#142a45',
                 foamColor: 'rgba(200, 220, 240, 0.45)',
                 alpha: 0.78,
-                yPosition: 0.82,
+                yPosition: 0.85,
                 speed: 1,
                 components: [
-                    { wavelength: 550, amplitude: 20, steepness: 0.25, speed: 150 },
-                    { wavelength: 300, amplitude: 10, steepness: 0.15, speed: 105 },
-                    { wavelength: 160, amplitude: 4,  steepness: 0.1,  speed: 65 },
+                    { wavelength: 550, amplitude: 16, steepness: 0.25, speed: 150 },
+                    { wavelength: 300, amplitude: 8,  steepness: 0.15, speed: 105 },
+                    { wavelength: 160, amplitude: 3,  steepness: 0.1,  speed: 65 },
                 ]
             }),
 
@@ -130,11 +130,11 @@ class GerstnerWaveSystem {
                 deepColor: '#091530',
                 foamColor: 'rgba(150, 175, 200, 0.3)',
                 alpha: 0.82,
-                yPosition: 0.88,
+                yPosition: 0.91,
                 speed: 1,
                 components: [
-                    { wavelength: 480, amplitude: 14, steepness: 0.2, speed: 130 },
-                    { wavelength: 260, amplitude: 7,  steepness: 0.12, speed: 85 },
+                    { wavelength: 480, amplitude: 12, steepness: 0.2, speed: 130 },
+                    { wavelength: 260, amplitude: 6,  steepness: 0.12, speed: 85 },
                     { wavelength: 140, amplitude: 3,  steepness: 0.08, speed: 55 },
                 ]
             }),
@@ -147,7 +147,7 @@ class GerstnerWaveSystem {
                 deepColor: '#08101e',
                 foamColor: 'rgba(130, 155, 180, 0.15)',
                 alpha: 0.9,
-                yPosition: 0.92,
+                yPosition: 0.95,
                 speed: 1,
                 components: [
                     { wavelength: 500, amplitude: 6, steepness: 0.15, speed: 45 },
@@ -199,6 +199,14 @@ class GerstnerWaveSystem {
         const t = this.flushTimer / this.flushDuration; // 1→0
         // Quick peak then gradual fade
         return t * t;
+    }
+
+    // Linearly interpolate between two hex colors by t (0-1)
+    lerpColor(hex1, hex2, t) {
+        const r1 = parseInt(hex1.slice(1, 3), 16), g1 = parseInt(hex1.slice(3, 5), 16), b1 = parseInt(hex1.slice(5, 7), 16);
+        const r2 = parseInt(hex2.slice(1, 3), 16), g2 = parseInt(hex2.slice(3, 5), 16), b2 = parseInt(hex2.slice(5, 7), 16);
+        const r = Math.round(r1 + (r2 - r1) * t), g = Math.round(g1 + (g2 - g1) * t), b = Math.round(b1 + (b2 - b1) * t);
+        return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
     }
 
     // Mix a CSS hex color toward amber by intensity (0-1)
@@ -290,7 +298,10 @@ class GerstnerWaveSystem {
         const gradBottom = minY + waveDepth * 0.7; // gradient finishes within the wave body
         const grad = ctx.createLinearGradient(0, minY, 0, gradBottom);
         grad.addColorStop(0, crestC);
+        grad.addColorStop(0.15, this.lerpColor(crestC, fillC, 0.5));
         grad.addColorStop(0.3, fillC);
+        grad.addColorStop(0.5, this.lerpColor(fillC, deepC, 0.3));
+        grad.addColorStop(0.7, this.lerpColor(fillC, deepC, 0.6));
         grad.addColorStop(1, deepC);
         ctx.fillStyle = grad;
 
