@@ -775,8 +775,8 @@ class OceanAnimation {
             active: false,
             x: 0,
             y: 0,
-            width: 360,
-            height: 360,
+            width: 300,
+            height: 300,
             speed: 280,             // px/s — faster than waves
             surfaceWaveIndex: 2,    // rides front wave
             depthOffset: 8,         // pixels below wave surface
@@ -784,7 +784,13 @@ class OceanAnimation {
             spawnScoreInterval: { min: 1200, max: 2400 }, // score gap between sharks
             warning: false,         // true while warning is showing
             warningTimer: 0,        // counts down during warning
-            warningDuration: 1.8    // seconds of warning before shark appears
+            warningDuration: 1.8,   // seconds of warning before shark appears
+            // Dynamic swim — shark dives and surfaces in a cycle
+            swimPhase: 0,           // current phase in swim cycle (radians)
+            swimSpeed: 1.8,         // how fast the cycle runs
+            diveDepth: 60,          // max pixels below surface at deepest dive
+            surfaceHeight: -20,     // pixels above surface at peak breach
+            tilt: 0                 // nose tilt angle (radians)
         };
 
         // Jump combo tracker
@@ -2918,6 +2924,7 @@ class OceanAnimation {
                 shark.warning = false;
                 shark.active = true;
                 shark.x = this.width + shark.width;
+                shark.swimPhase = Math.PI * 0.5; // start surfacing
                 const surfY = this.getWaveSurfaceYAtX(shark.surfaceWaveIndex, shark.x);
                 shark.y = surfY + shark.depthOffset;
             }
@@ -2927,7 +2934,22 @@ class OceanAnimation {
         // Move shark left along wave surface
         shark.x -= shark.speed * this.speedHack * dt;
         const surfY = this.getWaveSurfaceYAtX(shark.surfaceWaveIndex, shark.x);
-        shark.y = surfY + shark.depthOffset;
+
+        // Dynamic swim cycle: dive deep → surface → breach → dive again
+        shark.swimPhase += shark.swimSpeed * dt;
+        const swimCycle = Math.sin(shark.swimPhase);
+        // Map sin(-1..1) to depth: -1 = deepest dive, +1 = surface breach
+        const depthOffset = swimCycle < 0
+            ? shark.depthOffset + (-swimCycle) * shark.diveDepth   // diving down
+            : shark.depthOffset - swimCycle * (-shark.surfaceHeight); // breaching up
+        shark.y = surfY + depthOffset;
+
+        // Nose tilts based on direction of vertical movement
+        const swimVelocity = Math.cos(shark.swimPhase) * shark.swimSpeed;
+        shark.tilt = swimVelocity * 0.12; // positive = nose up, negative = nose down
+
+        // Only dangerous when near surface (swimCycle > -0.3)
+        shark.canHit = swimCycle > -0.3;
 
         // Off-screen left → despawn
         if (shark.x < -shark.width * 2) {
@@ -2937,8 +2959,8 @@ class OceanAnimation {
             return;
         }
 
-        // Collision with Zeeb (only if not invisible and not already crashing)
-        if (!this.player.invisible && this.crashTimer <= 0 && !this.gameOver) {
+        // Collision with Zeeb (only when shark is near surface)
+        if (shark.canHit && !this.player.invisible && this.crashTimer <= 0 && !this.gameOver) {
             const zeebX = this.player.x;
             const zeebY = this.player.y;
             const zeebW = this.player.surfboardWidth * 0.35;
@@ -2966,14 +2988,24 @@ class OceanAnimation {
         const img = this.images.shark;
         if (img.complete && img.naturalWidth > 0) {
             ctx.save();
-            // Image already faces left — draw directly
             const aspect = img.naturalWidth / img.naturalHeight;
             const drawH = shark.height;
             const drawW = drawH * aspect;
+
+            // Fade when diving deep (swimCycle < -0.3 → fading out)
+            const swimCycle = Math.sin(shark.swimPhase);
+            const alpha = swimCycle < -0.3
+                ? Math.max(0.15, 1 + (swimCycle + 0.3) * 1.4) // fade to 0.15
+                : 1;
+            ctx.globalAlpha = alpha;
+
+            // Tilt the shark based on swim direction
+            ctx.translate(shark.x, shark.y);
+            ctx.rotate(shark.tilt);
             ctx.drawImage(
                 img,
-                shark.x - drawW * 0.5,
-                shark.y - drawH * 0.5,
+                -drawW * 0.5,
+                -drawH * 0.5,
                 drawW,
                 drawH
             );
