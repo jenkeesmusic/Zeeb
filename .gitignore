@@ -17,3 +17,7 @@ Desktop.ini
 # Large video files (consider Git LFS if these need versioning)
 *.MOV
 *.mp4
+
+# Allow specific game videos needed for deploy
+!Public/astroid-dodger/img/I.mp4
+!Public/astroid-dodger/img/Finale Video.mp4
