@@ -755,7 +755,7 @@ class OceanAnimation {
         this.jumpCoinCount = 0;
         this.jumpCoinValue = 0;
         this.coinSpawnInterval = { min: 3, max: 4 };
-        this.coinSize = 28;
+        this.coinSize = 36;
         this.coinPointValue = 25;
         this.coinSpeed = 180;
         this.jumpCoinCount = 0;      // coins collected in current batch
