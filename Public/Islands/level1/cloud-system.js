@@ -30,9 +30,9 @@
                     alphaMin: 0.18,
                     alphaMax: 0.30,
                     scaleMin: 0.18,
-                    scaleMax: 0.28,
+                    scaleMax: 0.25,
                     yMinRatio: 0.02,
-                    yMaxRatio: 0.30,
+                    yMaxRatio: 0.22,
                     spacingRatio: 0.18,
                     brightWhite: false
                 },
@@ -42,10 +42,10 @@
                     speed: 28,
                     alphaMin: 0.78,
                     alphaMax: 0.95,
-                    scaleMin: 0.36,
-                    scaleMax: 0.52,
+                    scaleMin: 0.30,
+                    scaleMax: 0.42,
                     yMinRatio: 0.04,
-                    yMaxRatio: 0.28,
+                    yMaxRatio: 0.20,
                     spacingRatio: 0.26,
                     brightWhite: true
                 }
