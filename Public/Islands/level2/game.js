@@ -1186,8 +1186,8 @@ class OceanAnimation {
     }
 
     getDangerWaveTopY() {
-        // Keep a consistent "hit line" around the 400px ruler mark.
-        return Math.max(0, Math.min(this.height - 40, this.dangerWaveHitY));
+        // Scale danger wave position with canvas height (was hardcoded 400 for 600px canvas)
+        return this.height * 0.67;
     }
     
     tokenizePath(d) {
