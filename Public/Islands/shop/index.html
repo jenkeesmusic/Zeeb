@@ -553,6 +553,39 @@
         });
     })();
 
+    // Shop music — fades in on first interaction
+    (function() {
+        const music = new Audio('../Audio/Zeeb Islands - Pick Your Surfboard.m4a');
+        music.loop = true;
+        music.volume = 0;
+        let started = false;
+        function startMusic() {
+            if (started) return;
+            started = true;
+            music.play().catch(() => {});
+            // Fade in over 2s
+            const fade = setInterval(() => {
+                if (music.volume < 0.8) music.volume = Math.min(0.8, music.volume + 0.02);
+                else clearInterval(fade);
+            }, 50);
+        }
+        document.addEventListener('click', startMusic, { once: true });
+        document.addEventListener('touchstart', startMusic, { once: true });
+        document.addEventListener('keydown', startMusic, { once: true });
+    })();
+
+    // URL param override for testing: ?coins=50
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        const testCoins = params.get('coins');
+        if (testCoins !== null) {
+            localStorage.setItem('zeeb_coins', testCoins);
+            // Update display
+            const bal = document.querySelector('.coin-balance');
+            if (bal) bal.innerHTML = bal.innerHTML.replace(/\d+/, testCoins);
+        }
+    })();
+
     // Floaty background critters
     (function() {
         const MAX = 30;
