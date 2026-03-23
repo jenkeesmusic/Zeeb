@@ -2207,7 +2207,7 @@ class OceanAnimation {
         
         // Calculate wave size - ensure bottom edge is always off-screen
         const waveY = this.getDangerWaveTopY();
-        const minHeight = this.height - waveY + 20; // must reach past canvas bottom
+        const minHeight = this.height - waveY + 80; // must reach well past canvas bottom
         const baseHeight = this.height * 0.24 * (dw.sizeMultiplier || 1) * (dw.heightScale || 1);
         const waveHeight = Math.max(baseHeight, minHeight);
         let waveWidth = waveHeight; // Default square aspect
