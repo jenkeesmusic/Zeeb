@@ -1049,7 +1049,7 @@ class OceanAnimation {
         this.titleMusicStarted = false;
         this.titleMusicFade = null; // { dir: 'in'|'out', elapsed: 0, duration: 5 }
 
-        this.music = new Audio('../Audio/Zeeb Islands level 1.m4a');
+        this.music = new Audio(encodeURI('../Audio/Zeeb Islands level 1.m4a'));
         this.music.loop = true;
         this.music.volume = 0.5;
         this.musicStarted = false;
