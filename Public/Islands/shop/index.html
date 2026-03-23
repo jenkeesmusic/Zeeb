@@ -553,25 +553,33 @@
         });
     })();
 
-    // Shop music — fades in on first interaction
+    // Shop music — try autoplay (works when navigated from user click), fall back to first interaction
     (function() {
         const music = new Audio('../Audio/Zeeb Islands - Pick Your Surfboard.m4a');
         music.loop = true;
         music.volume = 0;
         let started = false;
-        function startMusic() {
+        function fadeIn() {
             if (started) return;
             started = true;
-            music.play().catch(() => {});
-            // Fade in over 2s
             const fade = setInterval(() => {
                 if (music.volume < 0.8) music.volume = Math.min(0.8, music.volume + 0.02);
                 else clearInterval(fade);
             }, 50);
         }
-        document.addEventListener('click', startMusic, { once: true });
-        document.addEventListener('touchstart', startMusic, { once: true });
-        document.addEventListener('keydown', startMusic, { once: true });
+        // Try autoplay immediately
+        music.play().then(fadeIn).catch(() => {
+            // Blocked — wait for first interaction
+            function unlock() {
+                music.play().then(fadeIn).catch(() => {});
+                document.removeEventListener('click', unlock);
+                document.removeEventListener('touchstart', unlock);
+                document.removeEventListener('keydown', unlock);
+            }
+            document.addEventListener('click', unlock);
+            document.addEventListener('touchstart', unlock);
+            document.addEventListener('keydown', unlock);
+        });
     })();
 
     // URL param override for testing: ?coins=50
