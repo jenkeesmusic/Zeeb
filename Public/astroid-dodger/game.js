@@ -59,7 +59,7 @@ class Rocket {
   constructor() {
     this.w = 105;
     this.h = 105;
-    this.x = 80;
+    this.x = 20;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
     this.speed = 320;
@@ -71,7 +71,7 @@ class Rocket {
   }
 
   reset() {
-    this.x = 80;
+    this.x = 20;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
   }
@@ -704,11 +704,6 @@ const howToPlayBtn = $("howToPlayBtn");
 const howToPlayOverlay = $("howToPlayOverlay");
 const closeHowToPlay = $("closeHowToPlay");
 
-// Prevent spacebar from activating any button (we use it for shooting)
-document.querySelectorAll("button").forEach((btn) => {
-  btn.addEventListener("keydown", (e) => { if (e.key === " ") e.preventDefault(); });
-  btn.addEventListener("keyup", (e) => { if (e.key === " ") e.preventDefault(); });
-});
 
 startBtn.addEventListener("click", () => {
   if (state === "ready" || state === "over") startGame();
