@@ -481,16 +481,16 @@ function drawBackground(dt) {
 }
 
 function drawDistantPlanet(t) {
-   const planetSize = 28;
-   const planetX = W - 60;
-   const planetY = 50;
+   const planetSize = 70;
+   const planetX = W - 80;
+   const planetY = 60;
    
    const floatX = Math.sin(t * 0.3) * 2;
    const floatY = Math.cos(t * 0.25) * 1.5;
    
    const pulsePhase = Math.sin(t * 1.2) * 0.5 + 0.5;
-  const glowIntensity = 6 + pulsePhase * 8;
-  const glowAlpha = 0.2 + pulsePhase * 0.15;
+  const glowIntensity = 10 + pulsePhase * 14;
+  const glowAlpha = 0.25 + pulsePhase * 0.15;
   
   ctx.save();
   
@@ -507,7 +507,7 @@ function drawDistantPlanet(t) {
   ctx.arc(planetX + floatX, planetY + floatY, planetSize * 0.5 + glowIntensity, 0, Math.PI * 2);
   ctx.fill();
   
-  ctx.globalAlpha = 0.5 + pulsePhase * 0.1;
+  ctx.globalAlpha = 0.6 + pulsePhase * 0.1;
   
   if (IMAGES.planet && IMAGES.planet.complete) {
     ctx.drawImage(
@@ -680,6 +680,12 @@ function loop(ts) {
   if (state === "running" || state === "crashing") {
     update(dt);
   }
+  // Let the player fly around and shoot on the start screen
+  if (state === "ready" || state === "over") {
+    rocket.update(dt);
+    for (const l of lasers) l.update(dt);
+    lasers = lasers.filter((l) => !l.offscreen());
+  }
   draw();
 
   requestAnimationFrame(loop);
@@ -737,7 +743,7 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  if (e.key === " " && state === "running") {
+  if (e.key === " " && (state === "running" || state === "ready" || state === "over")) {
     const now = performance.now();
     if (now - lastShot >= 250) { // rate limit: max 4 shots per second
       const { cx, cy } = rocket.center();
@@ -747,7 +753,7 @@ window.addEventListener("keydown", (e) => {
       laserSound.currentTime = 0;
       laserSound.play().catch(() => {});
     }
-    return;
+    if (state === "running") return;
   }
 
   if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") keys.add("ArrowUp") || keys.add("w");
@@ -775,7 +781,7 @@ canvas.addEventListener("pointerdown", (e) => {
   shootOnRelease = true;
   updateTargetY(e);
   
-  if (state === "running" && performance.now() - moveStartTime < 50) {
+  if ((state === "running" || state === "ready" || state === "over") && performance.now() - moveStartTime < 50) {
     const now = performance.now();
     if (now - lastShot >= 250) {
       const { cx, cy } = rocket.center();
@@ -799,7 +805,7 @@ canvas.addEventListener("pointermove", (e) => {
 });
 
 window.addEventListener("pointerup", (e) => {
-if (pointerActive && state === "running" && shootOnRelease && performance.now() - moveStartTime < 200) {
+if (pointerActive && (state === "running" || state === "ready" || state === "over") && shootOnRelease && performance.now() - moveStartTime < 200) {
   const now = performance.now();
     if (now - lastShot >= 250) {
       const { cx, cy } = rocket.center();
