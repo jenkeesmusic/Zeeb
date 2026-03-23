@@ -704,9 +704,11 @@ const howToPlayBtn = $("howToPlayBtn");
 const howToPlayOverlay = $("howToPlayOverlay");
 const closeHowToPlay = $("closeHowToPlay");
 
-// Prevent spacebar from activating buttons (we use it for shooting)
-startBtn.addEventListener("keydown", (e) => { if (e.key === " ") e.preventDefault(); });
-restartBtn.addEventListener("keydown", (e) => { if (e.key === " ") e.preventDefault(); });
+// Prevent spacebar from activating any button (we use it for shooting)
+document.querySelectorAll("button").forEach((btn) => {
+  btn.addEventListener("keydown", (e) => { if (e.key === " ") e.preventDefault(); });
+  btn.addEventListener("keyup", (e) => { if (e.key === " ") e.preventDefault(); });
+});
 
 startBtn.addEventListener("click", () => {
   if (state === "ready" || state === "over") startGame();
