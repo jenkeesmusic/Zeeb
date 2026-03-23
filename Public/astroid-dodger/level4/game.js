@@ -1658,7 +1658,8 @@ function startStage() {
 
 function winStage() {
   state = "win";
-  try { bgMusic.pause(); } catch (_) {}
+  try { bgMusic.pause(); bgMusic.currentTime = 0; bgMusic.src = ""; } catch (_) {}
+  musicPlaying = true; // keep flag true so unlockMusic won't restart it
   
   // Play finale video (rendered directly on canvas, no overlay needed)
   if (finaleVideo) {
