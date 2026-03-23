@@ -1,0 +1,159 @@
+/* Universal Pause Overlay — shared across all Zeeb games */
+
+.pause-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  gap: 0;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  font-family: 'Lilita One', 'Boogaloo', 'Orbitron', system-ui, sans-serif;
+}
+
+.pause-overlay.visible {
+  display: flex;
+  opacity: 1;
+}
+
+/* Card */
+.pause-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 40px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(8, 16, 32, 0.94), rgba(20, 10, 40, 0.94));
+  border: 1.5px solid rgba(140, 190, 255, 0.3);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    inset 0 0 40px rgba(60, 120, 200, 0.08);
+  min-width: 260px;
+  max-width: 90vw;
+}
+
+.pause-title {
+  font-size: clamp(36px, 7vmin, 56px);
+  font-weight: 400;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(100, 180, 255, 0.35);
+  margin: 0;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+/* Buttons */
+.pause-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.pause-btn {
+  display: block;
+  width: 100%;
+  padding: 14px 24px;
+  border-radius: 10px;
+  border: 1.5px solid;
+  font-family: inherit;
+  font-size: clamp(16px, 3.5vmin, 22px);
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: transform 0.06s ease, filter 0.1s ease;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pause-btn:active {
+  transform: scale(0.97);
+}
+
+.pause-btn-resume {
+  background: linear-gradient(180deg, #1a5c3a, #0f3d24);
+  border-color: rgba(80, 220, 130, 0.6);
+  color: #e0ffe8;
+  box-shadow: 0 4px 16px rgba(40, 180, 100, 0.25);
+}
+
+.pause-btn-resume:hover {
+  filter: brightness(1.15);
+}
+
+.pause-btn-menu {
+  background: linear-gradient(180deg, rgba(30, 30, 40, 0.8), rgba(18, 18, 26, 0.9));
+  border-color: rgba(150, 150, 180, 0.35);
+  color: rgba(210, 215, 230, 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.pause-btn-menu:hover {
+  filter: brightness(1.2);
+  color: #fff;
+}
+
+/* Hint text */
+.pause-hint {
+  font-size: clamp(11px, 2vmin, 14px);
+  color: rgba(180, 200, 220, 0.5);
+  margin: 4px 0 0 0;
+  font-family: system-ui, sans-serif;
+  font-weight: 400;
+}
+
+/* Mobile touch target sizing */
+@media (pointer: coarse) {
+  .pause-btn {
+    padding: 18px 24px;
+    font-size: clamp(18px, 4vmin, 24px);
+    min-height: 54px;
+  }
+
+  .pause-card {
+    padding: 28px 28px;
+    gap: 14px;
+  }
+}
+
+/* Landscape phones */
+@media (max-height: 420px) and (orientation: landscape) {
+  .pause-card {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 18px 28px;
+    gap: 10px 20px;
+  }
+
+  .pause-title {
+    width: 100%;
+    text-align: center;
+    font-size: clamp(28px, 5vmin, 40px);
+  }
+
+  .pause-buttons {
+    flex-direction: row;
+    width: auto;
+    gap: 10px;
+    margin-top: 0;
+  }
+
+  .pause-btn {
+    padding: 12px 28px;
+    width: auto;
+  }
+
+  .pause-hint {
+    width: 100%;
+    text-align: center;
+  }
+}

@@ -355,19 +355,30 @@ function togglePause() {
   if (state === "running") {
     state = "paused";
     bgMusic.pause();
+    PauseOverlay.show();
   } else if (state === "paused") {
-    state = "running";
-    lastTs = performance.now(); // reset timing delta
-    try {
-      bgMusic.muted = false;
-      bgMusic.volume = 0.6;
-      const p = bgMusic.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    } catch (e) {
-      // console.error("Audio play failed in togglePause:", e);
-    }
+    resumeGame();
   }
 }
+
+function resumeGame() {
+  if (state !== "paused") return;
+  state = "running";
+  lastTs = performance.now();
+  try {
+    bgMusic.muted = false;
+    bgMusic.volume = 0.6;
+    const p = bgMusic.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (e) {}
+  PauseOverlay.hide();
+}
+
+// Init universal pause overlay
+PauseOverlay.init({
+  onResume: function () { resumeGame(); },
+  menuUrl: '../index.html'
+});
 
 function updateHud() {
   scoreEl.textContent = Math.floor(score).toString();
@@ -651,16 +662,7 @@ function draw() {
     ctx.restore();
   }
 
-  if (state === "paused") {
-    ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#cfe6ff";
-    ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("Paused (press P to resume)", W / 2, H / 2);
-    ctx.restore();
-  }
+  // Pause UI handled by HTML overlay
 }
 
 function updateIntro(dt) {

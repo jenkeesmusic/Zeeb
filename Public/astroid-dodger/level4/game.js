@@ -92,8 +92,36 @@ document.addEventListener("touchstart", unlockMusic, { once: false });
 document.addEventListener("keydown", unlockMusic, { once: false });
 
  // State
-let state = "ready"; // "ready" | "intro" | "running" | "complete" | "gameover"
+let state = "ready"; // "ready" | "intro" | "running" | "paused" | "complete" | "gameover"
 let lastTs = 0;
+
+function togglePause() {
+  if (state === "running") {
+    state = "paused";
+    bgMusic.pause();
+    PauseOverlay.show();
+  } else if (state === "paused") {
+    resumeGame();
+  }
+}
+
+function resumeGame() {
+  if (state !== "paused") return;
+  state = "running";
+  lastTs = performance.now();
+  try {
+    bgMusic.muted = false;
+    bgMusic.volume = 0.6;
+    const p = bgMusic.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (_) {}
+  PauseOverlay.hide();
+}
+
+PauseOverlay.init({
+  onResume: function () { resumeGame(); },
+  menuUrl: '../index.html'
+});
 
  // Intro sequence state
 const INTRO_DURATION = 5.0; // 5 seconds
@@ -1718,6 +1746,12 @@ window.addEventListener("keydown", (e) => {
     window.location.href = "../../";
     return;
   }
+
+  if (e.key === "p" || e.key === "P") {
+    if (state === "running") togglePause();
+    return;
+  }
+  if (state === "paused") return;
 
   if (state === "running" && e.key === " ") {
     shoot();

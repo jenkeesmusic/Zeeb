@@ -911,21 +911,11 @@ class OceanAnimation {
             }
             if (event.key === 'p' || event.key === 'P') {
                 if (this.state === 'playing') {
-                    this.state = 'paused';
-                    this.music.volume *= 0.5;
-                } else if (this.state === 'paused') {
-                    this.state = 'playing';
-                    this.music.volume = 0.5;
-                    this.lastTime = performance.now(); // prevent time jump
+                    this.pause();
                 }
                 return;
             }
-            if (this.state === 'paused') {
-                this.state = 'playing';
-                this.music.volume = 0.5;
-                this.lastTime = performance.now();
-                return;
-            }
+            if (this.state === 'paused') return;
             if (event.key >= '1' && event.key <= '9') {
                 this.speedHack = 1.0 + (parseInt(event.key) - 1) * 0.3125; // 1=1.0x, 9=3.5x
                 return;
@@ -976,8 +966,7 @@ class OceanAnimation {
                 const dx = cx - (pb.x + pb.w / 2);
                 const dy = cy - (pb.y + pb.h / 2);
                 if (dx * dx + dy * dy <= (pb.w / 2 + 8) ** 2) {
-                    this.state = 'paused';
-                    this.music.volume *= 0.5;
+                    this.pause();
                     e.preventDefault();
                     return;
                 }
@@ -996,24 +985,8 @@ class OceanAnimation {
                 return;
             }
 
-            // Pause overlay button hit test (Resume / Main Menu)
-            if (this.state === 'paused' && this._pauseBtns) {
-                const b = this._pauseBtns;
-                if (cx >= b.btnX && cx <= b.btnX + b.btnW) {
-                    if (cy >= b.resumeY && cy <= b.resumeY + b.btnH) {
-                        this.state = 'playing';
-                        this.music.volume = 0.5;
-                        this.lastTime = performance.now();
-                        e.preventDefault();
-                        return;
-                    }
-                    if (cy >= b.menuY && cy <= b.menuY + b.btnH) {
-                        window.location.href = '../../index.html';
-                        e.preventDefault();
-                        return;
-                    }
-                }
-            }
+            // Paused — HTML overlay handles interactions
+            if (this.state === 'paused') return;
 
             if (this.introVideoPlaying) {
                 this.skipIntroVideo();
@@ -2418,6 +2391,21 @@ class OceanAnimation {
         }
     }
     
+    pause() {
+        if (this.state !== 'playing') return;
+        this.state = 'paused';
+        this.music.volume *= 0.5;
+        PauseOverlay.show();
+    }
+
+    resume() {
+        if (this.state !== 'paused') return;
+        this.state = 'playing';
+        this.music.volume = 0.5;
+        this.lastTime = performance.now();
+        PauseOverlay.hide();
+    }
+
     drawPauseOverlay() {
         const ctx = this.ctx;
         ctx.save();
@@ -3558,6 +3546,14 @@ class OceanAnimation {
         this.state = 'title';
         this.lastTime = performance.now();
         this.startTitleMusic();
+
+        // Universal pause overlay
+        const self = this;
+        PauseOverlay.init({
+            onResume: function () { self.resume(); },
+            menuUrl: '../../index.html'
+        });
+
         this.animate();
     }
 
@@ -4520,10 +4516,9 @@ class OceanAnimation {
                 this.draw();
                 this.drawWipeoutOverlay(this.ctx);
             } else if (this.state === 'paused') {
-                // Freeze game, draw last frame with pause overlay
-                this.lastTime = currentTime; // prevent time jump on unpause
+                // Freeze game — HTML overlay handles the pause UI
+                this.lastTime = currentTime;
                 this.draw();
-                this.drawPauseOverlay();
             } else if (this.state === 'confirm-quit') {
                 // Freeze game, draw paused frame with dialog
                 this.lastTime = currentTime;

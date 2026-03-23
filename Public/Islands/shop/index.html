@@ -553,34 +553,41 @@
         });
     })();
 
-    // Shop music — try autoplay (works when navigated from user click), fall back to first interaction
+    // Shop music
     (function() {
-        const music = new Audio(encodeURI('../Audio/Zeeb Islands - Pick Your Surfboard.m4a'));
+        const music = document.createElement('audio');
+        music.src = '../Audio/Zeeb Islands - Pick Your Surfboard.m4a';
         music.loop = true;
+        music.preload = 'auto';
         music.volume = 0;
-        music.onerror = (e) => console.error('Shop music failed to load', e);
-        let started = false;
+
+        let fading = false;
         function fadeIn() {
-            if (started) return;
-            started = true;
+            if (fading) return;
+            fading = true;
             const fade = setInterval(() => {
                 if (music.volume < 0.8) music.volume = Math.min(0.8, music.volume + 0.02);
                 else clearInterval(fade);
             }, 50);
         }
+
+        function tryPlay() {
+            music.play().then(fadeIn).catch(() => {});
+        }
+
         // Try autoplay immediately
-        music.play().then(fadeIn).catch(() => {
-            // Blocked — wait for first interaction
-            function unlock() {
-                music.play().then(fadeIn).catch(() => {});
-                document.removeEventListener('click', unlock);
-                document.removeEventListener('touchstart', unlock);
-                document.removeEventListener('keydown', unlock);
-            }
-            document.addEventListener('click', unlock);
-            document.addEventListener('touchstart', unlock);
-            document.addEventListener('keydown', unlock);
-        });
+        tryPlay();
+
+        // Also hook every interaction as fallback
+        function unlock() {
+            tryPlay();
+            document.removeEventListener('click', unlock, true);
+            document.removeEventListener('touchstart', unlock, true);
+            document.removeEventListener('keydown', unlock, true);
+        }
+        document.addEventListener('click', unlock, true);
+        document.addEventListener('touchstart', unlock, true);
+        document.addEventListener('keydown', unlock, true);
     })();
 
     // URL param override for testing: ?coins=50
