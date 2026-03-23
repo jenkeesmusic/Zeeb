@@ -96,11 +96,11 @@ class GerstnerWaveSystem {
                 deepColor: '#334d8e',
                 foamColor: 'rgba(220, 235, 255, 0.5)',
                 alpha: 0.85,
-                yPosition: 0.76,
+                yPosition: 0.72,
                 speed: 1,
                 components: [
-                    { wavelength: 600, amplitude: 14, steepness: 0.2, speed: 105 },
-                    { wavelength: 350, amplitude: 6,  steepness: 0.15, speed: 75 },
+                    { wavelength: 600, amplitude: 16, steepness: 0.2, speed: 105 },
+                    { wavelength: 350, amplitude: 8,  steepness: 0.15, speed: 75 },
                     { wavelength: 180, amplitude: 3,  steepness: 0.1,  speed: 50 },
                 ]
             }),
@@ -113,12 +113,12 @@ class GerstnerWaveSystem {
                 deepColor: '#3088d5',
                 foamColor: 'rgba(255, 255, 255, 0.8)',
                 alpha: 0.78,
-                yPosition: 0.85,
+                yPosition: 0.82,
                 speed: 1,
                 components: [
-                    { wavelength: 550, amplitude: 16, steepness: 0.25, speed: 150 },
-                    { wavelength: 300, amplitude: 8,  steepness: 0.15, speed: 105 },
-                    { wavelength: 160, amplitude: 3,  steepness: 0.1,  speed: 65 },
+                    { wavelength: 550, amplitude: 20, steepness: 0.25, speed: 150 },
+                    { wavelength: 300, amplitude: 10, steepness: 0.15, speed: 105 },
+                    { wavelength: 160, amplitude: 4,  steepness: 0.1,  speed: 65 },
                 ]
             }),
 
@@ -130,11 +130,11 @@ class GerstnerWaveSystem {
                 deepColor: '#1c5a9e',
                 foamColor: 'rgba(230, 240, 255, 0.55)',
                 alpha: 0.82,
-                yPosition: 0.91,
+                yPosition: 0.88,
                 speed: 1,
                 components: [
-                    { wavelength: 480, amplitude: 12, steepness: 0.2, speed: 130 },
-                    { wavelength: 260, amplitude: 6,  steepness: 0.12, speed: 85 },
+                    { wavelength: 480, amplitude: 14, steepness: 0.2, speed: 130 },
+                    { wavelength: 260, amplitude: 7,  steepness: 0.12, speed: 85 },
                     { wavelength: 140, amplitude: 3,  steepness: 0.08, speed: 55 },
                 ]
             }),
@@ -147,7 +147,7 @@ class GerstnerWaveSystem {
                 deepColor: '#1e3468',
                 foamColor: 'rgba(200, 220, 255, 0.2)',
                 alpha: 0.9,
-                yPosition: 0.95,
+                yPosition: 0.92,
                 speed: 1,
                 components: [
                     { wavelength: 500, amplitude: 6, steepness: 0.15, speed: 45 },
