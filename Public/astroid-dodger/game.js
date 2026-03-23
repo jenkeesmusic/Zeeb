@@ -12,6 +12,7 @@ const coinsEl = $("coinsEl");
 const bestEl = $("bestEl");
 const finalScoreEl = $("finalScore");
 const bgMusic = $("bgMusic");
+const hudEl = $("hud");
 
 const laserSound = new Audio("audio/pew.wav");
 laserSound.volume = 0.3;
@@ -308,6 +309,7 @@ function startGame() {
   resetGame();
   hide(overlay);
   hide(gameOverEl);
+  if (hudEl) show(hudEl);
   // Start with intro sequence only on first play
   if (!introShown) {
     state = "intro";
@@ -738,7 +740,7 @@ window.addEventListener("keydown", (e) => {
     togglePause();
     return;
   }
-  if ((e.key === " " || e.key === "Enter") && (state === "ready" || state === "over")) {
+  if (e.key === "Enter" && (state === "ready" || state === "over")) {
     startGame();
     return;
   }
