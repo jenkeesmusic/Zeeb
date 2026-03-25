@@ -90,5 +90,40 @@
       planet.addEventListener("click", wave, { passive: true });
       planet.addEventListener("touchstart", wave, { passive: true });
     }
+
+    // Secret level select — tap Planet Zeeb 8 times fast
+    const planetEl = document.getElementById("planetZeeb");
+    const levelSelectOverlay = document.getElementById("levelSelectOverlay");
+    const closeLevelSelect = document.getElementById("closeLevelSelect");
+    if (planetEl && levelSelectOverlay) {
+      let tapCount = 0;
+      let tapTimer = null;
+      const TAPS_NEEDED = 8;
+      const TAP_WINDOW = 3000; // ms to complete all taps
+
+      const onPlanetTap = () => {
+        tapCount++;
+        if (tapCount === 1) {
+          tapTimer = setTimeout(() => { tapCount = 0; }, TAP_WINDOW);
+        }
+        if (tapCount >= TAPS_NEEDED) {
+          clearTimeout(tapTimer);
+          tapCount = 0;
+          levelSelectOverlay.classList.remove("hidden");
+        }
+      };
+
+      planetEl.addEventListener("click", onPlanetTap);
+      planetEl.addEventListener("touchstart", onPlanetTap, { passive: true });
+
+      if (closeLevelSelect) {
+        closeLevelSelect.addEventListener("click", () => {
+          levelSelectOverlay.classList.add("hidden");
+        });
+      }
+      levelSelectOverlay.addEventListener("click", (e) => {
+        if (e.target === levelSelectOverlay) levelSelectOverlay.classList.add("hidden");
+      });
+    }
   }
 })();

@@ -210,6 +210,32 @@ img { display: block; }
   color: #b5c7de;
 }
 
+/* Level Select (secret) */
+.level-select-panel {
+  max-width: 440px;
+}
+.level-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.level-section h3 {
+  color: #88bbee;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 8px 0;
+}
+.level-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
 /* Buttons */
 .btn {
   padding: 10px 18px;

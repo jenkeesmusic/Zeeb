@@ -75,6 +75,21 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+// Main menu background music — starts on first user interaction
+const menuMusic = document.getElementById('menuMusic');
+if (menuMusic) {
+  menuMusic.volume = 0.5;
+  const startMusic = () => {
+    menuMusic.play().catch(() => {});
+    document.removeEventListener('click', startMusic);
+    document.removeEventListener('keydown', startMusic);
+    document.removeEventListener('touchstart', startMusic);
+  };
+  document.addEventListener('click', startMusic);
+  document.addEventListener('keydown', startMusic);
+  document.addEventListener('touchstart', startMusic);
+}
+
 episodeButtons.forEach((button) => {
   button.addEventListener('click', () => {
     const src = button.dataset.src;

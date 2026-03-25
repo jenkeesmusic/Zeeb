@@ -35,7 +35,7 @@
       <div class="panel">
         <div class="start-scene">
           <div class="art">
-            <img src="img/plamet_zeeb.png" alt="Planet Zeeb" class="planet-zeeb" />
+            <img src="img/plamet_zeeb.png" alt="Planet Zeeb" class="planet-zeeb" id="planetZeeb" />
             <img src="img/zeeb.png" alt="Zeeb" class="zeeb-hero" id="zeebHero" />
           </div>
           <h1 id="startTitle">Zeeb's Astroid Dodger</h1>
@@ -99,6 +99,28 @@
           <source id="videoSource" src="" type="video/mp4">
           Your browser does not support the video tag.
         </video>
+      </div>
+    </div>
+
+    <div id="levelSelectOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+      <div class="panel level-select-panel">
+        <h2>Secret Level Select</h2>
+        <p class="subtitle">Where do you want to go?</p>
+        <div class="level-grid">
+          <div class="level-section">
+            <h3>Astroid Dodger</h3>
+            <a href="./" class="btn level-btn">Level 1</a>
+            <a href="level2/" class="btn level-btn">Level 2</a>
+            <a href="level3/" class="btn level-btn">Level 3 — Meteor Gauntlet</a>
+            <a href="level4/" class="btn level-btn">Level 4 — Cucumber Battle</a>
+          </div>
+          <div class="level-section">
+            <h3>Zeeb Islands</h3>
+            <a href="../Islands/level1/" class="btn level-btn">Islands Level 1</a>
+            <a href="../Islands/level2/" class="btn level-btn">Islands Level 2</a>
+          </div>
+        </div>
+        <button id="closeLevelSelect" class="btn btn-secondary">Close</button>
       </div>
     </div>
 
