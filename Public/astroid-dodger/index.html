@@ -104,23 +104,53 @@
 
     <div id="levelSelectOverlay" class="overlay hidden" role="dialog" aria-modal="true">
       <div class="panel level-select-panel">
-        <h2>Secret Level Select</h2>
-        <p class="subtitle">Where do you want to go?</p>
-        <div class="level-grid">
-          <div class="level-section">
-            <h3>Astroid Dodger</h3>
-            <a href="./" class="btn level-btn">Level 1</a>
-            <a href="level2/" class="btn level-btn">Level 2</a>
-            <a href="level3/" class="btn level-btn">Level 3 — Meteor Gauntlet</a>
-            <a href="level4/" class="btn level-btn">Level 4 — Cucumber Battle</a>
-          </div>
-          <div class="level-section">
-            <h3>Zeeb Islands</h3>
-            <a href="../Islands/level1/" class="btn level-btn">Islands Level 1</a>
-            <a href="../Islands/level2/" class="btn level-btn">Islands Level 2</a>
+        <div class="ls-header">
+          <img src="img/plamet_zeeb.png" alt="" class="ls-planet" />
+          <div>
+            <h2 class="ls-title">Secret Level Select</h2>
+            <p class="ls-sub">You found it! Where to?</p>
           </div>
         </div>
-        <button id="closeLevelSelect" class="btn btn-secondary">Close</button>
+        <div class="level-grid">
+          <div class="level-section">
+            <h3 class="ls-section-title">Astroid Dodger</h3>
+            <a href="./" class="level-card">
+              <span class="lc-number">01</span>
+              <span class="lc-name">The Launch</span>
+              <span class="lc-arrow">&#8250;</span>
+            </a>
+            <a href="level2/" class="level-card">
+              <span class="lc-number">02</span>
+              <span class="lc-name">Asteroid Storm</span>
+              <span class="lc-arrow">&#8250;</span>
+            </a>
+            <a href="level3/" class="level-card">
+              <span class="lc-number">03</span>
+              <span class="lc-name">Meteor Gauntlet</span>
+              <span class="lc-arrow">&#8250;</span>
+            </a>
+            <a href="level4/" class="level-card lc-boss">
+              <span class="lc-number">04</span>
+              <span class="lc-name">Cucumber Battle</span>
+              <span class="lc-tag">BOSS</span>
+              <span class="lc-arrow">&#8250;</span>
+            </a>
+          </div>
+          <div class="level-section">
+            <h3 class="ls-section-title">Zeeb Islands</h3>
+            <a href="../Islands/level1/" class="level-card lc-islands">
+              <span class="lc-number">01</span>
+              <span class="lc-name">Sunrise Surf</span>
+              <span class="lc-arrow">&#8250;</span>
+            </a>
+            <a href="../Islands/level2/" class="level-card lc-islands">
+              <span class="lc-number">02</span>
+              <span class="lc-name">Night Waves</span>
+              <span class="lc-arrow">&#8250;</span>
+            </a>
+          </div>
+        </div>
+        <button id="closeLevelSelect" class="btn btn-secondary ls-close">Close</button>
       </div>
     </div>
 
