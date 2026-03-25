@@ -88,6 +88,15 @@ if (menuMusic) {
   document.addEventListener('click', startMusic);
   document.addEventListener('keydown', startMusic);
   document.addEventListener('touchstart', startMusic);
+
+  // Pause music when the page is hidden (e.g. closing/switching tabs on iPhone)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      menuMusic.pause();
+    } else {
+      menuMusic.play().catch(() => {});
+    }
+  });
 }
 
 episodeButtons.forEach((button) => {

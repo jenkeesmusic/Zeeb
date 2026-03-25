@@ -124,6 +124,16 @@
       levelSelectOverlay.addEventListener("click", (e) => {
         if (e.target === levelSelectOverlay) levelSelectOverlay.classList.add("hidden");
       });
+
+      // Surf Shop hack — load shop with 50 coins
+      var shopHack = document.getElementById("shopHack");
+      if (shopHack) {
+        shopHack.addEventListener("click", function (e) {
+          e.preventDefault();
+          localStorage.setItem("zeeb_coins", "50");
+          window.location.href = "../Islands/shop/";
+        });
+      }
     }
   }
 })();

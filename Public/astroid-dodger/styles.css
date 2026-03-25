@@ -319,6 +319,18 @@ img { display: block; }
   border-color: rgba(255, 150, 100, 0.6);
   box-shadow: 0 4px 20px rgba(255, 100, 60, 0.25);
 }
+/* Shop hack card accent */
+.lc-shop {
+  border-color: rgba(255, 210, 60, 0.25);
+  background: linear-gradient(135deg, rgba(40, 30, 10, 0.9), rgba(30, 25, 15, 0.9));
+}
+.lc-shop:hover, .lc-shop:active {
+  border-color: rgba(255, 220, 80, 0.6);
+  box-shadow: 0 4px 20px rgba(255, 200, 40, 0.25);
+}
+.lc-tag-hack {
+  background: linear-gradient(135deg, #f0c040, #e08820) !important;
+}
 /* Islands card accent */
 .lc-islands {
   border-color: rgba(60, 180, 140, 0.25);
