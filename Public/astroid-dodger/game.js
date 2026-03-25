@@ -68,12 +68,14 @@ class Rocket {
 
     this.angle = Math.PI / 2;
     this.tilt = 0;
+    this.tumbleRotation = 0;
   }
 
   reset() {
     this.x = 20;
     this.y = H / 2 - this.h / 2;
     this.vy = 0;
+    this.tumbleRotation = 0;
   }
 
   update(dt) {
@@ -101,7 +103,7 @@ class Rocket {
   }
 
   draw(introScale = 1, introX = null, introY = null) {
-    const ang = this.angle + (this.tilt || 0);
+    const ang = this.angle + (this.tilt || 0) + this.tumbleRotation;
     const baseX = introX !== null ? introX : this.x;
     const baseY = introY !== null ? introY : this.y;
     const drawW = this.w * introScale;
@@ -277,6 +279,7 @@ let explosions = [];
 let spawnTimer = 0;
 let coinSpawnTimer = 0;
 let crashAnim = { active: false, t: 0, duration: 900, x: 0, y: 0 };
+let tumble = { vx: 0, vy: 0, vr: 0, timer: 0, duration: 2800 };
 // Stars for background - using shared module
 const starfield = createStarfield(ctx, W, H, STAR_PRESETS.level1);
 let lastShot = 0; // for rate limiting shots
@@ -332,6 +335,7 @@ function startGame() {
 
 function gameOver() {
   state = "over";
+  rocket.tumbleRotation = 0; // reset so rocket flies normally on game over screen
   finalScoreEl.textContent = `Score: ${Math.floor(score)}`;
   if (score > best) {
     best = Math.floor(score);
@@ -387,10 +391,36 @@ function updateHud() {
 }
 
 function update(dt) {
+   if (state === "tumbling") {
+    tumble.timer += dt * 1000;
+    rocket.x += tumble.vx * dt;
+    rocket.y += tumble.vy * dt;
+    rocket.tumbleRotation += tumble.vr * dt;
+    // Accelerate the drift slightly for drama
+    tumble.vx *= (1 - 0.3 * dt);
+    tumble.vy += 15 * dt;
+    // Keep asteroids moving for visual continuity
+    for (const a of asteroids) a.update(dt);
+    asteroids = asteroids.filter((a) => !a.offscreen());
+    if (tumble.timer >= tumble.duration || rocket.x + rocket.w < -50) {
+      gameOver();
+    }
+    return;
+  }
+
    if (state === "crashing") {
     crashAnim.t += dt * 1000;
     if (crashAnim.t >= crashAnim.duration) {
-      gameOver();
+      // Transition to tumbling — Zeeb tumbles left with the waves
+      state = "tumbling";
+      tumble = {
+        vx: -180,       // drift left (wave direction)
+        vy: 10,          // slight downward drift
+        vr: 11,          // violent spinning (radians/sec)
+        timer: 0,
+        duration: 2800
+      };
+      rocket.tumbleRotation = 0;
     }
     return;
   }
@@ -681,7 +711,7 @@ function loop(ts) {
   if (state === "intro") {
     updateIntro(dt);
   }
-  if (state === "running" || state === "crashing") {
+  if (state === "running" || state === "crashing" || state === "tumbling") {
     update(dt);
   }
   // Let the player fly around and shoot on the start screen

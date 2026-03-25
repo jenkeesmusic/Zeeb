@@ -786,7 +786,22 @@ class OceanAnimation {
             initialX: 0,        // Starting position
             initialY: 0
         };
-        
+
+        // Game-over tumble animation (Zeeb tumbles left with the waves)
+        this.tumble = {
+            active: false,
+            x: 0,
+            y: 0,
+            vx: 0,              // leftward drift speed
+            vy: 0,              // vertical drift
+            rotation: 0,
+            vr: 0,              // spin speed (rad/s)
+            timer: 0,
+            duration: 3000,     // ms
+            scale: 1,
+            bobPhase: 0         // for wave-like bobbing
+        };
+
         // Water spray particle system
         this.sprayParticles = [];
         this.sprayConfig = {
@@ -1610,8 +1625,23 @@ class OceanAnimation {
                 this.fish.active = false;
 
                 if (this.lives <= 0) {
-                    this.gameOver = true;
-                    this.state = 'gameover';
+                    // Start tumble animation — Zeeb tumbles left with the waves
+                    this.state = 'tumbling';
+                    const startX = this.crashAnimation.zeebX || this.player.x;
+                    const startY = this.crashAnimation.zeebY || this.player.y;
+                    this.tumble = {
+                        active: true,
+                        x: startX,
+                        y: startY,
+                        vx: -220,           // drift left with the waves
+                        vy: -30,            // slight upward initially (wave toss)
+                        rotation: this.crashAnimation.zeebRotation || 0,
+                        vr: 12,             // violent spin (~2 full flips/sec)
+                        timer: 0,
+                        duration: 3000,
+                        scale: this.crashAnimation.zeebScale || 0.6,
+                        bobPhase: 0
+                    };
                 } else {
                     // Pause and wait for player to press space
                     this.state = 'wipeout';
@@ -2085,6 +2115,76 @@ class OceanAnimation {
             this.advanceWave(wave, dt, metrics.tileWidth);
         }
 
+    }
+
+    updateTumble(deltaTime) {
+        const dt = Math.min(deltaTime / 1000, 0.05);
+        this.elapsedTime += dt;
+        this.tumble.timer += dt * 1000;
+
+        // Move Zeeb left with the waves, tumbling violently
+        this.tumble.x += this.tumble.vx * dt;
+        this.tumble.vy += 40 * dt;  // gravity pulls down into the water
+        this.tumble.y += this.tumble.vy * dt;
+        this.tumble.rotation += this.tumble.vr * dt;
+
+        // Wave-like bobbing on top of the drift
+        this.tumble.bobPhase += dt * 5;
+        const bob = Math.sin(this.tumble.bobPhase) * 12;
+
+        // Keep ocean and clouds alive
+        if (this.cloudSystem) {
+            try { this.cloudSystem.update(dt); } catch (e) { this.cloudSystem = null; }
+        }
+        if (this.useGerstnerWaves) {
+            this.gerstnerWaves.update(dt, this.elapsedTime, this.score);
+        }
+        for (let i = 0; i < this.waves.length; i++) {
+            const wave = this.waves[i];
+            const image = this.images[`wave${i + 1}`];
+            const metrics = this.getWaveMetrics(image, wave);
+            this.advanceWave(wave, dt, metrics.tileWidth);
+        }
+
+        // End tumble when offscreen or duration exceeded
+        if (this.tumble.timer >= this.tumble.duration || this.tumble.x < -200) {
+            this.tumble.active = false;
+            this.gameOver = true;
+            this.state = 'gameover';
+        }
+    }
+
+    drawTumble(ctx) {
+        if (!this.tumble.active) return;
+
+        const bob = Math.sin(this.tumble.bobPhase) * 12;
+        const zeebSize = this.player.getSurfboardHeight();
+        const drawWidth = this.player.surfboardWidth * this.tumble.scale;
+        const drawHeight = zeebSize * this.tumble.scale;
+
+        ctx.save();
+        ctx.translate(this.tumble.x, this.tumble.y + bob);
+        ctx.rotate(this.tumble.rotation);
+
+        // Fade slightly as Zeeb tumbles away
+        const fadeProgress = Math.min(1, this.tumble.timer / this.tumble.duration);
+        ctx.globalAlpha = 1 - fadeProgress * 0.4;
+
+        if (this.player.surfboardImage.complete && this.player.surfboardImage.naturalWidth > 0) {
+            ctx.drawImage(
+                this.player.surfboardImage,
+                -drawWidth / 2,
+                -drawHeight / 2,
+                drawWidth,
+                drawHeight
+            );
+        }
+        ctx.restore();
+
+        // Splash particles trailing behind
+        if (Math.random() < 0.4) {
+            this.spawnSpray(this.tumble.x + drawWidth * 0.3, this.tumble.y + bob, 'burst');
+        }
     }
 
     drawWipeoutOverlay(ctx) {
@@ -2765,6 +2865,7 @@ class OceanAnimation {
         this.lives = 3;
         this.gameOver = false;
         this.crashTimer = 0;
+        this.tumble.active = false;
         this.sprayParticles = [];
         this.floatingScores = [];
         this.coins = [];
@@ -3396,6 +3497,7 @@ class OceanAnimation {
         this.coinsCollected = 0;
         this.lives = 3;
         this.crashTimer = 0;
+        this.tumble.active = false;
         this.speedBoostTriggered = false;
         this.speedBoostFlash = 0;
         this.sprayParticles = [];
@@ -3494,6 +3596,7 @@ class OceanAnimation {
         this.lives = 3;
         this.gameOver = false;
         this.crashTimer = 0;
+        this.tumble.active = false;
         this.sprayParticles = [];
         this.floatingScores = [];
         this.coins = [];
@@ -3964,8 +4067,8 @@ class OceanAnimation {
         this.drawSpray(this.ctx);
 
         // Draw player in front of all wave layers.
-        // Don't draw normal player during crash animation, wipeout, or invisible hack
-        if (!this.player.invisible && this.state !== 'wipeout' && (!this.crashAnimation.active || this.crashTimer <= 0)) {
+        // Don't draw normal player during crash animation, wipeout, tumble, or invisible hack
+        if (!this.player.invisible && this.state !== 'wipeout' && this.state !== 'tumbling' && (!this.crashAnimation.active || this.crashTimer <= 0)) {
             this.player.draw(this.ctx);
         }
 
@@ -4406,6 +4509,11 @@ class OceanAnimation {
                     this.finishTransition();
                 }
                 this.drawTransition();
+            } else if (this.state === 'tumbling') {
+                // Zeeb tumbles left with the waves after final wipeout
+                this.updateTumble(deltaTime);
+                this.draw();
+                this.drawTumble(this.ctx);
             } else if (this.state === 'wipeout') {
                 // Keep ocean alive during wipeout
                 this.updateWipeout(deltaTime);

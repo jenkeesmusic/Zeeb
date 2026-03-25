@@ -70,7 +70,7 @@ class Player {
         this.surfboardWidth = 100;
         this.surfboardHeight = 30;
         this.scale = 1;
-        this.zeebSizeMultiplier = 1.5; // 25% smaller than the previous 2x size
+        this.zeebSizeMultiplier = 1.25; // slightly smaller for a cleaner look
         
         // Intro animation: surf in from left on first load
         this.isEntering = false;
@@ -545,9 +545,27 @@ class OceanAnimation {
             shark: new Image(),
             sunsetSky: new Image(),
             sun: new Image(),
-            sunSunset: new Image()
+            sunSunset: new Image(),
+            rocket: new Image()
         };
         
+        // Z-Brocket easter egg — flies across the night sky (always left-to-right)
+        this.rocket = {
+            active: false,
+            x: 0,
+            y: 0,
+            speed: 0,
+            size: 0,
+            cooldown: 22, // first appearance at the 22-second mark
+            direction: 1,
+            baseY: 0,            // y at the edges (horizon entry/exit)
+            arcHeight: 0,        // how high the arc peaks above baseY
+            lasers: [],
+            lasersFired: 0,
+            lasersTotal: 0,
+            nextLaserTime: 0
+        };
+
         // Danger wave image rotation - cycles through GraceWave2, 3, 4
         this.dangerWaveImages = []; // Filled after loading: [dangerWave2, dangerWave3, dangerWave4]
         this.dangerWaveImageIndex = 0; // Current rotation index
@@ -858,6 +876,10 @@ class OceanAnimation {
                 brightness: 0.5 + Math.random() * 0.5
             });
         }
+
+        // Shooting stars — random, favoring later in the game
+        this.shootingStars = [];
+        this.shootingStarCooldown = 20 + Math.random() * 20; // first one 20-40s in
 
         // Animation timing
         this.elapsedTime = 0;
@@ -1560,15 +1582,15 @@ class OceanAnimation {
     getDangerSpawnTiming() {
         const s = this.score;
         let t;
-        if (s >= 10000) t = { min: 0.8, range: 0.8, extraChance: 0.85 };
-        else if (s >= 6000)  t = { min: 1.0, range: 1.0, extraChance: 0.80 };
-        else if (s >= 4000)  t = { min: 1.2, range: 1.2, extraChance: 0.75 };
-        else if (s >= 2000)  t = { min: 1.5, range: 1.5, extraChance: 0.65 };
-        else if (s >= 1500)  t = { min: 2.0, range: 1.5, extraChance: 0.55 };
-        else if (s >= 900)   t = { min: 2.5, range: 2.0, extraChance: 0.45 };
-        else if (s >= 500)   t = { min: 3.0, range: 2.0, extraChance: 0.35 };
-        else if (s >= 200)   t = { min: 3.5, range: 2.5, extraChance: 0.25 };
-        else                 t = { min: 4.0, range: 3.0, extraChance: 0.15 };
+        if (s >= 10000) t = { min: 1.1, range: 1.0, extraChance: 0.75 };
+        else if (s >= 6000)  t = { min: 1.3, range: 1.2, extraChance: 0.70 };
+        else if (s >= 4000)  t = { min: 1.5, range: 1.4, extraChance: 0.65 };
+        else if (s >= 2000)  t = { min: 1.8, range: 1.7, extraChance: 0.55 };
+        else if (s >= 1500)  t = { min: 2.4, range: 1.8, extraChance: 0.45 };
+        else if (s >= 900)   t = { min: 3.0, range: 2.2, extraChance: 0.35 };
+        else if (s >= 500)   t = { min: 3.5, range: 2.3, extraChance: 0.25 };
+        else if (s >= 200)   t = { min: 4.0, range: 2.8, extraChance: 0.18 };
+        else                 t = { min: 4.5, range: 3.3, extraChance: 0.10 };
         // Speed hack shrinks spawn intervals so waves come faster
         t.min /= this.speedHack;
         t.range /= this.speedHack;
@@ -1668,8 +1690,9 @@ class OceanAnimation {
             }
         }
 
-        // Spawn new danger wave if it's time
-        if (!this.wavePattern.active && !this.dangerWave.active && this.elapsedTime >= this.dangerWave.nextSpawnTime) {
+        // Spawn new danger wave if it's time — but not while shark is active/incoming
+        const sharkBusy = this.shark.active || this.shark.warning;
+        if (!this.wavePattern.active && !this.dangerWave.active && this.elapsedTime >= this.dangerWave.nextSpawnTime && !sharkBusy) {
             this.spawnDangerWave();
         }
         
@@ -2896,8 +2919,9 @@ class OceanAnimation {
         if (this.crashTimer > 0 || this.state !== 'playing') return;
 
         if (!shark.active && !shark.warning) {
-            // Check if it's time to spawn next shark
-            if (this.score >= shark.nextSpawnScore) {
+            // Check if it's time to spawn next shark — but not while danger waves are on screen
+            const wavesBusy = this.dangerWave.active || this.dangerWaveExtra.active || this.wavePattern.active;
+            if (this.score >= shark.nextSpawnScore && !wavesBusy) {
                 shark.warning = true;
                 shark.warningTimer = shark.warningDuration;
             }
@@ -2953,8 +2977,8 @@ class OceanAnimation {
             const zeebY = this.player.y;
             const zeebW = this.player.surfboardWidth * 0.35;
             const zeebH = this.player.getSurfboardHeight() * 0.5;
-            const sharkW = shark.width * 0.5;
-            const sharkH = shark.height * 0.4;
+            const sharkW = shark.width * 0.38;
+            const sharkH = shark.height * 0.3;
 
             const hit =
                 Math.abs(zeebX - shark.x) < (zeebW + sharkW) * 0.5 &&
@@ -2980,12 +3004,7 @@ class OceanAnimation {
             const drawH = shark.height;
             const drawW = drawH * aspect;
 
-            // Fade when diving deep (swimCycle < -0.3 → fading out)
-            const swimCycle = Math.sin(shark.swimPhase);
-            const alpha = swimCycle < -0.3
-                ? Math.max(0.15, 1 + (swimCycle + 0.3) * 1.4) // fade to 0.15
-                : 1;
-            ctx.globalAlpha = alpha;
+            ctx.globalAlpha = 1;
 
             // Tilt the shark based on swim direction
             ctx.translate(shark.x, shark.y);
@@ -3070,7 +3089,7 @@ class OceanAnimation {
     
     loadImages() {
         let loadCount = 0;
-        const totalImages = 17; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves + 1 coin + 1 shark
+        const totalImages = 18; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves + 1 coin + 1 shark + 1 rocket
         let playerLoaded = false;
         
         const checkLoaded = () => {
@@ -3213,6 +3232,11 @@ class OceanAnimation {
         this.images.shark.onload = () => { console.log('Shark loaded OK', this.images.shark.naturalWidth, this.images.shark.naturalHeight); checkLoaded(); };
         this.images.shark.onerror = (e) => { console.error('Failed to load Shark_Grace.png', e); checkLoaded(); };
         this.images.shark.src = `./Shark_Grace.png${versionTag}`;
+
+        // Z-Brocket easter egg
+        this.images.rocket.onload = checkLoaded;
+        this.images.rocket.onerror = () => { console.error('Failed to load Rocket.png'); checkLoaded(); };
+        this.images.rocket.src = `./Rocket.png${versionTag}`;
     }
     
     updateTitle(deltaTime) {
@@ -3227,6 +3251,10 @@ class OceanAnimation {
                 this.cloudSystem = null;
             }
         }
+
+        // Z-Brocket
+        this.updateRocket(dt);
+        this.updateShootingStars(dt);
 
         // Animate wave layers (slower on title screen)
         const waveDt = dt * 0.45;
@@ -3285,6 +3313,10 @@ class OceanAnimation {
 
         // Stars (night mode)
         this.drawStars(ctx);
+        this.drawShootingStars(ctx);
+
+        // Z-Brocket (behind clouds, in the distant sky)
+        this.drawRocket(ctx);
 
         // Back clouds
         if (this.cloudSystem) {
@@ -3434,6 +3466,10 @@ class OceanAnimation {
 
         // Stars (night mode)
         this.drawStars(ctx);
+        this.drawShootingStars(ctx);
+
+        // Z-Brocket
+        this.drawRocket(ctx);
 
         // Back clouds
         if (this.cloudSystem) {
@@ -3721,6 +3757,10 @@ class OceanAnimation {
             }
         }
 
+        // Z-Brocket
+        this.updateRocket(dt);
+        this.updateShootingStars(dt);
+
         // Drift islands slowly for parallax
         this.islandDriftX -= this.islandDriftSpeed * dt;
 
@@ -3824,6 +3864,256 @@ class OceanAnimation {
         }
     }
     
+    getRocketArc(r) {
+        // Progress 0→1 across the full travel (including off-screen margins)
+        const margin = r.size * 2;
+        const totalDist = this.width + margin * 2;
+        const t = (r.x + margin) / totalDist; // 0 at left entry, 1 at right exit
+        // Sine arc: highest (most negative Y offset) at center, zero at edges
+        const arcOffset = -r.arcHeight * Math.sin(t * Math.PI);
+        const y = r.baseY + arcOffset;
+        // Tangent angle: derivative of -arcHeight * sin(t*PI) w.r.t. x
+        // dy/dx = -arcHeight * PI * cos(t*PI) / totalDist
+        const tilt = Math.atan2(-r.arcHeight * Math.PI * Math.cos(t * Math.PI), totalDist);
+        return { y, tilt };
+    }
+
+    updateRocket(dt) {
+        const r = this.rocket;
+        if (r.active) {
+            r.x += r.speed * dt;
+
+            // Compute current arc position
+            const arc = this.getRocketArc(r);
+            r.y = arc.y;
+
+            // Update laser blips — advance along the arc
+            for (let i = r.lasers.length - 1; i >= 0; i--) {
+                const l = r.lasers[i];
+                l.age += dt;
+                l.xOffset += l.speed * dt;
+                if (l.age > l.lifetime) {
+                    r.lasers.splice(i, 1);
+                }
+            }
+
+            // Fire laser blips on schedule
+            if (r.lasersFired < r.lasersTotal) {
+                r.nextLaserTime -= dt;
+                if (r.nextLaserTime <= 0) {
+                    // Blip starts at rocket's current x, travels ahead along the arc
+                    r.lasers.push({
+                        xOffset: r.size,        // starts just ahead of nose
+                        speed: r.speed * (2.5 + Math.random() * 1.5), // 2.5-4x rocket speed
+                        age: 0,
+                        lifetime: 1.5 + Math.random() * 1.0,
+                        hue: Math.random() < 0.5 ? 120 : 180,
+                        radius: 2 + Math.random() * 1.5,
+                        startX: r.x   // rocket x when fired
+                    });
+                    r.lasersFired++;
+                    r.nextLaserTime = 0.8 + Math.random() * 1.5;
+                }
+            }
+
+            // Off-screen right? Done.
+            const margin = r.size * 2;
+            if (r.x > this.width + margin) {
+                r.active = false;
+                r.lasers = [];
+                r.cooldown = 30 + Math.random() * 50;
+            }
+        } else {
+            r.cooldown -= dt;
+            if (r.cooldown <= 0) {
+                r.active = true;
+                r.direction = 1;
+                r.size = 28 + Math.random() * 20;
+                r.baseY = this.height * (0.12 + Math.random() * 0.10); // edge Y: 12-22% down
+                r.arcHeight = this.height * (0.03 + Math.random() * 0.05); // arc peaks 3-8% higher
+                r.speed = 20 + Math.random() * 20;
+                console.log('Z-Brocket launched! size:', r.size.toFixed(0), 'baseY:', r.baseY.toFixed(0), 'speed:', r.speed.toFixed(0));
+                r.x = -r.size * 2;
+                r.y = r.baseY;
+                r.lasers = [];
+                r.lasersFired = 0;
+                r.lasersTotal = 1 + Math.floor(Math.random() * 4);
+                r.nextLaserTime = 1.5 + Math.random() * 3;
+            }
+        }
+    }
+
+    drawRocket(ctx) {
+        const r = this.rocket;
+
+        // Draw laser blips — small dots following the arc trajectory
+        for (const l of r.lasers) {
+            const fade = 1 - (l.age / l.lifetime);
+            const alpha = 0.9 * fade;
+            if (alpha <= 0) continue;
+
+            // Compute blip position along the arc using its offset from where it was fired
+            const blipX = l.startX + l.xOffset;
+            // Use a temporary rocket-like object to query the arc at this x
+            const tmpR = { x: blipX, size: r.size, arcHeight: r.arcHeight, baseY: r.baseY };
+            const blipArc = this.getRocketArc(tmpR);
+            const blipY = blipArc.y + (r.size * (this.images.rocket.naturalWidth / this.images.rocket.naturalHeight)) * 0.5;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+
+            // Tiny rod aligned to the arc tangent
+            const rodLen = 8 + l.radius * 2;
+            const tilt = blipArc.tilt;
+            const dx = Math.cos(tilt) * rodLen * 0.5;
+            const dy = Math.sin(tilt) * rodLen * 0.5;
+
+            // Glow
+            ctx.strokeStyle = `hsla(${l.hue}, 100%, 70%, 0.35)`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(blipX - dx, blipY - dy);
+            ctx.lineTo(blipX + dx, blipY + dy);
+            ctx.stroke();
+
+            // Bright core
+            ctx.strokeStyle = `hsla(${l.hue}, 100%, 90%, 0.95)`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(blipX - dx, blipY - dy);
+            ctx.lineTo(blipX + dx, blipY + dy);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        if (!r.active) return;
+        const img = this.images.rocket;
+        if (!img.complete || img.naturalWidth === 0) return;
+
+        const aspect = img.naturalWidth / img.naturalHeight;
+        const drawW = r.size;              // long axis (horizontal)
+        const drawH = r.size * aspect;     // short axis (vertical)
+
+        // Arc tilt — nose follows the curve
+        const arc = this.getRocketArc(r);
+
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+
+        // Engine glow at the tail (left side)
+        const tailX = r.x;
+        const tailY = r.y + drawH * 0.5;
+        const glow = ctx.createRadialGradient(tailX, tailY, 0, tailX, tailY, drawH * 1.2);
+        glow.addColorStop(0, 'rgba(255, 160, 60, 0.25)');
+        glow.addColorStop(0.5, 'rgba(255, 100, 40, 0.08)');
+        glow.addColorStop(1, 'rgba(255, 80, 30, 0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(tailX - drawH * 1.2, tailY - drawH * 1.2, drawH * 2.4, drawH * 2.4);
+
+        // Draw rotated + tilted rocket
+        const cx = r.x + drawW * 0.5;
+        const cy = r.y + drawH * 0.5;
+        ctx.translate(cx, cy);
+        // +90° base rotation (nose right) + arc tilt
+        ctx.rotate(Math.PI / 2 + arc.tilt);
+        ctx.drawImage(img, -drawH / 2, -drawW / 2, drawH, drawW);
+
+        ctx.restore();
+    }
+
+    spawnShootingStar() {
+        // Random start along the top edge, any x position
+        const startX = this.width * Math.random();
+        const startY = this.height * (Math.random() * 0.05);
+        // Diagonal downward — random angle between ~110° and ~150° (down-left)
+        // or ~30° and ~70° (down-right), picked randomly
+        const goLeft = Math.random() < 0.5;
+        const angle = goLeft
+            ? Math.PI * (0.58 + Math.random() * 0.2)   // 104-140° down-left
+            : Math.PI * (0.08 + Math.random() * 0.2);  // 14-50° down-right
+        const speed = 150 + Math.random() * 120;
+        this.shootingStars.push({
+            x: startX,
+            y: startY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            age: 0,
+            lifetime: 1.2 + Math.random() * 0.8,
+            size: 1.0 + Math.random() * 0.8,
+            tailLen: 8 + Math.random() * 6
+        });
+    }
+
+    updateShootingStars(dt) {
+        // Update active shooting stars
+        for (let i = this.shootingStars.length - 1; i >= 0; i--) {
+            const s = this.shootingStars[i];
+            s.age += dt;
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            if (s.age > s.lifetime) {
+                this.shootingStars.splice(i, 1);
+            }
+        }
+
+        // Don't spawn while rocket is flying
+        if (this.rocket.active) return;
+
+        this.shootingStarCooldown -= dt;
+        if (this.shootingStarCooldown <= 0) {
+            // Spawn 1-3 shooting stars
+            const count = 1 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < count; i++) {
+                this.spawnShootingStar();
+            }
+
+            // Next cooldown — shorter at higher scores (favor back end of game)
+            // score 0-2999: 25-50s gaps, score 3000-5999: 15-30s, score 6000+: 10-20s
+            let minGap = 25, maxGap = 50;
+            if (this.score >= 6000) { minGap = 10; maxGap = 20; }
+            else if (this.score >= 3000) { minGap = 15; maxGap = 30; }
+            this.shootingStarCooldown = minGap + Math.random() * (maxGap - minGap);
+        }
+    }
+
+    drawShootingStars(ctx) {
+        for (const s of this.shootingStars) {
+            if (s.age < 0) continue; // still waiting on stagger delay
+
+            // Fade in fast, fade out near end, also fade out as it approaches horizon
+            const lifeFade = s.age < 0.1 ? s.age / 0.1 : 1 - Math.pow(s.age / s.lifetime, 2);
+            const horizonY = this.height * 0.38;
+            const horizonFade = s.y > horizonY ? 0 : s.y > horizonY - 40 ? (horizonY - s.y) / 40 : 1;
+            const alpha = Math.max(0, Math.min(1, lifeFade * horizonFade * 0.8));
+            if (alpha <= 0) continue;
+
+            // Direction for the tail
+            const speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+            const dx = (s.vx / speed) * s.tailLen;
+            const dy = (s.vy / speed) * s.tailLen;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+
+            // Faint tail
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = s.size * 0.8;
+            ctx.beginPath();
+            ctx.moveTo(s.x - dx, s.y - dy);
+            ctx.lineTo(s.x, s.y);
+            ctx.stroke();
+
+            // Bright head
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+    }
+
     drawStars(ctx) {
         for (const star of this.stars) {
             const twinkle = 0.5 + 0.5 * Math.sin(this.elapsedTime * star.twinkleSpeed + star.twinkleOffset);
@@ -3958,6 +4248,10 @@ class OceanAnimation {
 
         // Stars (night mode)
         this.drawStars(this.ctx);
+        this.drawShootingStars(this.ctx);
+
+        // Z-Brocket
+        this.drawRocket(this.ctx);
 
         // Back cloud layer
         if (this.cloudSystem) {

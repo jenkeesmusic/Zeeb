@@ -38,18 +38,18 @@ class GerstnerWaveSystem {
         // Speed tiers — each milestone bumps the wave speed with a surge
         this.speedTiers = [
             { score: 0,    speed: 3.64 },  // Chill
-            { score: 200,  speed: 4.42 },  // Picking up
-            { score: 500,  speed: 5.20 },  // Cruising
-            { score: 900,  speed: 6.24 },  // Getting intense
-            { score: 1500, speed: 7.54 },  // Survival mode
-            { score: 2000, speed: 8.32 },  // White knuckle
-            { score: 3000, speed: 9.10 },  // Expert
-            { score: 4500, speed: 9.80 },  // Beast mode
-            { score: 6000, speed: 10.40 }, // Legendary
-            { score: 8000, speed: 11.00 }, // Untouchable
-            { score: 10000, speed: 11.60 }, // Insane
-            { score: 13000, speed: 12.10 }, // Godlike
-            { score: 16000, speed: 12.50 }, // Max
+            { score: 200,  speed: 4.20 },  // Picking up
+            { score: 500,  speed: 4.80 },  // Cruising
+            { score: 900,  speed: 5.40 },  // Getting intense
+            { score: 1500, speed: 6.00 },  // Survival mode
+            { score: 2000, speed: 6.50 },  // White knuckle
+            { score: 3000, speed: 7.00 },  // Expert
+            { score: 4500, speed: 7.40 },  // Beast mode
+            { score: 6000, speed: 7.80 },  // Legendary
+            { score: 8000, speed: 8.10 },  // Untouchable
+            { score: 10000, speed: 8.40 }, // Insane
+            { score: 13000, speed: 8.60 }, // Godlike
+            { score: 16000, speed: 8.80 }, // Max
         ];
         this.currentTier = 0;
         this.currentSpeed = this.speedTiers[0].speed;
