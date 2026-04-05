@@ -518,6 +518,117 @@ class OceanAnimation {
 
         this.visibleWaveLayers = [1, 2]; // mid, front layers
 
+        // Ocean water fill — gradient layer behind islands and waves
+        this.oceanFill = {
+            alpha: 1.0,             // 0–1 opacity
+            yStart: 0.58,           // vertical start (fraction of canvas height)
+            // Gradient stops (position 0 = top of ocean, 1 = bottom of canvas)
+            stops: [
+                { pos: 0,    color: '#0a1830' },  // dark horizon edge
+                { pos: 0.15, color: '#0e2845' },  // transition
+                { pos: 0.35, color: '#163d66' },  // bright mid-ocean blue
+                { pos: 0.55, color: '#123050' },  // deeper layer
+                { pos: 0.75, color: '#0d2238' },  // deep water
+                { pos: 1,    color: '#081428' },  // abyss
+            ],
+            // Moonlight sheen
+            sheenColor: 'rgba(100, 160, 220, 0.07)',  // soft blue-white glow
+            sheenY: 0.08,           // position within ocean fill (fraction)
+            sheenHeight: 0.12,      // band thickness (fraction)
+            sheenSpeed: 0.4,        // bob speed
+            sheenDrift: 0.008,      // bob amplitude (fraction of height)
+            // Caustic shimmer spots
+            causticCount: 10,
+            causticColor: 'rgba(120, 180, 230, 0.04)',
+            causticSize: 30,        // base radius in px
+            // Edge vignette
+            vignetteAlpha: 0.25,    // darkening strength at edges
+            vignetteWidth: 0.15,    // fraction of canvas width
+            // Underwater light rays (moonlight shafts)
+            rayCount: 5,
+            rayAlpha: 0.035,        // max opacity per ray
+            rayWidth: 0.06,         // base width (fraction of canvas width)
+            raySwaySpeed: 0.25,     // sway speed
+            raySwayAmount: 0.04,    // sway distance (fraction of width)
+            // Drifting current bands
+            currentCount: 3,
+            currentAlpha: 0.04,     // very faint
+            currentSpeed: 0.015,    // slow horizontal drift (fraction of width per second)
+            currentHeight: 0.08,    // band thickness (fraction of ocean height)
+            // Depth breathing — slow global brightness pulse
+            breatheSpeed: 0.15,     // pulse speed (cycles per second-ish)
+            breatheAmount: 0.03,    // brightness variation
+            // Surface ripple highlights
+            rippleCount: 6,
+            rippleAlpha: 0.04,      // very subtle
+            rippleYRange: 0.15,     // vertical zone near top of ocean (fraction of ocean height)
+            rippleSpeed: 0.02,      // drift speed
+        };
+
+        // Moon configuration
+        this.moon = {
+            x: 0.75,               // horizontal position (fraction of width)
+            y: 0.08,               // vertical position (fraction of height)
+            size: 0.22,            // height as fraction of canvas height
+            alpha: 0.9,            // base opacity
+            // Glow halo
+            glowRadius: 1.8,       // glow radius multiplier (relative to moon size)
+            glowAlpha: 0.12,       // glow intensity
+            glowColor: [160, 190, 230],  // cool blue-white
+            // Subtle arc drift during gameplay
+            arcDuration: 600,      // seconds for full arc
+            arcDriftX: 0.06,       // horizontal drift (fraction of width)
+            arcDriftY: 0.04,       // vertical drift downward (fraction of height)
+        };
+
+        // Pre-seed caustic spots (like stars but underwater)
+        this.oceanCaustics = [];
+        for (let i = 0; i < this.oceanFill.causticCount; i++) {
+            this.oceanCaustics.push({
+                x: Math.random(),           // fraction of width
+                y: Math.random(),           // fraction of ocean fill height
+                size: 0.7 + Math.random() * 0.6,  // size multiplier
+                speed: 0.3 + Math.random() * 0.5, // twinkle speed
+                phase: Math.random() * Math.PI * 2,
+            });
+        }
+
+        // Pre-seed light rays (spread across width, each with unique phase)
+        this.oceanRays = [];
+        for (let i = 0; i < this.oceanFill.rayCount; i++) {
+            this.oceanRays.push({
+                x: 0.12 + (i / (this.oceanFill.rayCount - 1)) * 0.76, // spread across 12%-88% of width
+                width: 0.8 + Math.random() * 0.5,   // width multiplier
+                alpha: 0.6 + Math.random() * 0.4,    // brightness multiplier
+                phase: Math.random() * Math.PI * 2,
+                speed: 0.8 + Math.random() * 0.4,    // sway speed multiplier
+            });
+        }
+
+        // Pre-seed current bands (wide horizontal streaks at different depths)
+        this.oceanCurrents = [];
+        for (let i = 0; i < this.oceanFill.currentCount; i++) {
+            this.oceanCurrents.push({
+                y: 0.2 + (i / (this.oceanFill.currentCount - 1)) * 0.6, // spread across ocean depth
+                speed: (0.7 + Math.random() * 0.6) * (i % 2 === 0 ? 1 : -1), // alternate direction
+                phase: Math.random() * this.width,
+                width: 0.8 + Math.random() * 0.4,  // width multiplier
+            });
+        }
+
+        // Pre-seed surface ripple highlights
+        this.oceanRipples = [];
+        for (let i = 0; i < this.oceanFill.rippleCount; i++) {
+            this.oceanRipples.push({
+                x: Math.random(),                       // start position (fraction of width)
+                y: Math.random() * this.oceanFill.rippleYRange, // near top of ocean
+                length: 0.08 + Math.random() * 0.12,    // width of highlight (fraction of canvas width)
+                speed: (0.5 + Math.random() * 1.0) * (Math.random() < 0.5 ? 1 : -1),
+                phase: Math.random() * Math.PI * 2,
+                fadeSpeed: 0.3 + Math.random() * 0.4,   // how fast it fades in/out
+            });
+        }
+
         // Gerstner wave system (physically-based, replaces SVG tiling)
         this.useGerstnerWaves = true; // Toggle: true = Gerstner, false = SVG tiles
         this.gerstnerWaves = new GerstnerWaveSystem();
@@ -546,6 +657,7 @@ class OceanAnimation {
             sunsetSky: new Image(),
             sun: new Image(),
             sunSunset: new Image(),
+            moon: new Image(),
             rocket: new Image()
         };
         
@@ -3089,7 +3201,7 @@ class OceanAnimation {
     
     loadImages() {
         let loadCount = 0;
-        const totalImages = 18; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves + 1 coin + 1 shark + 1 rocket
+        const totalImages = 19; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves + 1 coin + 1 shark + 1 rocket + 1 moon
         let playerLoaded = false;
         
         const checkLoaded = () => {
@@ -3121,6 +3233,14 @@ class OceanAnimation {
         this.images.sky.src = `../img/sky.jpeg${versionTag}`;
 
         // (No sunset sky or sun images in night mode)
+
+        // Load moon
+        this.images.moon.onload = checkLoaded;
+        this.images.moon.onerror = () => {
+            console.error('Failed to load Moon.png');
+            checkLoaded();
+        };
+        this.images.moon.src = `../img/Moon.png${versionTag}`;
         
         // Load island (left)
         this.images.islandLeft.onload = checkLoaded;
@@ -3256,6 +3376,9 @@ class OceanAnimation {
         this.updateRocket(dt);
         this.updateShootingStars(dt);
 
+        // Drift islands (same parallax as gameplay)
+        this.islandDriftX -= this.islandDriftSpeed * dt;
+
         // Animate wave layers (slower on title screen)
         const waveDt = dt * 0.45;
         if (this.useGerstnerWaves) {
@@ -3315,16 +3438,17 @@ class OceanAnimation {
         this.drawStars(ctx);
         this.drawShootingStars(ctx);
 
-        // Z-Brocket (behind clouds, in the distant sky)
-        this.drawRocket(ctx);
-
         // Back clouds
         if (this.cloudSystem) {
             try { this.cloudSystem.drawLayer(ctx, 0); }
             catch (err) { this.cloudSystem = null; }
         }
 
-        // (No sun in night mode)
+        // Moon (between cloud layers, like sun in level 1)
+        this.drawMoon(ctx, 0);
+
+        // Z-Brocket (in front of moon, in the distant sky)
+        this.drawRocket(ctx);
 
         // Front clouds
         if (this.cloudSystem) {
@@ -3332,40 +3456,14 @@ class OceanAnimation {
             catch (err) { this.cloudSystem = null; }
         }
 
-        // Horizon
+        // Ocean water fill — gradient + effects behind horizon sparkles and islands
+        this.drawOceanFill(ctx);
+
+        // Horizon (sparkles sit on top of ocean fill)
         this.drawHorizon();
 
-        // Islands (gentle pulsate, pre-tinted night versions)
-        const s = 1.0 + Math.sin(this.elapsedTime * 1.5) * 0.02;
-        const islandLeftImg = this.images.islandLeft;
-        if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
-            const nightLeft = this.nightIslandLeft || islandLeftImg;
-            const pixelsPerInch = 96;
-            const baseH = pixelsPerInch * 1;
-            const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
-            const baseW = baseH * islandAspect;
-            const baseX = this.width * 0.08;
-            const baseY = this.height * 0.52;
-            const drawW = baseW * s;
-            const drawH = baseH * s;
-            const drawX = baseX - (drawW - baseW) / 2;
-            const drawY = baseY - (drawH - baseH) / 2;
-            ctx.drawImage(nightLeft, drawX, drawY, drawW, drawH);
-
-            const islandRightImg = this.images.islandRight;
-            if (islandRightImg.complete && islandRightImg.naturalWidth > 0) {
-                const nightRight = this.nightIslandRight || islandRightImg;
-                const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
-                const rightBaseW = baseH * rightAspect;
-                const rightBaseX = this.width * 0.92 - rightBaseW;
-                const rightBaseY = this.height * 0.54;
-                const rightDrawW = rightBaseW * s;
-                const rightDrawH = baseH * s;
-                const rightDrawX = rightBaseX - (rightDrawW - rightBaseW) / 2;
-                const rightDrawY = rightBaseY - (rightDrawH - baseH) / 2;
-                ctx.drawImage(nightRight, rightDrawX, rightDrawY, rightDrawW, rightDrawH);
-            }
-        }
+        // Islands
+        this.drawIslands(ctx, this.islandDriftX);
 
         // Wave layers (no fish, no danger waves)
         if (this.useGerstnerWaves) {
@@ -3468,53 +3566,27 @@ class OceanAnimation {
         this.drawStars(ctx);
         this.drawShootingStars(ctx);
 
-        // Z-Brocket
-        this.drawRocket(ctx);
-
         // Back clouds
         if (this.cloudSystem) {
             try { this.cloudSystem.drawLayer(ctx, 0); } catch (err) { this.cloudSystem = null; }
         }
 
-        // (No sun in night mode)
+        // Moon
+        this.drawMoon(ctx, 0);
+
+        // Z-Brocket
+        this.drawRocket(ctx);
 
         // Front clouds
         if (this.cloudSystem) {
             try { this.cloudSystem.drawLayer(ctx, 1); } catch (err) { this.cloudSystem = null; }
         }
 
+        this.drawOceanFill(ctx);
         this.drawHorizon();
 
-        // Fading islands — fade out in place
-        const alpha = 1 - ease;
-        const bob = 1.0 + Math.sin(this.elapsedTime * 1.5) * 0.02;
-        const sinkY = 0;
-
-        const islandLeftImg = this.images.islandLeft;
-        if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
-            const pixelsPerInch = 96;
-            const baseH = pixelsPerInch * 1 * bob;
-            const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
-            const baseW = baseH * islandAspect;
-
-            const nightLeft = this.nightIslandLeft || islandLeftImg;
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.drawImage(nightLeft, this.width * 0.08, this.height * 0.52 + sinkY, baseW, baseH);
-            ctx.restore();
-
-            const islandRightImg = this.images.islandRight;
-            if (islandRightImg.complete && islandRightImg.naturalWidth > 0) {
-                const nightRight = this.nightIslandRight || islandRightImg;
-                const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
-                const rightBaseW = baseH * rightAspect;
-
-                ctx.save();
-                ctx.globalAlpha = alpha;
-                ctx.drawImage(nightRight, this.width * 0.92 - rightBaseW, this.height * 0.54 + sinkY, rightBaseW, baseH);
-                ctx.restore();
-            }
-        }
+        // Islands — same as title and gameplay
+        this.drawIslands(ctx, this.islandDriftX);
 
         // Waves
         if (this.useGerstnerWaves) {
@@ -3999,7 +4071,7 @@ class OceanAnimation {
         const arc = this.getRocketArc(r);
 
         ctx.save();
-        ctx.globalAlpha = 0.7;
+        ctx.globalAlpha = 1.0;
 
         // Engine glow at the tail (left side)
         const tailX = r.x;
@@ -4114,6 +4186,213 @@ class OceanAnimation {
         }
     }
 
+    drawIslands(ctx, drift = 0) {
+        const islandLeftImg = this.images.islandLeft;
+        if (!islandLeftImg || !islandLeftImg.complete || islandLeftImg.naturalWidth === 0) return;
+
+        const s = 1.0 + Math.sin(this.elapsedTime * 1.5) * 0.02; // gentle pulsate
+        const nightLeft = this.nightIslandLeft || islandLeftImg;
+        const pixelsPerInch = 96;
+        const baseH = pixelsPerInch * 1;
+        const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
+        const baseW = baseH * islandAspect;
+        const baseX = this.width * 0.08;
+        const baseY = this.height * 0.52;
+        const drawW = baseW * s;
+        const drawH = baseH * s;
+
+        if (drift) {
+            const cycle = this.width + drawW + 200;
+            const leftX = ((baseX + drift) % cycle + cycle) % cycle - drawW - 100;
+            ctx.drawImage(nightLeft, leftX, baseY, drawW, drawH);
+        } else {
+            const drawX = baseX - (drawW - baseW) / 2;
+            const drawY = baseY - (drawH - baseH) / 2;
+            ctx.drawImage(nightLeft, drawX, drawY, drawW, drawH);
+        }
+
+        const islandRightImg = this.images.islandRight;
+        if (islandRightImg && islandRightImg.complete && islandRightImg.naturalWidth > 0) {
+            const nightRight = this.nightIslandRight || islandRightImg;
+            const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
+            const rightBaseW = baseH * rightAspect;
+            const rightBaseX = this.width * 0.92 - rightBaseW;
+            const rightBaseY = this.height * 0.54;
+            const rightDrawW = rightBaseW * s;
+            const rightDrawH = baseH * s;
+
+            if (drift) {
+                const cycleR = this.width + rightDrawW + 200;
+                const rightX = ((rightBaseX + drift) % cycleR + cycleR) % cycleR - rightDrawW - 100;
+                ctx.drawImage(nightRight, rightX, rightBaseY, rightDrawW, rightDrawH);
+            } else {
+                const rightDrawX = rightBaseX - (rightDrawW - rightBaseW) / 2;
+                const rightDrawY = rightBaseY - (rightDrawH - baseH) / 2;
+                ctx.drawImage(nightRight, rightDrawX, rightDrawY, rightDrawW, rightDrawH);
+            }
+        }
+    }
+
+    drawOceanFill(ctx) {
+        if (!this.oceanFill) return;
+        const of = this.oceanFill;
+        const yTop = this.height * of.yStart;
+        const yBot = this.height;
+        const oceanH = yBot - yTop;
+        ctx.save();
+        ctx.globalAlpha = of.alpha;
+
+        // 1. Multi-stop depth gradient
+        const grad = ctx.createLinearGradient(0, yTop, 0, yBot);
+        for (const s of of.stops) grad.addColorStop(s.pos, s.color);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, yTop, this.width, oceanH);
+
+        // 2. Moonlight sheen band (bobs slowly)
+        const sheenOffset = Math.sin(this.elapsedTime * of.sheenSpeed) * this.height * of.sheenDrift;
+        const sheenY = yTop + oceanH * of.sheenY + sheenOffset;
+        const sheenH = oceanH * of.sheenHeight;
+        const sheen = ctx.createLinearGradient(0, sheenY, 0, sheenY + sheenH);
+        sheen.addColorStop(0,   'rgba(100, 160, 220, 0)');
+        sheen.addColorStop(0.5, of.sheenColor);
+        sheen.addColorStop(1,   'rgba(100, 160, 220, 0)');
+        ctx.fillStyle = sheen;
+        ctx.fillRect(0, sheenY, this.width, sheenH);
+
+        // 3. Caustic shimmer spots
+        for (const c of this.oceanCaustics) {
+            const a = 0.5 + 0.5 * Math.sin(this.elapsedTime * c.speed + c.phase);
+            ctx.globalAlpha = a * 0.06;
+            const cx = c.x * this.width;
+            const cy = yTop + c.y * oceanH;
+            const r = of.causticSize * c.size;
+            const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            cg.addColorStop(0, 'rgba(140, 200, 240, 0.8)');
+            cg.addColorStop(1, 'rgba(140, 200, 240, 0)');
+            ctx.fillStyle = cg;
+            ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        }
+
+        // 4. Drifting current bands
+        for (const cur of this.oceanCurrents) {
+            const bandY = yTop + oceanH * cur.y;
+            const bandH = oceanH * of.currentHeight * cur.width;
+            const driftX = (cur.phase + this.elapsedTime * of.currentSpeed * this.width * cur.speed) % (this.width * 2) - this.width * 0.5;
+            ctx.globalAlpha = of.currentAlpha;
+            const cg = ctx.createLinearGradient(driftX - this.width * 0.3, 0, driftX + this.width * 0.3, 0);
+            cg.addColorStop(0,   'rgba(80, 140, 200, 0)');
+            cg.addColorStop(0.3, 'rgba(80, 140, 200, 1)');
+            cg.addColorStop(0.7, 'rgba(80, 140, 200, 1)');
+            cg.addColorStop(1,   'rgba(80, 140, 200, 0)');
+            ctx.fillStyle = cg;
+            const vg = ctx.createLinearGradient(0, bandY - bandH / 2, 0, bandY + bandH / 2);
+            vg.addColorStop(0, 'rgba(80, 140, 200, 0)');
+            vg.addColorStop(0.5, 'rgba(80, 140, 200, 1)');
+            vg.addColorStop(1, 'rgba(80, 140, 200, 0)');
+            ctx.fillStyle = vg;
+            ctx.fillRect(0, bandY - bandH / 2, this.width, bandH);
+        }
+
+        // 5. Depth breathing — slow global brightness pulse
+        const breathe = Math.sin(this.elapsedTime * of.breatheSpeed) * of.breatheAmount;
+        if (breathe > 0) {
+            ctx.globalAlpha = breathe;
+            ctx.fillStyle = 'rgba(60, 120, 180, 1)';
+            ctx.fillRect(0, yTop, this.width, oceanH);
+        } else {
+            ctx.globalAlpha = -breathe;
+            ctx.fillStyle = 'rgba(4, 10, 20, 1)';
+            ctx.fillRect(0, yTop, this.width, oceanH);
+        }
+
+        // 6. Surface ripple highlights
+        for (const rip of this.oceanRipples) {
+            const fade = 0.5 + 0.5 * Math.sin(this.elapsedTime * rip.fadeSpeed + rip.phase);
+            const rx = ((rip.x + this.elapsedTime * of.rippleSpeed * rip.speed) % 1.4 - 0.2) * this.width;
+            const ry = yTop + oceanH * rip.y;
+            const rw = this.width * rip.length;
+            const rh = Math.max(1, this.height * 0.003); // scales with canvas
+            ctx.globalAlpha = of.rippleAlpha * fade;
+            const rg = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+            rg.addColorStop(0,   'rgba(160, 200, 240, 0)');
+            rg.addColorStop(0.2, 'rgba(160, 200, 240, 1)');
+            rg.addColorStop(0.5, 'rgba(200, 225, 250, 1)');
+            rg.addColorStop(0.8, 'rgba(160, 200, 240, 1)');
+            rg.addColorStop(1,   'rgba(160, 200, 240, 0)');
+            ctx.fillStyle = rg;
+            ctx.fillRect(rx, ry, rw, rh);
+        }
+
+        // 7. Edge vignette (darken left/right edges)
+        ctx.globalAlpha = of.vignetteAlpha;
+        const vw = this.width * of.vignetteWidth;
+        const vigL = ctx.createLinearGradient(0, 0, vw, 0);
+        vigL.addColorStop(0, 'rgba(4, 8, 16, 1)');
+        vigL.addColorStop(1, 'rgba(4, 8, 16, 0)');
+        ctx.fillStyle = vigL;
+        ctx.fillRect(0, yTop, vw, oceanH);
+        const vigR = ctx.createLinearGradient(this.width - vw, 0, this.width, 0);
+        vigR.addColorStop(0, 'rgba(4, 8, 16, 0)');
+        vigR.addColorStop(1, 'rgba(4, 8, 16, 1)');
+        ctx.fillStyle = vigR;
+        ctx.fillRect(this.width - vw, yTop, vw, oceanH);
+
+        // 5. Underwater light rays (moonlight shafts angling down)
+        for (const ray of this.oceanRays) {
+            const sway = Math.sin(this.elapsedTime * of.raySwaySpeed * ray.speed + ray.phase) * this.width * of.raySwayAmount;
+            const topX = ray.x * this.width + sway;
+            const rw = this.width * of.rayWidth * ray.width;
+            const botX = topX + rw * 0.4;
+            const botW = rw * 2.5;
+            ctx.globalAlpha = of.rayAlpha * ray.alpha;
+            ctx.beginPath();
+            ctx.moveTo(topX - rw / 2, yTop);
+            ctx.lineTo(topX + rw / 2, yTop);
+            ctx.lineTo(botX + botW / 2, yBot);
+            ctx.lineTo(botX - botW / 2, yBot);
+            ctx.closePath();
+            const rg = ctx.createLinearGradient(0, yTop, 0, yBot);
+            rg.addColorStop(0,   'rgba(130, 190, 240, 0.6)');
+            rg.addColorStop(0.3, 'rgba(100, 160, 220, 0.3)');
+            rg.addColorStop(1,   'rgba(80, 130, 200, 0)');
+            ctx.fillStyle = rg;
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    drawMoon(ctx, arcT = 0) {
+        const moonImg = this.images.moon;
+        if (!moonImg || !moonImg.complete || moonImg.naturalWidth === 0) return;
+        const m = this.moon;
+        const aspect = moonImg.naturalWidth / moonImg.naturalHeight;
+
+        // Size
+        const moonH = this.height * m.size;
+        const moonW = moonH * aspect;
+
+        // Position with slow arc drift during gameplay
+        const cx = this.width * (m.x + arcT * m.arcDriftX);
+        const cy = this.height * (m.y + arcT * m.arcDriftY);
+
+        // Draw glow halo behind moon
+        const glowR = moonH * m.glowRadius;
+        const [gr, gg, gb] = m.glowColor;
+        const glow = ctx.createRadialGradient(cx, cy, moonH * 0.2, cx, cy, glowR);
+        glow.addColorStop(0, `rgba(${gr}, ${gg}, ${gb}, ${m.glowAlpha})`);
+        glow.addColorStop(0.4, `rgba(${gr}, ${gg}, ${gb}, ${m.glowAlpha * 0.4})`);
+        glow.addColorStop(1, `rgba(${gr}, ${gg}, ${gb}, 0)`);
+        ctx.save();
+        ctx.fillStyle = glow;
+        ctx.fillRect(cx - glowR, cy - glowR, glowR * 2, glowR * 2);
+
+        // Draw moon image
+        ctx.globalAlpha = m.alpha;
+        ctx.drawImage(moonImg, cx - moonW / 2, cy - moonH / 2, moonW, moonH);
+        ctx.restore();
+    }
+
     drawStars(ctx) {
         for (const star of this.stars) {
             const twinkle = 0.5 + 0.5 * Math.sin(this.elapsedTime * star.twinkleSpeed + star.twinkleOffset);
@@ -4147,28 +4426,7 @@ class OceanAnimation {
         ctx.fillRect(0, skyGradientTop, this.width, skyGradientBottom - skyGradientTop);
         ctx.restore();
         
-        // A: Ocean BG (ocean background transition under the horizon).
-        // === LAYER 1: Sky-to-ocean gradient ===
-        // One continuous gradient from transparent sky down through
-        // the horizon into deep ocean.  Extends well past where
-        // waves begin (0.55) so there is no gap.
-        const oceanBgTop = this.height * 0.28;
-
-        ctx.save();
-        const oceanBg = ctx.createLinearGradient(0, oceanBgTop, 0, this.height);
-        oceanBg.addColorStop(0,    'rgba(15, 25, 50, 0)');
-        oceanBg.addColorStop(0.08, 'rgba(15, 25, 50, 0.03)');
-        oceanBg.addColorStop(0.16, 'rgba(15, 25, 50, 0.08)');
-        oceanBg.addColorStop(0.24, 'rgba(15, 25, 50, 0.14)');
-        oceanBg.addColorStop(0.32, 'rgba(15, 25, 50, 0.22)');
-        oceanBg.addColorStop(0.40, 'rgba(15, 25, 50, 0.34)');
-        oceanBg.addColorStop(0.50, 'rgba(15, 25, 50, 0.50)');
-        oceanBg.addColorStop(0.65, 'rgba(12, 24, 48, 0.80)');
-        oceanBg.addColorStop(0.80, 'rgba(12, 24, 48, 0.95)');
-        oceanBg.addColorStop(1,    'rgba(12, 24, 48, 1)');
-        ctx.fillStyle = oceanBg;
-        ctx.fillRect(0, oceanBgTop, this.width, this.height - oceanBgTop);
-        ctx.restore();
+        // (Ocean BG layer removed — replaced by drawOceanFill which runs before drawHorizon)
         
         // === LAYER 2: Horizon glow ===
         // Soft moonlit horizon — a visible lighter band where sky meets ocean
@@ -4206,28 +4464,24 @@ class OceanAnimation {
         ctx.fillRect(0, sheenY, this.width, sheenH);
         ctx.restore();
         
-        // === LAYER 4: Distant water sparkle ===
-        // Small twinkling white dots that drift across the distant
-        // water surface, catching light and adding life.
-        ctx.save();
-        const sparkleY = this.height * 0.66;
-        const sparkleH = this.height * 0.08;
-        const sparkleCount = 14;
-        for (let i = 0; i < sparkleCount; i++) {
-            // Each sparkle has its own phase so they twinkle independently
-            const phase = i * 1.7 + t * 0.3;
-            const alpha = Math.max(0, Math.sin(phase) * 0.6 + 0.2);
-            const sx = ((i * 137.5 + t * 8) % (this.width + 40)) - 20;
-            const sy = sparkleY + Math.sin(i * 2.3 + t * 0.5) * sparkleH * 0.4;
-            const size = 2.5 + Math.sin(phase * 1.3) * 1.5;
-            
-            ctx.globalAlpha = alpha * 0.55;
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(sx, sy, size, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.restore();
+        // === LAYER 4: Distant water sparkle (disabled — felt artificial) ===
+        // ctx.save();
+        // const sparkleY = this.height * 0.66;
+        // const sparkleH = this.height * 0.08;
+        // const sparkleCount = 14;
+        // for (let i = 0; i < sparkleCount; i++) {
+        //     const phase = i * 1.7 + t * 0.3;
+        //     const alpha = Math.max(0, Math.sin(phase) * 0.6 + 0.2);
+        //     const sx = ((i * 137.5 + t * 8) % (this.width + 40)) - 20;
+        //     const sy = sparkleY + Math.sin(i * 2.3 + t * 0.5) * sparkleH * 0.4;
+        //     const size = 2.5 + Math.sin(phase * 1.3) * 1.5;
+        //     ctx.globalAlpha = alpha * 0.55;
+        //     ctx.fillStyle = '#ffffff';
+        //     ctx.beginPath();
+        //     ctx.arc(sx, sy, size, 0, Math.PI * 2);
+        //     ctx.fill();
+        // }
+        // ctx.restore();
     }
     
     draw() {
@@ -4250,16 +4504,19 @@ class OceanAnimation {
         this.drawStars(this.ctx);
         this.drawShootingStars(this.ctx);
 
-        // Z-Brocket
-        this.drawRocket(this.ctx);
-
         // Back cloud layer
         if (this.cloudSystem) {
             try { this.cloudSystem.drawLayer(this.ctx, 0); }
             catch (err) { this.cloudSystem = null; }
         }
 
-        // (No sun/moon in night mode — placeholder for future moon)
+        // Moon with slow arc drift
+        const gameTime = this.elapsedTime - (this.gameStartTime || 0);
+        const moonArcT = Math.min(1, gameTime / this.moon.arcDuration);
+        this.drawMoon(this.ctx, moonArcT);
+
+        // Z-Brocket
+        this.drawRocket(this.ctx);
 
         // Front cloud layer
         if (this.cloudSystem) {
@@ -4268,50 +4525,14 @@ class OceanAnimation {
         }
 
         // Draw horizon and distant water (between sky and waves)
+        // Ocean water fill — same as title screen
+        this.drawOceanFill(this.ctx);
+
+        // Horizon (sparkles on top of ocean fill)
         this.drawHorizon();
 
-        // Draw distant islands with slow parallax drift
-        const islandLeftImg = this.images.islandLeft;
-        if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
-            const pixelsPerInch = 96;
-            const islandHeight = pixelsPerInch * 1;
-            const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
-            const islandWidth = islandHeight * islandAspect;
-
-            // Base positions + drift offset
-            const leftBaseX = this.width * 0.08;
-            const islandY = this.height * 0.52;
-
-            // Wrap: total cycle width is screen + island so it reappears from right
-            const cycle = this.width + islandWidth + 200;
-            const leftX = ((leftBaseX + this.islandDriftX) % cycle + cycle) % cycle - islandWidth - 100;
-
-            const iAlpha = this.islandFadeIn != null ? this.islandFadeIn : 1;
-            const nightLeft = this.nightIslandLeft || islandLeftImg;
-            this.ctx.save();
-            this.ctx.globalAlpha = iAlpha;
-            this.ctx.drawImage(nightLeft, leftX, islandY, islandWidth, islandHeight);
-            this.ctx.restore();
-
-            const islandRightImg = this.images.islandRight;
-            if (islandRightImg.complete && islandRightImg.naturalWidth > 0) {
-                const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
-                const islandRightWidth = islandHeight * rightAspect;
-                const rightBaseX = this.width * 0.92 - islandRightWidth;
-                const islandRightY = this.height * 0.54;
-
-                const cycleR = this.width + islandRightWidth + 200;
-                const rightX = ((rightBaseX + this.islandDriftX) % cycleR + cycleR) % cycleR - islandRightWidth - 100;
-
-                const nightRight = this.nightIslandRight || islandRightImg;
-                this.ctx.save();
-                this.ctx.globalAlpha = iAlpha;
-                this.ctx.drawImage(nightRight, rightX, islandRightY, islandRightWidth, islandHeight);
-                this.ctx.restore();
-            }
-        }
-        
-        // (ocean base fill handled above after gradient)
+        // Islands — same layout, with slow parallax drift during gameplay
+        this.drawIslands(this.ctx, this.islandDriftX);
 
         // Draw waves in order (back to front)
         if (this.useGerstnerWaves) {
