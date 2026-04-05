@@ -19,6 +19,7 @@ class Player {
         this.gravity = 750; // pixels/sec² (snappy arc)
         this.jumpPower = -480; // pixels/sec (high launch, fast return)
         this.isJumping = false;
+        this.splashPreFired = false;
         this.lastJumpTime = -Infinity;
         this.jumpCount = 0;       // Track jumps used (0, 1, or 2 for double-jump)
         this.maxJumps = 2;        // Allow double-jump
@@ -158,6 +159,7 @@ class Player {
             const jumpMultiplier = this.jumpCount === 0 ? 1.0 : 0.85;
             this.velocityY = this.jumpPower * jumpMultiplier;
             this.isJumping = true;
+            this.splashPreFired = false;
             this.jumpCount++;
             this.lastJumpTime = this.ocean.elapsedTime;
             
@@ -262,6 +264,12 @@ class Player {
             targetY = Math.max(minLandY, Math.min(maxLandY, targetY));
             this.jumpTargetY = targetY;
             
+            // Pre-trigger splash sound ~60px before landing for snappier feel
+            if (!this.splashPreFired && this.velocityY > 0 && (this.jumpTargetY - this.y) < 120) {
+                this.splashPreFired = true;
+                this.ocean.playRandomSplash();
+            }
+
             // Check if landed on target wave (going down and past target)
             if (this.y >= this.jumpTargetY && this.velocityY > 0) {
                 // Capture current visual state for fade-out (before clearing isJumping)
@@ -282,6 +290,7 @@ class Player {
                 // Landing splash burst from back tip of surfboard
                 const tip = this.getBackTip();
                 this.ocean.spawnSpray(tip.x, tip.y, 'burst');
+                this.splashPreFired = false;
                 // Coin batch timer continues running — awards after 0.4s lull
             }
             
@@ -567,9 +576,9 @@ class OceanAnimation {
 
         // Moon configuration
         this.moon = {
-            x: 0.75,               // horizontal position (fraction of width)
-            y: 0.08,               // vertical position (fraction of height)
-            size: 0.22,            // height as fraction of canvas height
+            x: 0.25,               // horizontal position (fraction of width)
+            y: 0.14,               // vertical position (fraction of height)
+            size: 0.176,           // height as fraction of canvas height (was 0.22, now 20% smaller)
             alpha: 0.9,            // base opacity
             // Glow halo
             glowRadius: 1.8,       // glow radius multiplier (relative to moon size)
@@ -1029,6 +1038,10 @@ class OceanAnimation {
                 this.titleMusicTriggered = true;
                 this.startTitleMusic();
             }
+            if (!this.wavesAmbientStarted) {
+                this.wavesAmbient.play().catch(() => {});
+                this.wavesAmbientStarted = true;
+            }
         };
         window.addEventListener('keydown', unlockAudio, { once: true });
         window.addEventListener('click', unlockAudio, { once: true });
@@ -1188,7 +1201,26 @@ class OceanAnimation {
         this.music.loop = true;
         this.music.volume = 0.5;
         this.musicStarted = false;
-        
+
+        // Splash sound effects (randomly pick one on each splash)
+        this.splashSounds = [
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 001.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 002.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 01.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 02.mp3')),
+        ];
+        for (const s of this.splashSounds) s.volume = 0.1625;
+
+        // Coin pickup sound
+        this.coinSound = new Audio(encodeURI('../../audio/Sound_FX/coin high.mp3'));
+        this.coinSound.volume = 0.65;
+
+        // Ocean waves ambient loop
+        this.wavesAmbient = new Audio(encodeURI('../../audio/Sound_FX/main_waves.mp3'));
+        this.wavesAmbient.loop = true;
+        this.wavesAmbient.volume = 0.9;
+        this.wavesAmbientStarted = false;
+
         // Load images
         this.loadImages();
     }
@@ -1980,6 +2012,8 @@ class OceanAnimation {
             if (dist < this.coinSize / 2 + this.player.surfboardWidth * 0.45) {
                 coin.collected = true;
                 coin.collectTimer = 0.25;
+                this.coinSound.currentTime = 0;
+                this.coinSound.play().catch(() => {});
 
                 this.coinsCollected++;
                 this.coinPop = 0.3;
@@ -3673,6 +3707,12 @@ class OceanAnimation {
         this.titleMusicFade = { dir: 'in', elapsed: 0, duration: 5 };
     }
 
+    playRandomSplash() {
+        const s = this.splashSounds[Math.floor(Math.random() * this.splashSounds.length)];
+        s.currentTime = 0;
+        s.play().catch(() => {});
+    }
+
     updateTitleMusicFade(dt) {
         if (!this.titleMusicFade || this.introVideoPlaying) return;
         this.titleMusicFade.elapsed += dt;
@@ -3706,7 +3746,7 @@ class OceanAnimation {
         this.dangerWave.active = false;
         this.titleCoins = [];
         this.titleCoinTimer = 8 + Math.random() * 12;
-        // Stop gameplay music, start title music with fade-in
+        // Stop gameplay music + waves ambient, start title music with fade-in
         this.music.pause();
         this.music.currentTime = 0;
         this.musicStarted = false;
@@ -3786,6 +3826,8 @@ class OceanAnimation {
     finishTransition() {
         this.state = 'playing';
         this.gameStartTime = this.elapsedTime;
+        // Splash in
+        this.playRandomSplash();
         this.score = 0;
         this.coinsCollected = 0;
         this.lives = 3;
@@ -4337,27 +4379,7 @@ class OceanAnimation {
         ctx.fillStyle = vigR;
         ctx.fillRect(this.width - vw, yTop, vw, oceanH);
 
-        // 5. Underwater light rays (moonlight shafts angling down)
-        for (const ray of this.oceanRays) {
-            const sway = Math.sin(this.elapsedTime * of.raySwaySpeed * ray.speed + ray.phase) * this.width * of.raySwayAmount;
-            const topX = ray.x * this.width + sway;
-            const rw = this.width * of.rayWidth * ray.width;
-            const botX = topX + rw * 0.4;
-            const botW = rw * 2.5;
-            ctx.globalAlpha = of.rayAlpha * ray.alpha;
-            ctx.beginPath();
-            ctx.moveTo(topX - rw / 2, yTop);
-            ctx.lineTo(topX + rw / 2, yTop);
-            ctx.lineTo(botX + botW / 2, yBot);
-            ctx.lineTo(botX - botW / 2, yBot);
-            ctx.closePath();
-            const rg = ctx.createLinearGradient(0, yTop, 0, yBot);
-            rg.addColorStop(0,   'rgba(130, 190, 240, 0.6)');
-            rg.addColorStop(0.3, 'rgba(100, 160, 220, 0.3)');
-            rg.addColorStop(1,   'rgba(80, 130, 200, 0)');
-            ctx.fillStyle = rg;
-            ctx.fill();
-        }
+        // (Light rays disabled — too visible)
 
         ctx.restore();
     }
