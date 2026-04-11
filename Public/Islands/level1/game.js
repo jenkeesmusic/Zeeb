@@ -19,6 +19,7 @@ class Player {
         this.gravity = 750; // pixels/sec² (snappy arc)
         this.jumpPower = -480; // pixels/sec (high launch, fast return)
         this.isJumping = false;
+        this.splashPreFired = false;
         this.lastJumpTime = -Infinity;
         this.jumpCount = 0;       // Track jumps used (0, 1, or 2 for double-jump)
         this.maxJumps = 2;        // Allow double-jump
@@ -157,6 +158,7 @@ class Player {
             const jumpMultiplier = this.jumpCount === 0 ? 1.0 : 0.85;
             this.velocityY = this.jumpPower * jumpMultiplier;
             this.isJumping = true;
+            this.splashPreFired = false;
             this.jumpCount++;
             this.lastJumpTime = this.ocean.elapsedTime;
             
@@ -260,7 +262,13 @@ class Player {
             const maxLandY = this.ocean.height * 0.85;
             targetY = Math.max(minLandY, Math.min(maxLandY, targetY));
             this.jumpTargetY = targetY;
-            
+
+            // Pre-trigger splash sound ~60px before landing for snappier feel
+            if (!this.splashPreFired && this.velocityY > 0 && (this.jumpTargetY - this.y) < 120) {
+                this.splashPreFired = true;
+                this.ocean.playRandomSplash();
+            }
+
             // Check if landed on target wave (going down and past target)
             if (this.y >= this.jumpTargetY && this.velocityY > 0) {
                 // Capture current visual state for fade-out (before clearing isJumping)
@@ -281,6 +289,7 @@ class Player {
                 // Landing splash burst from back tip of surfboard
                 const tip = this.getBackTip();
                 this.ocean.spawnSpray(tip.x, tip.y, 'burst');
+                this.splashPreFired = false;
                 // Coin batch timer continues running — awards after 0.4s lull
             }
             
@@ -872,6 +881,10 @@ class OceanAnimation {
                 this.titleMusicTriggered = true;
                 this.startTitleMusic();
             }
+            if (!this.wavesAmbientStarted) {
+                this.wavesAmbient.play().catch(() => {});
+                this.wavesAmbientStarted = true;
+            }
         };
         window.addEventListener('keydown', unlockAudio, { once: true });
         window.addEventListener('click', unlockAudio, { once: true });
@@ -1041,7 +1054,26 @@ class OceanAnimation {
         this.music.loop = true;
         this.music.volume = 0.5;
         this.musicStarted = false;
-        
+
+        // Splash sound effects (randomly pick one on each splash)
+        this.splashSounds = [
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 001.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 002.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 01.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 02.mp3')),
+        ];
+        for (const s of this.splashSounds) s.volume = 0.1625;
+
+        // Coin pickup sound
+        this.coinSound = new Audio(encodeURI('../../audio/Sound_FX/coin high.mp3'));
+        this.coinSound.volume = 0.65;
+
+        // Ocean waves ambient loop
+        this.wavesAmbient = new Audio(encodeURI('../../audio/Sound_FX/main_waves.mp3'));
+        this.wavesAmbient.loop = true;
+        this.wavesAmbient.volume = 0.9;
+        this.wavesAmbientStarted = false;
+
         // Load images
         this.loadImages();
     }
@@ -1847,6 +1879,8 @@ class OceanAnimation {
             if (dist < this.coinSize / 2 + this.player.surfboardWidth * 0.45) {
                 coin.collected = true;
                 coin.collectTimer = 0.25;
+                this.coinSound.currentTime = 0;
+                this.coinSound.play().catch(() => {});
 
                 this.coinsCollected++;
                 this.coinPop = 0.3;
@@ -3471,6 +3505,12 @@ class OceanAnimation {
         this.titleMusicFade = { dir: 'in', elapsed: 0, duration: 5 };
     }
 
+    playRandomSplash() {
+        const s = this.splashSounds[Math.floor(Math.random() * this.splashSounds.length)];
+        s.currentTime = 0;
+        s.play().catch(() => {});
+    }
+
     updateTitleMusicFade(dt) {
         if (!this.titleMusicFade || this.introVideoPlaying) return;
         this.titleMusicFade.elapsed += dt;
@@ -3591,6 +3631,8 @@ class OceanAnimation {
     finishTransition() {
         this.state = 'playing';
         this.gameStartTime = this.elapsedTime;
+        // Splash in
+        this.playRandomSplash();
         this.score = 0;
         this.coinsCollected = 0;
         this.lives = 3;
@@ -4559,4 +4601,22 @@ class OceanAnimation {
 window.addEventListener('DOMContentLoaded', () => {
     const ocean = new OceanAnimation();
     console.log('Ocean animation initialized');
+
+    // Pause/resume all audio when tab/app is hidden (especially mobile Safari)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            ocean.music.pause();
+            ocean.titleMusic.pause();
+            ocean.wavesAmbient.pause();
+        } else {
+            if (ocean.musicStarted) ocean.music.play().catch(() => {});
+            if (ocean.titleMusicStarted) ocean.titleMusic.play().catch(() => {});
+            if (ocean.wavesAmbientStarted) ocean.wavesAmbient.play().catch(() => {});
+        }
+    });
+    window.addEventListener('pagehide', () => {
+        ocean.music.pause();
+        ocean.titleMusic.pause();
+        ocean.wavesAmbient.pause();
+    });
 });

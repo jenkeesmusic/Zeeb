@@ -1089,8 +1089,13 @@ class OceanAnimation {
                     this.startPlaying();
                 } else if (this.state === 'wipeout') {
                     this.resumeAfterWipeout();
-                } else if (this.state === 'gameover' || this.state === 'victory') {
+                } else if (this.state === 'gameover') {
                     this.restartGame();
+                } else if (this.state === 'victory') {
+                    // Save coins and go to level 3 beach walk
+                    const existing = parseInt(localStorage.getItem('zeeb_coins') || '0', 10);
+                    localStorage.setItem('zeeb_coins', (existing + this.coinsCollected).toString());
+                    window.location.href = '../level3/index.html';
                 } else if (this.state === 'playing' && this.crashTimer <= 0) {
                     this.player.jump();
                 }
@@ -1144,8 +1149,14 @@ class OceanAnimation {
                 this.startPlaying();
                 return;
             }
-            if (this.state === 'gameover' || this.state === 'victory') {
+            if (this.state === 'gameover') {
                 this.restartGame();
+                return;
+            }
+            if (this.state === 'victory') {
+                const existing = parseInt(localStorage.getItem('zeeb_coins') || '0', 10);
+                localStorage.setItem('zeeb_coins', (existing + this.coinsCollected).toString());
+                window.location.href = '../level3/index.html';
                 return;
             }
             if (this.state === 'confirm-quit' && this._confirmBtns) {
@@ -2330,8 +2341,8 @@ class OceanAnimation {
 
         const promptAlpha = 0.6 + 0.4 * Math.sin(this.elapsedTime * 2.5);
         ctx.globalAlpha = promptAlpha;
-        ctx.strokeText('Tap or press SPACE to play again', this.width / 2, this.height / 2 + 55);
-        ctx.fillText('Tap or press SPACE to play again', this.width / 2, this.height / 2 + 55);
+        ctx.strokeText('Tap or press SPACE to continue', this.width / 2, this.height / 2 + 55);
+        ctx.fillText('Tap or press SPACE to continue', this.width / 2, this.height / 2 + 55);
 
         ctx.restore();
     }
@@ -5092,4 +5103,22 @@ class OceanAnimation {
 window.addEventListener('DOMContentLoaded', () => {
     const ocean = new OceanAnimation();
     console.log('Ocean animation initialized');
+
+    // Pause/resume all audio when tab/app is hidden (especially mobile Safari)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            ocean.music.pause();
+            ocean.titleMusic.pause();
+            ocean.wavesAmbient.pause();
+        } else {
+            if (ocean.musicStarted) ocean.music.play().catch(() => {});
+            if (ocean.titleMusicStarted) ocean.titleMusic.play().catch(() => {});
+            if (ocean.wavesAmbientStarted) ocean.wavesAmbient.play().catch(() => {});
+        }
+    });
+    window.addEventListener('pagehide', () => {
+        ocean.music.pause();
+        ocean.titleMusic.pause();
+        ocean.wavesAmbient.pause();
+    });
 });
