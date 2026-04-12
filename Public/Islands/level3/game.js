@@ -17,7 +17,7 @@
             // Scene 0 — 3-1: Beach entry, path curving right
             bg: '../img/Level3/3-1.png',
             exits: [
-                { edge: 'right', target: 1, spawnEdge: 'left', spawnY: 0.68 },
+                { edge: 'right', target: 1, spawnEdge: 'left', spawnY: 0.50 },
             ],
             colliders: [
                 { x: 0.28, y: 0.09, w: 0.07, h: 0.16 },  // 0: top palm tree
@@ -33,7 +33,7 @@
             exits: [
                 { edge: 'left', target: 0, spawnEdge: 'right' },
                 { zone: { x: 0.45, y: 0.02, w: 0.35, h: 0.30 }, target: 3, spawnX: 0.50, spawnY: 0.85 },
-                { edge: 'right', target: 2, spawnEdge: 'left' },
+                { edge: 'right', target: 2, spawnEdge: 'left', spawnY: 0.52 },
             ],
             colliders: [
                 { x: 0.07, y: 0.32, w: 0.12, h: 0.12 },  // 0: left palms (trunks)
@@ -548,8 +548,8 @@
                     shop.confirmed = false;
                     currentScene = 1;
                     loadScene(1);
-                    player.x = 0.65;
-                    player.y = 0.50;
+                    player.x = 0.80;
+                    player.y = 0.42;
                 }, 2000);
                 return;
             }
