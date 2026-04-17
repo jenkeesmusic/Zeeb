@@ -113,22 +113,6 @@
             100% { transform: rotate(3deg) scaleX(1.1); }
         }
 
-        /* === SHOPKEEPER DUCK === */
-        .shopkeeper {
-            position: relative;
-            z-index: 1;
-            margin: 0 auto -20px;
-            width: clamp(80px, 15vw, 130px);
-            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
-            animation: duckBob 3s ease-in-out infinite, shopEnter 0.6s cubic-bezier(.23,1,.32,1) both;
-        }
-
-        @keyframes duckBob {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            25%      { transform: translateY(-4px) rotate(2deg); }
-            75%      { transform: translateY(-2px) rotate(-2deg); }
-        }
-
         /* === SHOP LAYOUT === */
         .shop {
             position: relative;
@@ -490,7 +474,6 @@
     <div class="vignette"></div>
 
     <div class="shop">
-        <img class="shopkeeper" src="../img/duck.png" alt="Duck shopkeeper">
         <h1 class="shop-title">Pick Your Board!</h1>
         <p class="coin-balance">
             <img class="coin-icon" src="../img/coin.png" alt="coin">
@@ -508,10 +491,10 @@
         document.getElementById('coinBalance').textContent = coins;
 
         const boards = [
-            { color: 'island',     name: 'Island',     price: 0,  file: 'Surf_island_1.png' },
-            { color: 'leaf',       name: 'Leaf',       price: 25, file: 'Surf_leaf_1.png' },
-            { color: 'mermaid',    name: 'Mermaid',    price: 30, file: 'Surf_mermaid_1.png' },
-            { color: 'watermelon', name: 'Watermelon', price: 45, file: 'Surf_watermelon_1.png' },
+            { color: 'red',    name: 'Red',    price: 0,  file: 'red.png' },
+            { color: 'green',  name: 'Green',  price: 25, file: 'green.png' },
+            { color: 'purple', name: 'Purple', price: 30, file: 'purple.png' },
+            { color: 'blue',   name: 'Blue',   price: 45, file: 'blue.png' },
         ];
 
         const grid = document.getElementById('boardGrid');
@@ -566,7 +549,7 @@
             const remaining = coins - selected.price;
             localStorage.setItem('zeeb_coins', remaining.toString());
             localStorage.setItem('zeeb_board', selected.file);
-            window.location.href = '../level3/index.html';
+            window.location.href = '../level2/index.html';
         });
     })();
 
@@ -605,13 +588,6 @@
         document.addEventListener('click', unlock, true);
         document.addEventListener('touchstart', unlock, true);
         document.addEventListener('keydown', unlock, true);
-
-        // Pause/resume when tab/app is hidden
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) music.pause();
-            else if (fading) music.play().catch(() => {});
-        });
-        window.addEventListener('pagehide', () => { music.pause(); });
     })();
 
     // URL param override for testing: ?coins=50
