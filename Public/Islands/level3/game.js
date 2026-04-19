@@ -825,7 +825,9 @@
         if (currentScene === 3 && !shop.cutsceneTriggered) {
             const dx = player.x - shopDuck.x;
             const dy = player.y - shopDuck.y;
-            if (Math.sqrt(dx * dx + dy * dy) < 0.15) {
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            // Generous radius — trigger anywhere in upper half of screen near duck
+            if (dist < 0.30 || player.y < 0.55) {
                 triggerDuckCutscene();
             }
         }
