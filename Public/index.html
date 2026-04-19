@@ -6,65 +6,95 @@
   <title>Games by Grace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Spline+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=VT323&family=Spline+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="menu.css" />
 </head>
 <body>
-  <div class="stars" aria-hidden="true"></div>
+  <div class="hall-floor" aria-hidden="true"></div>
+  <div class="hall-haze" aria-hidden="true"></div>
+
+  <button class="mute-btn" id="muteBtn" type="button" aria-label="Mute music" aria-pressed="false">
+    <span class="mute-icon" aria-hidden="true">🔊</span>
+    <span class="mute-label">SOUND</span>
+  </button>
 
   <div class="scene">
-    <header class="hero">
-      <p class="eyebrow">Games by Grace</p>
-      <h1>Pick Your Adventure</h1>
+    <header class="hall-marquee">
+      <p class="ticker">★ INSERT COIN ★ INSERT COIN ★ INSERT COIN ★</p>
+      <h1 class="sign">
+        <span class="neon-word neon-pink">GAMES</span>
+        <span class="neon-word neon-amber">BY</span>
+        <span class="neon-word neon-cyan"><span class="flicker">G</span>RACE</span>
+      </h1>
+      <p class="subtitle">— Pick Your Game —</p>
     </header>
 
-    <section class="card-grid" aria-label="Main menu options">
-      <article class="card card-space">
-        <div class="card-top">
-          <span class="badge">Arcade</span>
-          <span class="tag">4 Levels</span>
+    <section class="cabinet-row" aria-label="Arcade cabinets">
+      <article class="cabinet cab-space" style="--neon: #54b7ff; --neon-deep: #1b6ac2;">
+        <div class="cab-top">
+          <div class="cab-lights"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="cab-marquee"><span>Astroid Dodger</span></div>
         </div>
-        <div class="card-art">
-          <div class="art-glow glow-space"></div>
-          <img src="astroid-dodger/img/Rocket1.png" alt="Rocket" loading="lazy" />
+        <div class="crt">
+          <div class="crt-scan"></div>
+          <div class="crt-tint"></div>
+          <img class="crt-art" src="astroid-dodger/img/Rocket1.png" alt="Rocket" loading="lazy" />
+          <div class="crt-label">★ 4 LEVELS ★ HI-SCORE</div>
         </div>
-        <h2>Astroid Dodger</h2>
-        <p>Dodge asteroids and blast through space.</p>
-        <a class="cta" href="astroid-dodger/index.html">Launch Game</a>
+        <div class="cab-panel">
+          <div class="coin-slots"><span class="slot"></span><span class="slot"></span></div>
+          <a class="arcade-btn" href="astroid-dodger/index.html">
+            <span class="btn-rim"></span>
+            <span class="btn-top">LAUNCH</span>
+          </a>
+        </div>
+        <div class="cab-base"></div>
       </article>
 
-      <article class="card card-surf">
-        <div class="card-top">
-          <span class="badge">Surf</span>
-          <span class="tag">Beta</span>
+      <article class="cabinet cab-surf" style="--neon: #6ee7d2; --neon-deep: #2aa890;">
+        <div class="cab-top">
+          <div class="cab-lights"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="cab-marquee"><span>Zeeb Islands</span></div>
         </div>
-        <div class="card-art">
-          <div class="art-glow glow-surf"></div>
-          <img src="Islands/img/blue.png" alt="Zeeb on surfboard" loading="lazy" />
+        <div class="crt">
+          <div class="crt-scan"></div>
+          <div class="crt-tint"></div>
+          <img class="crt-art" src="Islands/img/blue.png" alt="Zeeb on surfboard" loading="lazy" />
+          <div class="crt-label">★ BETA ★ RIDE THE WAVES</div>
         </div>
-        <h2>Zeeb Islands</h2>
-        <p>Ride the waves and see how far you can go.</p>
-        <a class="cta" id="playIslands" href="Islands/level1/index.html">Catch a Wave</a>
+        <div class="cab-panel">
+          <div class="coin-slots"><span class="slot"></span><span class="slot"></span></div>
+          <a class="arcade-btn" id="playIslands" href="Islands/level1/index.html">
+            <span class="btn-rim"></span>
+            <span class="btn-top">SURF</span>
+          </a>
+        </div>
+        <div class="cab-base"></div>
       </article>
 
-      <article class="card card-show">
-        <div class="card-top">
-          <span class="badge">Watch</span>
-          <span class="tag">3 Episodes</span>
+      <article class="cabinet cab-show" style="--neon: #ff6f61; --neon-deep: #c73d30;">
+        <div class="cab-top">
+          <div class="cab-lights"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="cab-marquee"><span>The Zeeb Show</span></div>
         </div>
-        <div class="card-art">
-          <div class="art-glow glow-show"></div>
-          <img src="astroid-dodger/img/zeeb.png" alt="Zeeb" loading="lazy" />
+        <div class="crt">
+          <div class="crt-scan"></div>
+          <div class="crt-tint"></div>
+          <img class="crt-art" src="astroid-dodger/img/zeeb.png" alt="Zeeb" loading="lazy" />
+          <div class="crt-label">★ 3 EPISODES ★ NOW SHOWING</div>
         </div>
-        <h2>The Zeeb Show</h2>
-        <p>Zeeb's wildest adventures yet.</p>
-        <button class="cta" id="openShow" type="button">Watch Now</button>
+        <div class="cab-panel">
+          <div class="coin-slots"><span class="slot"></span><span class="slot"></span></div>
+          <button class="arcade-btn" id="openShow" type="button">
+            <span class="btn-rim"></span>
+            <span class="btn-top">WATCH</span>
+          </button>
+        </div>
+        <div class="cab-base"></div>
       </article>
     </section>
 
-    <footer class="site-credit">
-      Made with love by Grace
-    </footer>
+    <footer class="credit">— Made with love by Grace —</footer>
   </div>
 
   <div class="overlay hidden" id="showOverlay" role="dialog" aria-modal="true" aria-labelledby="showTitle">
@@ -110,7 +140,10 @@
       <h2>Zeeb Islands Beta</h2>
       <p class="beta-msg">Still being built — a few things might be wobbly!</p>
       <div class="beta-buttons">
-        <a class="cta" href="Islands/level1/index.html">Play Beta</a>
+        <a class="arcade-btn small" href="Islands/level1/index.html">
+          <span class="btn-rim"></span>
+          <span class="btn-top">Play Beta</span>
+        </a>
         <button class="ghost" id="betaCancel" type="button">Back</button>
       </div>
     </div>

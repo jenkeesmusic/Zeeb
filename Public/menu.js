@@ -5,12 +5,15 @@ const episodeButtons = document.querySelectorAll('.episode');
 const video = document.getElementById('showVideo');
 const source = document.getElementById('showSource');
 const playerTitle = document.getElementById('playerTitle');
-const showDialog = showOverlay ? showOverlay.querySelector('.show-dialog') : null;
-const isPhoneLayout = () => window.matchMedia('(max-width: 720px)').matches;
+const isPhoneLayout = () => window.matchMedia('(max-width: 640px)').matches;
+
+let showPreviousFocus = null;
 
 const openOverlay = () => {
+  showPreviousFocus = document.activeElement;
   showOverlay.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+  closeShowBtn.focus();
 };
 
 const closeOverlay = () => {
@@ -25,11 +28,12 @@ const closeOverlay = () => {
     video.load();
   }
   if (playerTitle) {
-    playerTitle.textContent = 'Select an episode to play';
+    playerTitle.textContent = 'Pick an episode above';
   }
-  if (showDialog) {
-    showDialog.classList.remove('has-selection');
+  if (showPreviousFocus && typeof showPreviousFocus.focus === 'function') {
+    showPreviousFocus.focus();
   }
+  showPreviousFocus = null;
 };
 
 openShowBtn.addEventListener('click', openOverlay);
@@ -47,20 +51,27 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-// Beta disclaimer for Zeeb Islands
 const playIslandsBtn = document.getElementById('playIslands');
 const betaOverlay = document.getElementById('betaOverlay');
 const betaCancelBtn = document.getElementById('betaCancel');
 
+let betaPreviousFocus = null;
+
 const closeBeta = () => {
   betaOverlay.classList.add('hidden');
   document.body.style.overflow = '';
+  if (betaPreviousFocus && typeof betaPreviousFocus.focus === 'function') {
+    betaPreviousFocus.focus();
+  }
+  betaPreviousFocus = null;
 };
 
 playIslandsBtn.addEventListener('click', (e) => {
   e.preventDefault();
+  betaPreviousFocus = document.activeElement;
   betaOverlay.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+  betaCancelBtn.focus();
 });
 
 betaCancelBtn.addEventListener('click', closeBeta);
@@ -75,10 +86,40 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-// Main menu background music — starts on first user interaction
 const menuMusic = document.getElementById('menuMusic');
+const muteBtn = document.getElementById('muteBtn');
+const MUTE_KEY = 'gbg-muted';
+
+const applyMuteState = (muted) => {
+  if (menuMusic) menuMusic.muted = muted;
+  if (muteBtn) {
+    muteBtn.classList.toggle('is-muted', muted);
+    muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    muteBtn.setAttribute('aria-label', muted ? 'Unmute music' : 'Mute music');
+    const icon = muteBtn.querySelector('.mute-icon');
+    const label = muteBtn.querySelector('.mute-label');
+    if (icon)  icon.textContent  = muted ? '🔇' : '🔊';
+    if (label) label.textContent = muted ? 'MUTED' : 'SOUND';
+  }
+};
+
+let isMuted = false;
+try { isMuted = localStorage.getItem(MUTE_KEY) === '1'; } catch (_) {}
+applyMuteState(isMuted);
+
+if (muteBtn) {
+  muteBtn.addEventListener('click', () => {
+    isMuted = !isMuted;
+    try { localStorage.setItem(MUTE_KEY, isMuted ? '1' : '0'); } catch (_) {}
+    applyMuteState(isMuted);
+    if (menuMusic && !isMuted && menuMusic.paused) {
+      menuMusic.play().catch(() => {});
+    }
+  });
+}
+
 if (menuMusic) {
-  menuMusic.volume = 0.5;
+  menuMusic.volume = 0.3;
   const startMusic = () => {
     menuMusic.play().catch(() => {});
     document.removeEventListener('click', startMusic);
@@ -89,7 +130,6 @@ if (menuMusic) {
   document.addEventListener('keydown', startMusic);
   document.addEventListener('touchstart', startMusic);
 
-  // Pause music when the page is hidden (e.g. closing/switching tabs on iPhone)
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       menuMusic.pause();
@@ -110,9 +150,6 @@ episodeButtons.forEach((button) => {
 
     source.src = src;
     playerTitle.textContent = title;
-    if (showDialog) {
-      showDialog.classList.add('has-selection');
-    }
     video.load();
     video.play();
     if (isPhoneLayout()) {
