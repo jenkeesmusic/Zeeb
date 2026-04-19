@@ -69,7 +69,10 @@
             bg: '../img/Level3/3-sand.png',
             fg: '../img/Level3/3-2-foreground.png',
             exits: [
-                { edge: 'bottom', target: 1, spawnEdge: 'top', spawnX: 0.65, spawnY: 0.35 },
+                { edge: 'bottom', target: 1, spawnEdge: 'top', spawnX: 0.65, spawnY: 0.65 },
+                { edge: 'right', target: 1, spawnEdge: 'left', spawnX: 0.90, spawnY: 0.65 },
+                { edge: 'left', target: 1, spawnEdge: 'right', spawnX: 0.15, spawnY: 0.70 },
+                { edge: 'top', target: 1, spawnEdge: 'bottom', spawnX: 0.20, spawnY: 0.80 },
             ],
             colliders: [],
         },
@@ -157,6 +160,9 @@
         setCameraPreset(CAMERA_WIDE);
     }
 
+    // Session-scoped flag — persists across scene transitions but resets on reload
+    let duckHasGreeted = false;
+
     function triggerDuckCutscene() {
         if (shop.cutsceneTriggered) return;
         shop.cutsceneTriggered = true;
@@ -173,6 +179,24 @@
         player.x = 0.22;
         player.y = 0.62;
         player.facing = 'right';
+
+        if (duckHasGreeted) {
+            // Repeat visit — short dialog, no audio, quick to picker
+            shop.subtitles = [
+                { start: 0, end: 1.8, text: "Back again? You know the drill..." },
+                { start: 1.8, end: 3.2, text: "Pick your surfboard!" },
+            ];
+            shop.dialogText = '';
+            // Use a fake timer instead of audio — advance via setTimeout
+            const startTime = Date.now();
+            shop._fakeAudioStart = startTime;
+            setTimeout(() => {
+                if (shop.cutscenePlaying) endDuckCutscene();
+            }, 3400);
+            return;
+        }
+
+        duckHasGreeted = true;
 
         // Play duck VO audio
         duckCutsceneAudio.currentTime = 0;
@@ -205,6 +229,7 @@
         shop.cutsceneDone = true;
         shop.showPicker = true;
         shop.dialogText = '';
+        shop._fakeAudioStart = null;
 
         // Restore music volume
         music.volume = 0.5;
@@ -503,13 +528,13 @@
         }
     });
 
-    // Shop click handling
-    canvas.addEventListener('click', (e) => {
+    // Shop click/tap handling — works for both mouse and touch
+    function handleShopInteraction(clientX, clientY) {
         if (currentScene !== 3 || !shop.showPicker) return;
 
         const rect = canvas.getBoundingClientRect();
-        const mx = (e.clientX - rect.left) / rect.width * canvas.width;
-        const my = (e.clientY - rect.top) / rect.height * canvas.height;
+        const mx = (clientX - rect.left) / rect.width * canvas.width;
+        const my = (clientY - rect.top) / rect.height * canvas.height;
         const coins = getCoins();
 
         // Check board cards
@@ -549,7 +574,18 @@
                 return;
             }
         }
+    }
+
+    canvas.addEventListener('click', (e) => {
+        handleShopInteraction(e.clientX, e.clientY);
     });
+    canvas.addEventListener('touchstart', (e) => {
+        if (currentScene === 3 && shop.showPicker && e.touches[0]) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleShopInteraction(touch.clientX, touch.clientY);
+        }
+    }, { passive: false });
 
     // Shop hover tracking
     canvas.addEventListener('mousemove', (e) => {
@@ -701,6 +737,11 @@
     }
 
     function handleTouch(e) {
+        // Don't move player when cutscene or board picker is active
+        if (currentScene === 3 && (shop.cutscenePlaying || shop.showPicker)) {
+            touchActive = false;
+            return;
+        }
         e.preventDefault();
         const touch = e.touches[0];
         const rect = canvas.getBoundingClientRect();
@@ -722,8 +763,10 @@
     function update() {
         // Freeze movement during cutscene only (picker freezes via its own overlay)
         if (shop.cutscenePlaying) {
-            // Sync subtitles to audio currentTime
-            const t = duckCutsceneAudio.currentTime;
+            // Sync subtitles — use fake timer for repeat visits, audio time for first visit
+            const t = shop._fakeAudioStart
+                ? (Date.now() - shop._fakeAudioStart) / 1000
+                : duckCutsceneAudio.currentTime;
             const sub = shop.subtitles.find(s => t >= s.start && t <= s.end);
             shop.dialogText = sub ? sub.text : '';
             return;
@@ -1022,7 +1065,7 @@
         if (e.key === 'g' || e.key === 'G') showDebug = !showDebug;
         // Scene skip: 1, 2, 3 keys
         if (e.key === '1') { currentScene = 0; loadScene(0); player.x = 0.5; player.y = 0.5; }
-        if (e.key === '2') { currentScene = 1; loadScene(1); player.x = 0.5; player.y = 0.5; }
+        if (e.key === '2') { currentScene = 1; loadScene(1); player.x = 0.20; player.y = 0.75; }
         if (e.key === '3') { currentScene = 2; loadScene(2); player.x = 0.5; player.y = 0.5; }
         if (e.key === '4') { currentScene = 3; loadScene(3); player.x = 0.5; player.y = 0.85; }
         if (e.key === '5') { setCoins(50); currentScene = 3; loadScene(3); player.x = 0.30; player.y = 0.55; shop.cutsceneTriggered = true; shop.cutsceneDone = true; shop.showPicker = true; setCameraPreset(CAMERA_WIDE); }
