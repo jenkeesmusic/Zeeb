@@ -32,7 +32,7 @@
             fg: '../img/Level3/3-2-foreground.png',
             exits: [
                 { edge: 'left', target: 0, spawnEdge: 'right' },
-                { zone: { x: 0.45, y: 0.02, w: 0.35, h: 0.30 }, target: 3, spawnX: 0.50, spawnY: 0.85 },
+                { zone: { x: 0.40, y: 0.02, w: 0.45, h: 0.50 }, target: 3, spawnX: 0.50, spawnY: 0.85 },
                 { edge: 'right', target: 2, spawnEdge: 'left', spawnY: 0.52 },
             ],
             colliders: [
@@ -493,16 +493,11 @@
         }
     }
 
-    // Skip cutscene on click or any key
-    canvas.addEventListener('click', (e) => {
-        if (currentScene === 3 && shop.cutscenePlaying) {
-            duckCutsceneAudio.pause();
-            endDuckCutscene();
-            return;
-        }
-    });
+    // Skip cutscene on Enter/Space/Escape only — not WASD/arrows so walking into
+    // the trigger zone doesn't accidentally skip it
+    const skipKeys = ['Enter', ' ', 'Escape', 'Spacebar'];
     window.addEventListener('keydown', (e) => {
-        if (currentScene === 3 && shop.cutscenePlaying && e.key !== 'g' && e.key !== 'G') {
+        if (currentScene === 3 && shop.cutscenePlaying && skipKeys.includes(e.key)) {
             duckCutsceneAudio.pause();
             endDuckCutscene();
         }
