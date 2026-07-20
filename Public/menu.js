@@ -86,6 +86,46 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+// Happy Summer picture lightbox
+const openSummerBtn = document.getElementById('openSummer');
+const summerOverlay = document.getElementById('summerOverlay');
+const closeSummerBtn = document.getElementById('closeSummer');
+
+let summerPreviousFocus = null;
+
+const closeSummer = () => {
+  summerOverlay.classList.add('hidden');
+  document.body.style.overflow = '';
+  if (summerPreviousFocus && typeof summerPreviousFocus.focus === 'function') {
+    summerPreviousFocus.focus();
+  }
+  summerPreviousFocus = null;
+};
+
+if (openSummerBtn && summerOverlay && closeSummerBtn) {
+  openSummerBtn.addEventListener('click', () => {
+    summerPreviousFocus = document.activeElement;
+    summerOverlay.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    closeSummerBtn.focus();
+  });
+
+  closeSummerBtn.addEventListener('click', closeSummer);
+
+  // tap anywhere outside the picture to close
+  summerOverlay.addEventListener('click', (event) => {
+    if (event.target !== closeSummerBtn && !event.target.closest('.lightbox-img')) {
+      closeSummer();
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !summerOverlay.classList.contains('hidden')) {
+      closeSummer();
+    }
+  });
+}
+
 const menuMusic = document.getElementById('menuMusic');
 const muteBtn = document.getElementById('muteBtn');
 const MUTE_KEY = 'gbg-muted';
