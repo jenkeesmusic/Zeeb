@@ -78,7 +78,8 @@ body {
   text-align: center;
   display: grid;
   gap: 14px;
-  padding: 16px 0 6px;
+  padding: 16px 0 30px;
+  border-bottom: 2px solid rgba(160, 115, 230, 0.28);
   user-select: none;
   -webkit-user-select: none;
   cursor: default;
@@ -110,9 +111,7 @@ body {
   display: inline-block;
   color: var(--ink);
   text-shadow:
-    0 0 6px currentColor,
-    0 0 14px currentColor,
-    0 0 32px var(--glow, currentColor),
+    0 0 24px var(--glow, currentColor),
     0 4px 0 rgba(0, 0, 0, 0.35);
 }
 
@@ -158,7 +157,7 @@ body {
     inset 4px 0 0 rgba(0, 0, 0, 0.25),
     inset -4px 0 0 rgba(0, 0, 0, 0.25),
     0 30px 60px rgba(0, 0, 0, 0.5),
-    0 0 0 2px rgba(0, 0, 0, 0.6),
+    0 0 0 2px color-mix(in srgb, var(--neon) 45%, #000),
     0 0 40px color-mix(in srgb, var(--neon) 22%, transparent);
   transition: transform 300ms ease, box-shadow 300ms ease;
   opacity: 0;
@@ -177,7 +176,7 @@ body {
     inset 4px 0 0 rgba(0, 0, 0, 0.25),
     inset -4px 0 0 rgba(0, 0, 0, 0.25),
     0 40px 70px rgba(0, 0, 0, 0.55),
-    0 0 0 2px rgba(0, 0, 0, 0.6),
+    0 0 0 2px color-mix(in srgb, var(--neon) 65%, #000),
     0 0 80px color-mix(in srgb, var(--neon) 45%, transparent);
 }
 
@@ -860,9 +859,7 @@ body {
   0%, 18%, 22%, 25%, 53%, 57%, 100% {
     opacity: 1;
     text-shadow:
-      0 0 6px currentColor,
-      0 0 14px currentColor,
-      0 0 32px var(--glow, currentColor),
+      0 0 24px var(--glow, currentColor),
       0 4px 0 rgba(0, 0, 0, 0.35);
   }
   20%, 24%, 55% {
@@ -951,7 +948,7 @@ body {
   }
   .cabinet-row {
     grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 26px;
   }
   .cab-show {
     grid-column: auto;
