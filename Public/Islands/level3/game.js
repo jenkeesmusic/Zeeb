@@ -278,7 +278,12 @@
 
         overlay.classList.remove('hidden');
         video.currentTime = 0;
-        video.play().catch(() => {});
+        video.play().catch(() => {
+            // Fallback for browsers that still block it (e.g. unlock never fired) —
+            // muted autoplay is allowed almost everywhere, so at least show the video.
+            video.muted = true;
+            video.play().catch(() => {});
+        });
 
         // Movement stays frozen (endCutscene.playing) through the video AND the
         // end screen that follows — only "Keep Exploring" turns it back off.
@@ -1918,10 +1923,28 @@
         });
     }
 
+    // iOS Safari only allows video.play() when it's called inside a real user
+    // gesture — our end-cutscene video is triggered later from the game loop,
+    // so prime it here (muted play+pause) on the first tap to unlock it for
+    // that later programmatic play() call.
+    let endVideoUnlocked = false;
+    function unlockEndVideo() {
+        if (endVideoUnlocked) return;
+        const video = document.getElementById('endVideo');
+        video.muted = true;
+        video.play().then(() => {
+            video.pause();
+            video.currentTime = 0;
+            video.muted = false;
+            endVideoUnlocked = true;
+        }).catch(() => {});
+    }
+
     // Unlock audio on every interaction until it works
     function unlockAudio() {
         startMusic();
-        if (musicStarted) {
+        unlockEndVideo();
+        if (musicStarted && endVideoUnlocked) {
             window.removeEventListener('keydown', unlockAudio);
             window.removeEventListener('click', unlockAudio);
             window.removeEventListener('touchstart', unlockAudio);
