@@ -275,15 +275,23 @@
         const overlay = document.getElementById('endVideoOverlay');
         const video = document.getElementById('endVideo');
         const skipBtn = document.getElementById('skipEndVideo');
+        const tapBtn = document.getElementById('tapToPlay');
 
         overlay.classList.remove('hidden');
         video.currentTime = 0;
-        video.play().catch(() => {
-            // Fallback for browsers that still block it (e.g. unlock never fired) —
-            // muted autoplay is allowed almost everywhere, so at least show the video.
-            video.muted = true;
-            video.play().catch(() => {});
-        });
+        video.muted = false;
+
+        // Mobile browsers may block a play() that doesn't come from a real tap.
+        // If blocked, show a big Tap to Play button — a genuine tap always works.
+        const tryPlay = () => {
+            video.play().then(() => {
+                tapBtn.classList.add('hidden');
+            }).catch(() => {
+                tapBtn.classList.remove('hidden');
+            });
+        };
+        tapBtn.addEventListener('click', tryPlay);
+        tryPlay();
 
         // Movement stays frozen (endCutscene.playing) through the video AND the
         // end screen that follows — only "Keep Exploring" turns it back off.
@@ -292,6 +300,7 @@
             endCutscene.videoPlaying = false;
             video.pause();
             overlay.classList.add('hidden');
+            tapBtn.classList.add('hidden');
             document.removeEventListener('keydown', onEscape);
             showEndScreen();
         };
@@ -1929,10 +1938,13 @@
     // that later programmatic play() call.
     let endVideoUnlocked = false;
     function unlockEndVideo() {
-        if (endVideoUnlocked) return;
+        // Never prime once the real cutscene has started — the pause() below
+        // would stop actual playback.
+        if (endVideoUnlocked || endCutscene.triggered) return;
         const video = document.getElementById('endVideo');
         video.muted = true;
         video.play().then(() => {
+            if (endCutscene.triggered) return;
             video.pause();
             video.currentTime = 0;
             video.muted = false;

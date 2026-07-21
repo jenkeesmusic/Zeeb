@@ -66,6 +66,32 @@
             to { opacity: 1; }
         }
 
+        /* Shown when the browser blocks autoplay — a real tap always works */
+        .tap-to-play {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 202;
+            padding: 22px 44px;
+            border: none;
+            border-radius: 999px;
+            background: #ff8a3d;
+            color: #fff;
+            font-family: 'Lilita One', Arial, sans-serif;
+            font-size: clamp(20px, 5vw, 28px);
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 0 6px rgba(255, 255, 255, 0.15);
+            -webkit-tap-highlight-color: transparent;
+            animation: tap-pulse 1.4s ease-in-out infinite;
+        }
+        .tap-to-play.hidden { display: none; }
+        @keyframes tap-pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.06); }
+        }
+
         /* ─── "You've reached the end" screen ─── */
         .end-screen {
             position: fixed;
@@ -126,6 +152,7 @@
         <video id="endVideo" playsinline preload="auto">
             <source src="../video/cucumbers-great-return.mp4" type="video/mp4">
         </video>
+        <button id="tapToPlay" class="tap-to-play hidden">Tap to Play</button>
         <button id="skipEndVideo" class="skip-btn">Skip</button>
     </div>
 
@@ -139,6 +166,6 @@
         </div>
     </div>
 
-    <script src="game.js"></script>
+    <script src="game.js?v=20260720b"></script>
 </body>
 </html>
