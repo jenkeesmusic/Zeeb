@@ -23,5 +23,8 @@ Desktop.ini
 !Public/astroid-dodger/img/Finale Video.mp4
 !Public/Islands/video/cucumbers-great-return.mp4
 
+# Allow The Zeeb Show episodes
+!Public/zeeb-show/*.mp4
+
 # Aperant data directory
 .auto-claude/
