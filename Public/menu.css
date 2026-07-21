@@ -944,8 +944,10 @@ body {
     letter-spacing: 0.28em;
   }
   .ticker {
-    font-size: 16px;
-    letter-spacing: 0.22em;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    overflow: hidden;
   }
   .cabinet-row {
     grid-template-columns: 1fr;
@@ -956,10 +958,34 @@ body {
     max-width: none;
   }
   .cabinet:nth-child(2) { transform: translateY(30px); }
+
+  /* Compact card layout: title stays on top with the screen art and the
+     play button side by side beneath it, so the game name and its button
+     are always in view together on a phone */
+  .cabinet {
+    grid-template-columns: 42% 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "top  top"
+      "crt  panel"
+      "base base";
+  }
+  .cab-top { grid-area: top; }
+  .crt {
+    grid-area: crt;
+    margin: 14px 0 14px 14px;
+  }
+  .cab-panel {
+    grid-area: panel;
+    margin: 0;
+    padding: 14px;
+    background: none;
+    border-top: none;
+    align-content: center;
+  }
+  .cab-base { grid-area: base; }
   .cab-marquee span { font-size: 16px; }
-  .crt { margin: 12px 14px 0; }
-  .crt-label { font-size: 12px; bottom: 6px; }
-  .cab-panel { padding: 14px 14px 18px; }
+  .crt-label { display: none; }
   .coin-slots { gap: 8px; }
   .slot { width: 30px; }
   .arcade-btn { height: 54px; font-size: 16px; }
