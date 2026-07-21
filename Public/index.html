@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bungee&family=VT323&family=Spline+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="menu.css" />
+  <link rel="stylesheet" href="menu.css?v=20260720a" />
 </head>
 <body>
   <div class="hall-floor" aria-hidden="true"></div>
@@ -116,7 +116,7 @@
           <p class="eyebrow">The Zeeb Show</p>
           <h2 id="showTitle">Choose an Episode</h2>
         </div>
-        <button class="ghost" id="closeShow" type="button" aria-label="Close">Close</button>
+        <button class="dialog-close" id="closeShow" type="button" aria-label="Close">×</button>
       </div>
 
       <div class="dialog-body">
@@ -136,7 +136,7 @@
         </div>
 
         <div class="player">
-          <div class="player-title" id="playerTitle">Pick an episode above</div>
+          <div class="player-title" id="playerTitle">Pick an episode!</div>
           <video id="showVideo" controls playsinline>
             <source id="showSource" src="" type="video/mp4" />
             Your browser does not support the video tag.
@@ -170,6 +170,6 @@
   </div>
 
   <audio id="menuMusic" src="audio/Press start.m4a" loop preload="auto"></audio>
-  <script src="menu.js"></script>
+  <script src="menu.js?v=20260720a"></script>
 </body>
 </html>

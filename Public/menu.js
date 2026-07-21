@@ -28,8 +28,9 @@ const closeOverlay = () => {
     video.load();
   }
   if (playerTitle) {
-    playerTitle.textContent = 'Pick an episode above';
+    playerTitle.textContent = 'Pick an episode!';
   }
+  episodeButtons.forEach((b) => b.classList.remove('is-playing'));
   if (showPreviousFocus && typeof showPreviousFocus.focus === 'function') {
     showPreviousFocus.focus();
   }
@@ -189,7 +190,8 @@ episodeButtons.forEach((button) => {
     }
 
     source.src = src;
-    playerTitle.textContent = title;
+    playerTitle.textContent = 'Now Showing — ' + title;
+    episodeButtons.forEach((b) => b.classList.toggle('is-playing', b === button));
     video.load();
     video.play();
     if (isPhoneLayout()) {

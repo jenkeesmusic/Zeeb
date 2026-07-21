@@ -699,6 +699,17 @@ body {
   overscroll-behavior: contain;
 }
 
+/* The show dialog wears the Zeeb Show cabinet's coral neon */
+.show-dialog {
+  --neon: #ff6f61;
+  --neon-deep: #c73d30;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.05),
+    0 30px 70px rgba(0, 0, 0, 0.75),
+    0 0 0 2px color-mix(in srgb, var(--neon) 45%, #000),
+    0 0 40px color-mix(in srgb, var(--neon) 22%, transparent);
+}
+
 .dialog-header {
   display: flex;
   justify-content: space-between;
@@ -707,6 +718,26 @@ body {
   border-bottom: 2px solid #000;
   padding-bottom: 16px;
 }
+
+.dialog-close {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #000;
+  background: linear-gradient(180deg, #ff8a7d, var(--neon, #ff6f61) 60%, var(--neon-deep, #c73d30));
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 14px color-mix(in srgb, var(--neon, #ff6f61) 45%, transparent);
+  transition: transform 160ms ease;
+}
+
+.dialog-close:hover,
+.dialog-close:focus-visible { transform: scale(1.1); }
+.dialog-close:active { transform: scale(0.94); }
 
 .eyebrow {
   font-family: "VT323", monospace;
@@ -773,8 +804,21 @@ body {
 .episode:hover,
 .episode:focus-visible {
   transform: translateX(3px);
-  border-color: var(--neon-amber);
-  box-shadow: 0 0 18px rgba(255, 179, 71, 0.22);
+  border-color: var(--neon, var(--neon-amber));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--neon, var(--neon-amber)) 25%, transparent);
+}
+
+/* The episode currently playing stays lit */
+.episode.is-playing {
+  border-color: var(--neon, #ff6f61);
+  box-shadow:
+    inset 0 0 14px color-mix(in srgb, var(--neon, #ff6f61) 18%, transparent),
+    0 0 18px color-mix(in srgb, var(--neon, #ff6f61) 30%, transparent);
+}
+
+.episode.is-playing .episode-number {
+  color: var(--neon, #ff6f61);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--neon, #ff6f61) 60%, transparent);
 }
 
 .episode-number {
@@ -782,6 +826,15 @@ body {
   font-size: 14px;
   letter-spacing: 0.2em;
   color: var(--neon-amber);
+}
+
+.episode-number::before {
+  content: "▶ ";
+  opacity: 0.45;
+}
+
+.episode.is-playing .episode-number::before {
+  opacity: 1;
 }
 
 .episode-title {
@@ -801,10 +854,12 @@ body {
 
 .player video {
   width: 100%;
+  aspect-ratio: 16 / 9;
   max-height: 380px;
   border-radius: 6px;
   background: #000;
-  border: 2px solid #000;
+  border: 2px solid color-mix(in srgb, var(--neon, #000) 30%, #000);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.8);
 }
 
 /* Beta dialog */
@@ -913,9 +968,22 @@ body {
     max-width: 520px;
     margin: 0 auto;
   }
+  /* Single column: the screen comes first, episodes queue up under it */
   .dialog-body {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
+  .player { order: -1; }
+
+  /* Compact one-line episode rows */
+  .episode {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .episode-number { flex-shrink: 0; }
 }
 
 /* ─── Mobile ─── */
@@ -995,9 +1063,11 @@ body {
   .slot { width: 30px; }
   .arcade-btn { height: 54px; font-size: 16px; }
   .arcade-btn .btn-top { padding: 0 18px; }
-  .dialog { padding: 18px; }
-  .dialog-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .dialog-header h2 { font-size: 22px; }
+  .dialog { padding: 16px; gap: 16px; }
+  .dialog-header { align-items: center; gap: 12px; padding-bottom: 12px; }
+  .dialog-header h2 { font-size: 20px; }
+  .dialog-close { width: 40px; height: 40px; font-size: 22px; }
+  .eyebrow { font-size: 14px; letter-spacing: 0.22em; }
   .hall-floor { height: 30vh; }
   .credit { font-size: 16px; }
 }
