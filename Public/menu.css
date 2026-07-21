@@ -110,9 +110,12 @@ body {
 .neon-word {
   display: inline-block;
   color: var(--ink);
-  text-shadow:
-    0 0 24px var(--glow, currentColor),
+  --sign-shadow:
+    0 0 6px currentColor,
+    0 0 14px currentColor,
+    0 0 32px var(--glow, currentColor),
     0 4px 0 rgba(0, 0, 0, 0.35);
+  text-shadow: var(--sign-shadow);
 }
 
 .neon-pink  { color: var(--neon-pink);  --glow: rgba(255, 45, 117, 0.8); }
@@ -858,9 +861,7 @@ body {
 @keyframes neonFlicker {
   0%, 18%, 22%, 25%, 53%, 57%, 100% {
     opacity: 1;
-    text-shadow:
-      0 0 24px var(--glow, currentColor),
-      0 4px 0 rgba(0, 0, 0, 0.35);
+    text-shadow: var(--sign-shadow);
   }
   20%, 24%, 55% {
     opacity: 0.4;
@@ -935,6 +936,13 @@ body {
   .sign {
     font-size: clamp(36px, 11vw, 56px);
     gap: 0.14em;
+  }
+  /* At small sizes the full neon blur swallows the letterforms —
+     keep just the soft outer glow so the title stays readable */
+  .neon-word {
+    --sign-shadow:
+      0 0 20px var(--glow, currentColor),
+      0 3px 0 rgba(0, 0, 0, 0.35);
   }
   .subtitle {
     font-size: 13px;
