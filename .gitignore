@@ -21,6 +21,7 @@ Desktop.ini
 # Allow specific game videos needed for deploy
 !Public/astroid-dodger/img/I.mp4
 !Public/astroid-dodger/img/Finale Video.mp4
+!Public/Islands/video/cucumbers-great-return.mp4
 
 # Aperant data directory
 .auto-claude/

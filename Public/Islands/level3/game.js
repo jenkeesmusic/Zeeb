@@ -257,6 +257,65 @@
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // End-of-content cutscene — Scene 2 (Danger Path), placeholder until the
+    // octopus battle is built. Plays a video, then shows a "come back later" screen.
+    // ---------------------------------------------------------------------------
+    const END_CUTSCENE_SPOT = { x: 0.74, y: 0.29, radius: 0.10 };
+    const endCutscene = { triggered: false, playing: false };
+
+    function triggerEndCutscene() {
+        if (endCutscene.triggered) return;
+        endCutscene.triggered = true;
+        endCutscene.playing = true;
+        player.moving = false;
+
+        music.pause();
+
+        const overlay = document.getElementById('endVideoOverlay');
+        const video = document.getElementById('endVideo');
+        const skipBtn = document.getElementById('skipEndVideo');
+
+        overlay.classList.remove('hidden');
+        video.currentTime = 0;
+        video.play().catch(() => {});
+
+        // Movement stays frozen (endCutscene.playing) through the video AND the
+        // end screen that follows — only "Keep Exploring" turns it back off.
+        const finish = () => {
+            if (!endCutscene.videoPlaying) return;
+            endCutscene.videoPlaying = false;
+            video.pause();
+            overlay.classList.add('hidden');
+            document.removeEventListener('keydown', onEscape);
+            showEndScreen();
+        };
+
+        const onEscape = (e) => {
+            if (e.key === 'Escape') finish();
+        };
+
+        endCutscene.videoPlaying = true;
+        video.addEventListener('ended', finish, { once: true });
+        skipBtn.addEventListener('click', finish, { once: true });
+        document.addEventListener('keydown', onEscape);
+    }
+
+    function showEndScreen() {
+        const endScreen = document.getElementById('endScreen');
+        endScreen.classList.remove('hidden');
+        document.getElementById('backToGameBtn').addEventListener('click', () => {
+            endScreen.classList.add('hidden');
+            endCutscene.playing = false;
+        }, { once: true });
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            window.location.reload();
+        }, { once: true });
+        document.getElementById('mainMenuBtn').addEventListener('click', () => {
+            window.location.href = '../../index.html';
+        }, { once: true });
+    }
+
     function getBoardCardRects() {
         const rects = [];
         const count = BOARDS.length;
@@ -761,7 +820,9 @@
     // Update
     // ---------------------------------------------------------------------------
     function update() {
-        // Freeze movement during cutscene only (picker freezes via its own overlay)
+        // Freeze movement during cutscenes (picker freezes via its own overlay)
+        if (endCutscene.playing) return;
+
         if (shop.cutscenePlaying) {
             // Sync subtitles — use fake timer for repeat visits, audio time for first visit
             const t = shop._fakeAudioStart
@@ -867,6 +928,16 @@
             // Generous radius — trigger anywhere in upper half of screen near duck
             if (dist < 0.30 || player.y < 0.55) {
                 triggerDuckCutscene();
+            }
+        }
+
+        // Scene 2: check if Zeeb has reached the end-of-content spot on the Danger Path
+        if (currentScene === 2 && !endCutscene.triggered) {
+            const dx = player.x - END_CUTSCENE_SPOT.x;
+            const dy = player.y - END_CUTSCENE_SPOT.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < END_CUTSCENE_SPOT.radius) {
+                triggerEndCutscene();
             }
         }
 
@@ -1792,6 +1863,48 @@
     music.loop = true;
     music.volume = 0;
     let musicStarted = false;
+    let musicMuted = localStorage.getItem('zeeb_muted') === '1';
+
+    // Black & white mute button — top-left corner, always visible
+    const muteBtn = document.createElement('button');
+    muteBtn.setAttribute('aria-label', 'Toggle music');
+    muteBtn.style.cssText = [
+        'position:fixed',
+        'top:10px',
+        'left:10px',
+        'z-index:9998',
+        'width:44px',
+        'height:44px',
+        'padding:0',
+        'background:#000',
+        'color:#fff',
+        'border:2px solid #fff',
+        'border-radius:50%',
+        'cursor:pointer',
+        'font-size:20px',
+        'line-height:1',
+        'display:flex',
+        'align-items:center',
+        'justify-content:center',
+        'font-family:sans-serif',
+        '-webkit-tap-highlight-color:transparent',
+        'user-select:none',
+    ].join(';');
+
+    function updateMuteBtn() {
+        muteBtn.textContent = musicMuted ? '\u{1F507}' : '\u{1F50A}';
+        // Apply filter to force black/white in case emoji renders colorful
+        muteBtn.style.filter = 'grayscale(1)';
+        music.muted = musicMuted;
+        duckCutsceneAudio.muted = musicMuted;
+    }
+    muteBtn.addEventListener('click', () => {
+        musicMuted = !musicMuted;
+        localStorage.setItem('zeeb_muted', musicMuted ? '1' : '0');
+        updateMuteBtn();
+    });
+    document.body.appendChild(muteBtn);
+    updateMuteBtn();
 
     function startMusic() {
         if (musicStarted) return;
