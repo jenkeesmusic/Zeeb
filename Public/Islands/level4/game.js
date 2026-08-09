@@ -735,10 +735,12 @@ class OctopusBoss {
                     this.startDefeat();
                     break;
                 }
-                // Hold the pattern while the phase flash plays out
+                // Hold the pattern while the phase flash plays out.
+                // Never leap while the tentacle is still out — the body
+                // jumping away from its own arm is what looked disconnected.
                 if (this.flashTimer <= 0 && game.crashTimer <= 0) {
                     this.attackTimer -= dt;
-                    if (this.attackTimer <= 0) {
+                    if (this.attackTimer <= 0 && !this.tentacle.active) {
                         this.state = 'leap';
                         this.stateTimer = 0;
                         this.splashDone = false;
@@ -798,16 +800,25 @@ class OctopusBoss {
         if (this.tentacleTimer > 0 && this.state === 'idle' && game.crashTimer <= 0) {
             this.tentacleTimer -= dt;
             if (this.tentacleTimer <= 0 && !this.tentacle.active) {
-                const baseX = this.homeX() - this.drawWidth() * 0.30;
-                this.tentacle.start(baseX, this.surfaceY() + 8);
+                this.tentacle.start(this.armRootX(), this.armRootY());
             }
         }
 
         if (this.tentacle.active) {
+            // Re-root the arm to the live body position every frame — the
+            // body bobs on the waves (and moves during leap/sink), and a
+            // stale anchor let the arm drift visibly off the octopus.
+            this.tentacle.baseX = this.armRootX();
+            this.tentacle.baseY = this.armRootY();
             this.tentacle.update(dt, (x) => game.getWaveSurfaceYAtX(2, x));
             this.checkTentacleHit();
         }
     }
+
+    // Where the sweeping arm attaches: inside the lower-left of the body,
+    // so the thick root is always covered by the sprite (drawn on top).
+    armRootX() { return this.homeX() - this.drawWidth() * 0.18; }
+    armRootY() { return this.bodyY() + this.drawHeight() * 0.18; }
 
     splashdown() {
         const game = this.game;
