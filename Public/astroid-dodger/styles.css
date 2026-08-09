@@ -340,9 +340,28 @@ img { display: block; }
   border-color: rgba(80, 220, 170, 0.6);
   box-shadow: 0 4px 20px rgba(60, 200, 140, 0.25);
 }
+/* Octopus boss card accent — Grace's pink */
+.lc-octo {
+  border-color: rgba(232, 92, 138, 0.3);
+  background: linear-gradient(135deg, rgba(45, 15, 30, 0.9), rgba(20, 20, 45, 0.9));
+}
+.lc-octo:hover, .lc-octo:active {
+  border-color: rgba(240, 130, 170, 0.65);
+  box-shadow: 0 4px 20px rgba(232, 92, 138, 0.3);
+}
 .ls-close {
   width: 100%;
   margin-top: 2px;
+}
+/* With three sections the panel earns two columns where there's room */
+@media (min-width: 560px) {
+  .level-select-panel { max-width: 660px; width: min(94vw, 660px); }
+  .level-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+    align-items: start;
+  }
 }
 @media (max-width: 480px) {
   .level-select-panel { padding: 16px 14px 18px; }

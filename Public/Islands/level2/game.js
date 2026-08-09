@@ -111,7 +111,16 @@ class Player {
     
     loadImages(onComplete) {
         // Load surfboard — use the board chosen in the shop (or red as default)
-        const chosenBoard = localStorage.getItem('zeeb_board') || 'red.png';
+        // Shop boards are board-only art (no rider) — swap in the combined
+        // "Zeeb riding it" sprite so Zeeb never vanishes off his own board.
+        const ZEEB_ON_BOARD = {
+            'Surf_island_1.png': 'Surf_island_1_zeeb.png',
+            'Surf_leaf_1.png': 'Surf_leaf_1_zeeb.png',
+            'Surf_watermelon_1.png': 'Surf_watermelon_1_zeeb.png',
+            'Surf_mermaid_1.png': 'Surf_mermaid_1_zeeb.png',
+        };
+        const savedBoard = localStorage.getItem('zeeb_board') || 'red.png';
+        const chosenBoard = ZEEB_ON_BOARD[savedBoard] || savedBoard;
         this.surfboardImage.onload = () => {
             if (this.surfboardImage.naturalWidth > 0) {
                 this.boardAspect = this.surfboardImage.naturalHeight / this.surfboardImage.naturalWidth;

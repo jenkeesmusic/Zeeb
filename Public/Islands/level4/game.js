@@ -117,7 +117,16 @@ class Player {
     
     loadImages(onComplete) {
         // Load surfboard — use the board chosen in the shop (or red as default)
-        const chosenBoard = localStorage.getItem('zeeb_board') || 'red.png';
+        // Shop boards are board-only art (no rider) — swap in the combined
+        // "Zeeb riding it" sprite so Zeeb never vanishes off his own board.
+        const ZEEB_ON_BOARD = {
+            'Surf_island_1.png': 'Surf_island_1_zeeb.png',
+            'Surf_leaf_1.png': 'Surf_leaf_1_zeeb.png',
+            'Surf_watermelon_1.png': 'Surf_watermelon_1_zeeb.png',
+            'Surf_mermaid_1.png': 'Surf_mermaid_1_zeeb.png',
+        };
+        const savedBoard = localStorage.getItem('zeeb_board') || 'red.png';
+        const chosenBoard = ZEEB_ON_BOARD[savedBoard] || savedBoard;
         this.surfboardImage.onload = () => {
             if (this.surfboardImage.naturalWidth > 0) {
                 this.boardAspect = this.surfboardImage.naturalHeight / this.surfboardImage.naturalWidth;
@@ -681,6 +690,9 @@ class OctopusBoss {
         this.state = 'entering';
         this.stateTimer = 0;
         this.sinkOffset = this.drawHeight() * 1.4; // start below the waves
+        // Sync the phase tracker so a ?coins= test start doesn't fire a
+        // phase-transition flash on the first frame
+        this.lastPhase = this.phase();
     }
 
     onWipeout() {
@@ -1463,6 +1475,14 @@ class OceanAnimation {
         }
         
         this.showDebug = new URLSearchParams(window.location.search).has('debug');
+
+        // Test hook: ?coins=N starts the fight with N coins already banked
+        // (clamped below the win line). Used by the secret level select to
+        // jump straight into later phases. Sunrise and phases follow along.
+        const coinsParam = parseInt(new URLSearchParams(window.location.search).get('coins'), 10);
+        this.debugStartCoins = Number.isFinite(coinsParam)
+            ? Math.max(0, Math.min(coinsParam, OctopusBoss.COINS_TO_WIN - 1))
+            : 0;
         
         // Keyboard controls
         // Unlock audio on first user interaction (browsers block autoplay)
@@ -3411,7 +3431,7 @@ class OceanAnimation {
     restartGame() {
         this.state = 'playing';
         this.score = 0;
-        this.coinsCollected = 0;
+        this.coinsCollected = this.debugStartCoins;
         this.lives = 3;
         this.gameOver = false;
         this.crashTimer = 0;
@@ -4298,7 +4318,7 @@ class OceanAnimation {
         // Splash in
         this.playRandomSplash();
         this.score = 0;
-        this.coinsCollected = 0;
+        this.coinsCollected = this.debugStartCoins;
         this.lives = 3;
         this.gameOver = false;
         this.crashTimer = 0;
