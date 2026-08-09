@@ -1,0 +1,333 @@
+/* Level 2: Night Mode Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 80%, #0a1628 0%, #0d1f3a 30%, #091428 60%, #040a14 100%);
+    transition: background 1.5s ease;
+}
+
+body.theatre {
+    background: radial-gradient(ellipse at 50% 80%, #060e1a 0%, #040c16 30%, #030812 60%, #020408 100%);
+}
+
+body {
+    font-family: 'Lilita One', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ─── Desktop: decorative wrapper ─── */
+
+.game-container {
+    text-align: center;
+    padding: 16px;
+    width: 100%;
+    max-width: 1280px;
+}
+
+.title {
+    display: none;
+}
+
+#gameCanvas {
+    display: block;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1200px;
+    aspect-ratio: 3 / 2;
+    border-radius: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(0, 0, 0, 0.1),
+        inset 0 0 30px rgba(255, 255, 255, 0.05);
+    background: #0a1628;
+    transition: box-shadow 1.5s ease;
+}
+
+body.theatre #gameCanvas {
+    box-shadow:
+        0 0 80px 30px rgba(70, 150, 220, 0.12),
+        0 0 160px 60px rgba(50, 120, 200, 0.06),
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        inset 0 0 30px rgba(255, 255, 255, 0.05);
+}
+
+.controls {
+    display: none;
+}
+
+.home-link {
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top));
+    left: calc(14px + env(safe-area-inset-left));
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.78);
+    background: rgba(18, 34, 58, 0.84);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+    color: rgba(255, 255, 255, 0.96);
+    font-family: 'Lilita One', Arial, sans-serif;
+    font-size: 14px;
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: color 0.2s, background 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.home-link:hover {
+    color: rgba(255, 255, 255, 1);
+    background: rgba(24, 46, 74, 0.92);
+    border-color: rgba(255, 255, 255, 0.95);
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.36);
+}
+
+/* ─── Mobile: canvas fills the screen ─── */
+
+@media (max-width: 768px) {
+    body {
+        justify-content: flex-start;
+    }
+
+    .game-container {
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .title {
+        display: none;
+    }
+
+    #gameCanvas {
+        flex: 1;
+        width: 100%;
+        max-width: none;
+        aspect-ratio: auto;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .controls {
+        display: none;
+    }
+
+    .home-link {
+        top: calc(8px + env(safe-area-inset-top));
+        left: calc(8px + env(safe-area-inset-left));
+        min-height: 44px;
+        padding: 10px 13px;
+        font-size: 12px;
+    }
+}
+
+/* ─── Mobile landscape: maximize game area ─── */
+
+@media (max-width: 960px) and (orientation: landscape) {
+    .title {
+        display: none;
+    }
+
+    .game-container {
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        height: 100dvh;
+    }
+
+    #gameCanvas {
+        flex: 1;
+        width: 100%;
+        max-width: none;
+        aspect-ratio: auto;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .controls {
+        display: none;
+    }
+
+    .home-link {
+        top: calc(4px + env(safe-area-inset-top));
+        left: calc(4px + env(safe-area-inset-left));
+        min-height: 36px;
+        padding: 8px 11px;
+        font-size: 11px;
+        opacity: 0.7;
+    }
+}
+
+/* ─── Standalone (Add to Home Screen): true fullscreen ─── */
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+    html, body {
+        height: 100%;
+    }
+
+    .home-link {
+        top: calc(8px + env(safe-area-inset-top));
+        left: calc(8px + env(safe-area-inset-left));
+    }
+}
+
+/* ─── Add to Home Screen prompt ─── */
+
+.a2hs-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  padding: 24px;
+  text-align: center;
+  gap: 5vmin;
+}
+
+.a2hs-text {
+  font-family: 'Lilita One', Arial, sans-serif;
+  font-size: clamp(24px, 6vmin, 42px);
+  color: #e8f2ff;
+  margin: 0;
+  line-height: 1.3;
+  max-width: 90%;
+}
+
+.a2hs-steps {
+  font-family: 'Lilita One', Arial, sans-serif;
+  font-size: clamp(18px, 4.5vmin, 32px);
+  color: #b0c8e8;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.a2hs-btn {
+  padding: clamp(14px, 3vmin, 22px) clamp(28px, 8vmin, 60px);
+  border-radius: 10px;
+  border: 1px solid rgba(100, 180, 240, 0.5);
+  background: linear-gradient(180deg, #1a4a6a, #0f3050);
+  color: #e8f2ff;
+  font-family: 'Lilita One', Arial, sans-serif;
+  font-size: clamp(18px, 4vmin, 28px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.a2hs-arrow {
+  font-size: clamp(36px, 10vmin, 64px);
+  color: rgba(255, 255, 255, 0.7);
+  animation: a2hs-bounce 1.2s ease-in-out infinite;
+}
+
+.a2hs-arrow-ios {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.a2hs-arrow-android {
+  position: fixed;
+  top: 12px;
+  right: 24px;
+}
+
+@keyframes a2hs-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50% { transform: translateY(8px); opacity: 1; }
+}
+
+.a2hs-arrow-android {
+  animation-name: a2hs-bounce-up;
+}
+
+@keyframes a2hs-bounce-up {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50% { transform: translateY(-8px); opacity: 1; }
+}
+
+/* ─── Intro video overlay ─── */
+
+.intro-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.intro-overlay.hidden {
+    display: none;
+}
+
+.intro-overlay video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+.skip-btn {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 101;
+    padding: 10px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.6);
+    font-family: 'Lilita One', Arial, sans-serif;
+    font-size: 15px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    opacity: 0;
+    animation: skip-fade-in 1s ease 2s forwards;
+}
+
+.skip-btn:hover {
+    color: rgba(255, 255, 255, 0.95);
+    border-color: rgba(255, 255, 255, 0.6);
+    background: rgba(0, 0, 0, 0.7);
+}
+
+@keyframes skip-fade-in {
+    to { opacity: 1; }
+}
+
+/* ─── Touch: prevent pull-to-refresh, bounce ─── */
+
+@media (hover: none) and (pointer: coarse) {
+    html {
+        touch-action: none;
+        overscroll-behavior: none;
+    }
+}

@@ -258,11 +258,14 @@
     }
 
     // ---------------------------------------------------------------------------
-    // End-of-content cutscene — Scene 2 (Danger Path), placeholder until the
-    // octopus battle is built. Plays a video, then shows a "come back later" screen.
+    // Boss battle door — Scene 2 (Danger Path). Plays the intro video, then
+    // offers the Battle the Octopus button, which opens level 4.
     // ---------------------------------------------------------------------------
     const END_CUTSCENE_SPOT = { x: 0.74, y: 0.29, radius: 0.10 };
-    const endCutscene = { triggered: false, playing: false };
+    // cooldown: after "Keep Exploring", Zeeb must walk out of the spot before
+    // it re-arms. seenVideo: the intro video only plays the first approach —
+    // returning to the spot goes straight to the battle screen.
+    const endCutscene = { triggered: false, playing: false, cooldown: false, seenVideo: false };
 
     function triggerEndCutscene() {
         if (endCutscene.triggered) return;
@@ -271,6 +274,13 @@
         player.moving = false;
 
         music.pause();
+
+        // Repeat visits skip the video and go straight to the door
+        if (endCutscene.seenVideo) {
+            showEndScreen();
+            return;
+        }
+        endCutscene.seenVideo = true;
 
         const overlay = document.getElementById('endVideoOverlay');
         const video = document.getElementById('endVideo');
@@ -318,12 +328,16 @@
     function showEndScreen() {
         const endScreen = document.getElementById('endScreen');
         endScreen.classList.remove('hidden');
+        document.getElementById('battleBtn').addEventListener('click', () => {
+            window.location.href = '../level4/index.html';
+        }, { once: true });
         document.getElementById('backToGameBtn').addEventListener('click', () => {
             endScreen.classList.add('hidden');
             endCutscene.playing = false;
-        }, { once: true });
-        document.getElementById('restartBtn').addEventListener('click', () => {
-            window.location.reload();
+            // Re-arm the spot once Zeeb walks away, and bring the music back
+            endCutscene.triggered = false;
+            endCutscene.cooldown = true;
+            music.play().catch(() => {});
         }, { once: true });
         document.getElementById('mainMenuBtn').addEventListener('click', () => {
             window.location.href = '../../index.html';
@@ -945,12 +959,17 @@
             }
         }
 
-        // Scene 2: check if Zeeb has reached the end-of-content spot on the Danger Path
+        // Scene 2: check if Zeeb has reached the octopus-battle spot on the Danger Path
         if (currentScene === 2 && !endCutscene.triggered) {
             const dx = player.x - END_CUTSCENE_SPOT.x;
             const dy = player.y - END_CUTSCENE_SPOT.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < END_CUTSCENE_SPOT.radius) {
+            if (endCutscene.cooldown) {
+                // Waiting for Zeeb to leave the spot before it can fire again
+                if (dist > END_CUTSCENE_SPOT.radius * 1.6) {
+                    endCutscene.cooldown = false;
+                }
+            } else if (dist < END_CUTSCENE_SPOT.radius) {
                 triggerEndCutscene();
             }
         }

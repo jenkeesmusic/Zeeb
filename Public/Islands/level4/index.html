@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <title>Zeeb Islands - The Battle of the Octopus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Lilita+One&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=20260808a">
+    <link rel="stylesheet" href="../../pause-overlay.css">
+    <style>
+        /* ─── Victory video overlay (same pattern as level 3's end cutscene) ─── */
+        .video-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .video-overlay.hidden { display: none; }
+        .video-overlay video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+        .skip-btn {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            z-index: 201;
+            padding: 10px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            color: rgba(255, 255, 255, 0.6);
+            font-family: 'Lilita One', Arial, sans-serif;
+            font-size: 15px;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            transition: color 0.2s, border-color 0.2s, background 0.2s;
+            opacity: 0;
+            animation: skip-fade-in 1s ease 2s forwards;
+        }
+        .skip-btn:hover {
+            color: rgba(255, 255, 255, 0.95);
+            border-color: rgba(255, 255, 255, 0.6);
+            background: rgba(0, 0, 0, 0.7);
+        }
+        @keyframes skip-fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1 class="title">The Battle of the Octopus</h1>
+        <canvas id="gameCanvas"></canvas>
+        <div class="controls">
+            <p>Press <strong>SPACEBAR</strong> to jump! • <strong>P</strong> or <strong>⏸</strong> to pause</p>
+        </div>
+        <a href="../../index.html" class="home-link" id="homeLink">Main Menu</a>
+    </div>
+
+    <!-- Victory video — plays after the octopus is defeated.
+         Drop Grace's cut in as level4/victory.mp4 and it wires itself up;
+         while the file is missing, victory skips straight to level 3. -->
+    <div id="victoryOverlay" class="video-overlay hidden">
+        <video id="victoryVideo" src="victory.mp4" playsinline preload="metadata"></video>
+        <button id="skipVictory" class="skip-btn">Skip</button>
+    </div>
+    <!-- Add to Home Screen prompt (mobile only) -->
+    <div id="a2hsPrompt" class="a2hs-prompt" style="display:none">
+      <p class="a2hs-text">Add this game to your home screen for fullscreen play!</p>
+      <p class="a2hs-steps"></p>
+      <button id="a2hsDismiss" class="a2hs-btn">Got it</button>
+      <div class="a2hs-arrow" id="a2hsArrow"></div>
+    </div>
+    <script>
+    (function() {
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      var isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+      var dismissed = sessionStorage.getItem('a2hs_dismissed');
+      if (isMobile && !isStandalone && !dismissed) {
+        var el = document.getElementById('a2hsPrompt');
+        var steps = el.querySelector('.a2hs-steps');
+        var arrow = document.getElementById('a2hsArrow');
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+          steps.innerHTML = 'Tap <strong>Share</strong> then<br><strong>"Add to Home Screen"</strong>';
+          arrow.innerHTML = '↓';
+          arrow.classList.add('a2hs-arrow-ios');
+        } else {
+          steps.innerHTML = 'Tap <strong>⋮&nbsp;Menu</strong> then<br><strong>"Add to Home Screen"</strong>';
+          arrow.innerHTML = '↑';
+          arrow.classList.add('a2hs-arrow-android');
+        }
+        el.style.display = 'flex';
+        document.getElementById('a2hsDismiss').onclick = function() {
+          el.style.display = 'none';
+          sessionStorage.setItem('a2hs_dismissed', '1');
+        };
+      }
+    })();
+    </script>
+
+    <script src="../../pause-overlay.js"></script>
+    <script src="cloud-system.js?v=20260808c"></script>
+    <script src="wave-system.js?v=20260808c"></script>
+    <script src="game.js?v=20260808c"></script>
+</body>
+</html>

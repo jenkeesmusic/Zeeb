@@ -1,0 +1,5618 @@
+// Level 4: The Battle of the Octopus — an early-morning boss fight.
+// Cloned from level2/game.js 2026-08-08; shark/fish/rocket/wave-pattern systems
+// stripped. The octopus (OctopusBoss below) drives all danger-wave spawns via
+// Grace's jump-splash storyboard: leap → splash → wave Zeeb must jump.
+// The fight IS the sunrise: sunriseT() maps the coin bar to the sky, the
+// rising sun (Sun_Grace.png), fading stars, and gold light on the water.
+// Design doc: Islands/boss-battle-plan.md
+// Focus: Wave-hopping mechanic with multiple wave layers (dark night theme)
+
+class Player {
+    constructor(ocean) {
+        this.ocean = ocean;
+        this.baseXRatio = 0.32;
+        this.x = ocean.width * this.baseXRatio;
+        this.y = ocean.height * 0.5;
+        this.baseY = this.y;
+        
+        // Wave layer management
+        // With back waves hidden, only ride on wave index 2 (front visible wave)
+        this.currentWaveIndex = 2; // Rideable wave is now index 2 (front wave)
+        this.targetWaveIndex = 2;
+        
+        // Jumping physics
+        this.velocityY = 0;
+        this.gravity = 750; // pixels/sec² (snappy arc)
+        this.jumpPower = -480; // pixels/sec (high launch, fast return)
+        this.isJumping = false;
+        this.splashPreFired = false;
+        this.lastJumpTime = -Infinity;
+        this.jumpCount = 0;       // Track jumps used (0, 1, or 2 for double-jump)
+        this.maxJumps = 2;        // Allow double-jump
+        this.jumpStartWave = 1;
+        this.jumpStartY = 0;      // Cached starting Y for smooth jump
+        this.jumpTargetY = 0;     // Cached target Y for smooth landing
+        
+        // Wave riding animation (when catching danger wave)
+        this.isRidingWave = false;
+        this.rideWaveTimer = 0;
+        this.rideWaveDuration = 0.8; // Duration of wave-riding animation
+        
+        // Smooth Y position tracking to prevent jitter
+        this.smoothY = this.y;
+        this.bobOffset = 0;
+        this.landingSettle = 0; // countdown for post-landing smoothing
+        this.landingTiltFade = 0;   // fading jump tilt after landing
+        this.landingScaleFade = 0;  // fading jump scale after landing
+        this.landingTwistFade = 0;  // fading twist skew after landing
+        this.landingSquishFade = 0; // fading twist scaleX after landing
+        
+        // Additional floating motion parameters
+        this.floatTime = 0;          // Track time for floating animation
+        this.floatAmplitude = 8;     // Pixels of additional float motion
+        this.floatSpeed = 1.8;       // Speed of floating oscillation
+
+        // Carving — side-to-side sway like a real surfer
+        this.carveTime = 0;
+        this.carveSpeed = 0.7;       // Hz of carve cycle
+        this.carveAmplitude = 18;    // px side-to-side sway
+        this.carveOffsetX = 0;       // current sway offset
+        this.carveTilt = 0;          // current carve tilt angle
+        
+        // Images
+        this.surfboardImage = new Image(); // Green.png includes Zeeb
+        this.imagesLoaded = false;
+        this.boardIncludesZeeb = true; // Green.png already has Zeeb on it
+        this.boardAspect = null;
+        this.tiltBase = -0.08;
+        this.tiltBob = 0.04;
+        this.tiltSpeed = 1.4;
+        this.rideAdjustByWaveIndex = {
+            0: 0.6,   // Layer 3 (back): ride much higher
+            1: 0.15,  // Layer 2 (middle): ride a bit higher
+            2: -0.15  // Layer 1 (front/face): ride a bit lower
+        };
+        
+        // Sizes
+        this.surfboardWidth = 100;
+        this.surfboardHeight = 30;
+        this.scale = 1;
+        this.zeebSizeMultiplier = 1.25; // slightly smaller for a cleaner look
+        
+        // Intro animation: surf in from left on first load
+        this.isEntering = false;
+        this.entryTimer = 0;
+        this.entryDuration = 2.2;
+        this.entryStartXRatio = -0.30;
+        this.entryProgress = 0;
+        this.entryDropHeightRatio = 0.18;
+
+        this.updateLayout();
+    }
+
+    updateLayout() {
+        const scale = Math.min(this.ocean.width / 900, this.ocean.height / 600);
+        const sizeScale = Math.max(0.75, Math.min(1.2, scale));
+        this.scale = sizeScale;
+
+        this.x = this.ocean.width * this.baseXRatio;
+        this.surfboardWidth = 120 * sizeScale * this.zeebSizeMultiplier;
+        this.surfboardHeight = 35 * sizeScale * this.zeebSizeMultiplier;
+    }
+
+    getSurfboardHeight() {
+        if (this.boardAspect) {
+            return this.surfboardWidth * this.boardAspect;
+        }
+        return this.surfboardHeight;
+    }
+
+    getRideSurfaceY(waveIndex, x) {
+        const baseSurfaceY = this.ocean.getWaveSurfaceYAtX(waveIndex, x);
+        const adjustRatio = this.rideAdjustByWaveIndex[waveIndex] || 0;
+        const adjustPx = this.getSurfboardHeight() * adjustRatio;
+        // Smaller Y is higher on the canvas.
+        return baseSurfaceY - adjustPx;
+    }
+    
+    loadImages(onComplete) {
+        // Load surfboard — use the board chosen in the shop (or red as default)
+        const chosenBoard = localStorage.getItem('zeeb_board') || 'red.png';
+        this.surfboardImage.onload = () => {
+            if (this.surfboardImage.naturalWidth > 0) {
+                this.boardAspect = this.surfboardImage.naturalHeight / this.surfboardImage.naturalWidth;
+            }
+            this.imagesLoaded = true;
+            if (onComplete) onComplete();
+        };
+        this.surfboardImage.onerror = () => {
+            console.error('Failed to load surfboard:', chosenBoard);
+            this.imagesLoaded = true;
+            if (onComplete) onComplete();
+        };
+        this.surfboardImage.src = '../img/' + chosenBoard;
+    }
+
+    beginEntry() {
+        this.isEntering = true;
+        this.entryTimer = 0;
+        this.entryProgress = 0;
+        this.isJumping = false;
+        this.velocityY = 0;
+        this.jumpCount = 0;
+
+        const entryX = this.ocean.width * this.entryStartXRatio;
+        const entryY = this.getRideSurfaceY(this.currentWaveIndex, entryX) - (this.ocean.height * this.entryDropHeightRatio);
+        this.x = entryX;
+        this.y = entryY;
+        this.smoothY = entryY;
+    }
+    
+    jump() {
+        if (this.isEntering) {
+            return;
+        }
+
+        // Allow jump if: not jumping yet, OR already jumping but haven't used all jumps
+        if (this.jumpCount < this.maxJumps) {
+            // Cache the current Y position at jump start (only on first jump)
+            if (!this.isJumping) {
+                this.jumpStartY = this.y;
+                this.jumpStartWave = this.currentWaveIndex;
+            }
+            
+            // Apply jump velocity (slightly weaker for second jump)
+            const jumpMultiplier = this.jumpCount === 0 ? 1.0 : 0.85;
+            this.velocityY = this.jumpPower * jumpMultiplier;
+            this.isJumping = true;
+            this.splashPreFired = false;
+            this.jumpCount++;
+            this.lastJumpTime = this.ocean.elapsedTime;
+            
+            // With only wave 2 visible, stay on the same wave (no switching)
+            // Keep target same as current for now
+            this.targetWaveIndex = 2;
+            
+            // Cache the target Y position at jump start (without bobbing for stability)
+            this.jumpTargetY = this.getStableWaveSurfaceY(this.targetWaveIndex, this.x);
+        }
+    }
+    
+    // Get wave surface Y without bobbing for stable jump targets
+    getStableWaveSurfaceY(waveIndex, x) {
+        const wave = this.ocean.waves[waveIndex];
+        if (!wave) return this.ocean.height * 0.5;
+        
+        const image = this.ocean.images[`wave${waveIndex + 1}`];
+        const metrics = this.ocean.getWaveMetrics(image, wave);
+        const crestMap = this.ocean.waveCrests[waveIndex + 1];
+        
+        if (!crestMap || !crestMap.values) {
+            return metrics.waveY + metrics.waveHeight * wave.surfaceRatio;
+        }
+        
+        const tileWidth = metrics.tileWidth;
+        const localX = ((x + wave.offset) % tileWidth + tileWidth) % tileWidth;
+        const crestValues = crestMap.values;
+        const crestIndex = Math.min(
+            crestValues.length - 1,
+            Math.max(0, Math.floor((localX / tileWidth) * (crestValues.length - 1)))
+        );
+        let crestRatio = crestValues[crestIndex];
+        
+        // SAFEGUARD: Clamp crest ratio to reasonable bounds (0.1 to 0.6)
+        crestRatio = Math.max(0.1, Math.min(0.6, crestRatio));
+        
+        const adjustRatio = this.rideAdjustByWaveIndex[waveIndex] || 0;
+        const adjustPx = this.getSurfboardHeight() * adjustRatio;
+        
+        const surfaceY = metrics.waveY + metrics.waveHeight * crestRatio - adjustPx;
+        
+        // SAFEGUARD: Clamp final Y to reasonable screen bounds
+        const minY = this.ocean.height * 0.35;
+        const maxY = this.ocean.height * 0.85;
+        return Math.max(minY, Math.min(maxY, surfaceY));
+    }
+    
+    update(deltaTime) {
+        const dt = Math.min(deltaTime / 1000, 0.05); // Convert to seconds, cap delta
+
+        // Safety check: ensure wave index is valid (only wave 2 is visible now)
+        if (this.currentWaveIndex !== 2) {
+            this.currentWaveIndex = 2;
+            this.targetWaveIndex = 2;
+            this.isJumping = false;
+            this.velocityY = 0;
+        }
+        
+        if (this.isEntering) {
+            this.entryTimer += dt;
+            const raw = Math.min(1, this.entryTimer / this.entryDuration);
+            this.entryProgress = raw;
+            // Ease-out cubic — fast start, smooth deceleration into position
+            const ease = 1 - Math.pow(1 - raw, 3);
+
+            const startX = this.ocean.width * this.entryStartXRatio;
+            const endX = this.ocean.width * this.baseXRatio;
+            this.x = startX + (endX - startX) * ease;
+
+            const targetY = this.getRideSurfaceY(this.currentWaveIndex, this.x);
+            const minY = this.ocean.height * 0.35;
+            const maxY = this.ocean.height * 0.85;
+            const rideTargetY = Math.max(minY, Math.min(maxY, targetY));
+            // Gentle drop-in that eases to zero
+            const dropOffset = -(this.ocean.height * this.entryDropHeightRatio) * (1 - ease);
+            const introTargetY = rideTargetY + dropOffset;
+            // Smooth Y tracking so he doesn't snap
+            this.smoothY += (introTargetY - this.smoothY) * 0.15;
+            this.y = this.smoothY;
+
+            if (raw >= 1) {
+                this.isEntering = false;
+                this.x = endX;
+                this.y = rideTargetY;
+                this.smoothY = rideTargetY;
+            }
+        } else if (this.isJumping) {
+            // Keep Zeeb anchored on screen while the waves move under him
+            this.x = this.ocean.width * this.baseXRatio;
+
+            // Update jumping physics
+            this.velocityY += this.gravity * dt;
+            this.y += this.velocityY * dt;
+            
+            // Update target Y to follow wave contour (but without bobbing jitter)
+            let targetY = this.getStableWaveSurfaceY(this.targetWaveIndex, this.x);
+            
+            // Bounds check on jump target (prevent extreme values)
+            const minLandY = this.ocean.height * 0.40;
+            const maxLandY = this.ocean.height * 0.85;
+            targetY = Math.max(minLandY, Math.min(maxLandY, targetY));
+            this.jumpTargetY = targetY;
+            
+            // Pre-trigger splash sound ~60px before landing for snappier feel
+            if (!this.splashPreFired && this.velocityY > 0 && (this.jumpTargetY - this.y) < 120) {
+                this.splashPreFired = true;
+                this.ocean.playRandomSplash();
+            }
+
+            // Check if landed on target wave (going down and past target)
+            if (this.y >= this.jumpTargetY && this.velocityY > 0) {
+                // Capture current visual state for fade-out (before clearing isJumping)
+                this.landingTiltFade = Math.sin(this.velocityY * 0.001) * 0.15;
+                this.landingScaleFade = Math.abs(this.velocityY) * 0.0002;
+                const phase = this.velocityY / Math.abs(this.jumpPower);
+                this.landingTwistFade = Math.sin(phase * Math.PI) * 0.12;
+                this.landingSquishFade = Math.abs(Math.sin(phase * Math.PI)) * 0.08;
+
+                // Clamp to landing target — don't overshoot
+                this.y = this.jumpTargetY;
+                this.smoothY = this.y;
+                this.velocityY = 0;
+                this.isJumping = false;
+                this.jumpCount = 0;
+                this.currentWaveIndex = this.targetWaveIndex;
+                this.landingSettle = 0.5; // seconds to blend onto wave surface
+                // Landing splash burst from back tip of surfboard
+                const tip = this.getBackTip();
+                this.ocean.spawnSpray(tip.x, tip.y, 'burst');
+                this.splashPreFired = false;
+                // Coin batch timer continues running — awards after 0.4s lull
+            }
+            
+            // Safety: prevent falling through the bottom
+            const maxY = this.ocean.height * 0.90;
+            if (this.y > maxY) {
+                const liveY2 = this.getRideSurfaceY(this.targetWaveIndex, this.x);
+                const clampedLiveY2 = Math.max(this.ocean.height * 0.35, Math.min(this.ocean.height * 0.85, liveY2));
+                this.smoothY = clampedLiveY2;
+                this.y = clampedLiveY2;
+                this.velocityY = 0;
+                this.isJumping = false;
+                this.jumpCount = 0;
+                this.currentWaveIndex = this.targetWaveIndex;
+            }
+        } else {
+            // Keep Zeeb anchored on screen while the waves move under him
+            this.x = this.ocean.width * this.baseXRatio;
+
+            // How settled are we after landing? 1 = just landed, 0 = fully settled
+            let settleBlend = 0;
+            if (this.landingSettle > 0) {
+                this.landingSettle -= dt;
+                settleBlend = Math.max(0, this.landingSettle / 0.5);
+            }
+
+            // Carving sway — fade in after landing
+            this.carveTime += dt;
+            const carvePhase = this.carveTime * this.carveSpeed * Math.PI * 2;
+            const rawCarveX = Math.sin(carvePhase) * this.carveAmplitude
+                            + Math.sin(carvePhase * 1.7 + 1.2) * (this.carveAmplitude * 0.3);
+            const carveVelocity = Math.cos(carvePhase) * this.carveAmplitude * this.carveSpeed * Math.PI * 2
+                                + Math.cos(carvePhase * 1.7 + 1.2) * (this.carveAmplitude * 0.3) * 1.7 * this.carveSpeed * Math.PI * 2;
+            const carveFade = 1 - settleBlend; // 0 at landing, 1 when settled
+            this.carveOffsetX = rawCarveX * carveFade;
+            this.carveTilt = carveVelocity * -0.0012 * carveFade;
+
+            this.x += this.carveOffsetX;
+
+            // Wave surface target
+            const targetY = this.getRideSurfaceY(this.currentWaveIndex, this.x);
+            const minY = this.ocean.height * 0.35;
+            const maxY = this.ocean.height * 0.85;
+            const clampedTargetY = Math.max(minY, Math.min(maxY, targetY));
+
+            // Smoothing — heavier during settle, normal after
+            const smoothing = 0.35 + settleBlend * 0.35; // 0.7 at landing → 0.35 settled
+            const maxDelta = this.ocean.height * (0.03 + settleBlend * 0.07); // wider rate limit during settle
+            let smoothTargetY = clampedTargetY;
+            const deltaY = clampedTargetY - this.smoothY;
+            if (Math.abs(deltaY) > maxDelta) {
+                smoothTargetY = this.smoothY + Math.sign(deltaY) * maxDelta;
+            }
+            this.smoothY += (smoothTargetY - this.smoothY) * smoothing;
+
+            // Bob — fade in after landing
+            const activeWave = this.ocean.waves[this.currentWaveIndex];
+            const wavePhase =
+                this.ocean.elapsedTime * (activeWave?.bobSpeed || this.floatSpeed) +
+                (activeWave?.bobPhase || 0);
+            const syncAmplitude = this.floatAmplitude * 0.55;
+            const floatOffset =
+                (Math.sin(wavePhase) * syncAmplitude +
+                Math.sin(wavePhase * 2 + 0.9) * (syncAmplitude * 0.25)) * carveFade;
+
+            this.y = this.smoothY + floatOffset;
+        }
+        
+        // Decay landing fade values (exponential decay ~10 frames to near zero)
+        const fadeRate = 8 * dt; // fast but smooth
+        this.landingTiltFade *= Math.max(0, 1 - fadeRate);
+        this.landingScaleFade *= Math.max(0, 1 - fadeRate);
+        this.landingTwistFade *= Math.max(0, 1 - fadeRate);
+        this.landingSquishFade *= Math.max(0, 1 - fadeRate);
+
+        // Final Y bounds check (safety net)
+        const absoluteMaxY = this.ocean.height * 0.90;
+        if (this.y > absoluteMaxY) {
+            this.y = absoluteMaxY;
+            this.smoothY = this.y;
+        }
+        
+        // Update wave-riding animation timer
+        if (this.isRidingWave) {
+            this.rideWaveTimer -= dt;
+            if (this.rideWaveTimer <= 0) {
+                this.isRidingWave = false;
+                this.rideWaveTimer = 0;
+            }
+        }
+        
+        // Final validation: ensure wave index stays valid (only wave 2 is visible)
+        if (this.currentWaveIndex !== 2) {
+            this.currentWaveIndex = 2;
+        }
+    }
+    
+    draw(ctx) {
+        if (!this.imagesLoaded) return;
+        
+        // Use actual Y position (which already includes wave bobbing)
+        const actualY = this.y;
+        const surfboardHeight = this.boardAspect
+            ? this.surfboardWidth * this.boardAspect
+            : this.surfboardHeight;
+        
+        // Position surfboard so it rides on the wave, nudged up a bit
+        // to keep Zeeb from hanging off the bottom of the screen.
+        const surfboardY = actualY - surfboardHeight * 0.64;
+
+        // Add extra tilt during jump (nose up/down based on vertical velocity)
+        const jumpTilt = this.isJumping
+            ? Math.sin(this.velocityY * 0.001) * 0.15
+            : this.landingTiltFade; // fade out after landing
+        
+        // Add subtle tilt based on floating motion when not jumping
+        const floatTilt = (!this.isJumping && !this.isEntering) ? 
+            Math.sin(this.ocean.elapsedTime * 2.2 + 0.5) * 0.05 : 0;
+        
+        // Wave-riding tilt - dig left side into the wave!
+        let rideTilt = 0;
+        if (this.isRidingWave) {
+            // Progress from 0 to 1 over the animation duration
+            const rideProgress = 1 - (this.rideWaveTimer / this.rideWaveDuration);
+            // Smooth curve: dig in hard at start, ease out at end
+            // Peak tilt around 30% through, then ease back to normal
+            const tiltCurve = Math.sin(rideProgress * Math.PI) * (1 - rideProgress * 0.5);
+            rideTilt = -0.35 * tiltCurve; // Negative = left side dips down (digging in)
+        }
+        
+        const entryTilt = this.isEntering
+            ? -0.25 * Math.pow(1 - this.entryProgress, 2) // Ease-out nose-up during entry
+            : 0;
+        const carveTilt = (!this.isJumping && !this.isEntering) ? this.carveTilt : 0;
+        const tilt = this.tiltBase + Math.sin(this.ocean.elapsedTime * this.tiltSpeed) * this.tiltBob + jumpTilt + rideTilt + floatTilt + entryTilt + carveTilt;
+        const boardCenterY = surfboardY + surfboardHeight / 2;
+
+        // Scale during jump for depth effect
+        const jumpScale = this.isJumping
+            ? 1 + Math.abs(this.velocityY) * 0.0002
+            : 1 + this.landingScaleFade;
+        const drawWidth = this.surfboardWidth * jumpScale;
+        const drawHeight = surfboardHeight * jumpScale;
+        
+        // 3D twist effect during jump - simulates back of board rotating
+        // Uses a skew transform to create perspective rotation illusion
+        let twistSkew = 0;
+        let twistScaleX = 1;
+        if (this.isJumping) {
+            const jumpPhase = this.velocityY / Math.abs(this.jumpPower);
+            twistSkew = Math.sin(jumpPhase * Math.PI) * 0.12;
+            twistScaleX = 1 - Math.abs(Math.sin(jumpPhase * Math.PI)) * 0.08;
+            if (this.targetWaveIndex > this.jumpStartWave) {
+                twistSkew *= -1;
+            }
+        } else {
+            // Fade out twist after landing
+            twistSkew = this.landingTwistFade;
+            twistScaleX = 1 - this.landingSquishFade;
+        }
+
+        ctx.save();
+        ctx.translate(this.x, boardCenterY);
+        ctx.rotate(tilt);
+
+        // Apply 3D twist effect (during jump or fading after landing)
+        const hasTwist = Math.abs(twistSkew) > 0.001 || Math.abs(1 - twistScaleX) > 0.001;
+        if (hasTwist) {
+            ctx.transform(twistScaleX, twistSkew, 0, 1, 0, 0);
+        }
+        
+        // Draw surfboard with Zeeb - always draw once imagesLoaded is true
+        // to prevent blinking from intermittent image.complete checks
+        if (this.surfboardImage.naturalWidth > 0) {
+            ctx.drawImage(
+                this.surfboardImage,
+                -drawWidth / 2,
+                -drawHeight / 2,
+                drawWidth,
+                drawHeight
+            );
+        } else {
+            // Fallback surfboard (only if image truly failed to load)
+            ctx.fillStyle = '#4169E1';
+            ctx.fillRect(
+                -drawWidth / 2,
+                -drawHeight / 2,
+                drawWidth,
+                drawHeight
+            );
+        }
+        
+        ctx.restore();
+    }
+
+    getBackTip() {
+        const surfboardHeight = this.getSurfboardHeight();
+        const surfboardY = this.y - surfboardHeight * 0.64;
+        const boardCenterY = surfboardY + surfboardHeight / 2;
+        const tilt = this.tiltBase +
+            Math.sin(this.ocean.elapsedTime * this.tiltSpeed) * this.tiltBob;
+        const halfW = this.surfboardWidth / 2;
+        return {
+            x: this.x - halfW * Math.cos(tilt),
+            y: boardCenterY - halfW * Math.sin(-tilt) + 65
+        };
+    }
+}
+
+// ==================== OCTOPUS BOSS ====================
+// Grace's storyboard (Islands/boss-battle-plan.md): the octopus leaps out of
+// the water, splashes down, and the splash becomes a little wave Zeeb has to
+// jump over. Coins collected fill the progress bar; 40 coins wins the fight.
+//   Phase 1 (0-9 coins):  single jump-splash
+//   Phase 2 (10-24):      faster leaps, double splash wave
+//   Phase 3 (25-39):      jump-splash plus tentacle surface sweeps
+// The splash wave IS a normal danger wave spawned at the octopus's position,
+// so jump clearance and collision come from the existing engine.
+
+// A tentacle is a chain of segments — no sprite, pure canvas drawing.
+// Each segment lerps toward the one ahead of it, which naturally creates
+// a trailing whip curve with no keyframes.
+class Tentacle {
+    constructor(segmentCount = 7) {
+        this.segments = [];
+        for (let i = 0; i < segmentCount; i++) {
+            this.segments.push({ x: 0, y: 0 });
+        }
+        this.active = false;
+        this.retracting = false;
+        this.baseX = 0;
+        this.baseY = 0;
+        this.tipTarget = { x: 0, y: 0 };
+        this.sweepSpeed = 420;   // px/s the tip target travels left
+        this.hitPlayer = false;
+    }
+
+    start(baseX, baseY) {
+        this.active = true;
+        this.retracting = false;
+        this.hitPlayer = false;
+        this.baseX = baseX;
+        this.baseY = baseY;
+        for (const seg of this.segments) {
+            seg.x = baseX;
+            seg.y = baseY;
+        }
+        this.tipTarget = { x: baseX, y: baseY };
+    }
+
+    update(dt, surfaceYAtX) {
+        if (!this.active) return;
+
+        // Base stays anchored to the octopus body
+        this.segments[0].x = this.baseX;
+        this.segments[0].y = this.baseY;
+
+        if (!this.retracting) {
+            // Tip target sweeps left along the water surface
+            this.tipTarget.x -= this.sweepSpeed * dt;
+            this.tipTarget.y = surfaceYAtX(this.tipTarget.x) - 14;
+            if (this.tipTarget.x < -60) this.retracting = true;
+        } else {
+            // Pull the tip back home; done when it's near the base
+            this.tipTarget.x += (this.baseX - this.tipTarget.x) * 4 * dt;
+            this.tipTarget.y += (this.baseY - this.tipTarget.y) * 4 * dt;
+            const tip = this.segments[this.segments.length - 1];
+            if (Math.abs(tip.x - this.baseX) < 40) this.active = false;
+        }
+
+        // Tip chases its target, each segment follows the one after it
+        const tip = this.segments[this.segments.length - 1];
+        tip.x += (this.tipTarget.x - tip.x) * Math.min(1, 6 * dt);
+        tip.y += (this.tipTarget.y - tip.y) * Math.min(1, 6 * dt);
+        for (let i = this.segments.length - 2; i >= 1; i--) {
+            const seg = this.segments[i];
+            const next = this.segments[i + 1];
+            seg.x += (next.x - seg.x) * Math.min(1, 5 * dt);
+            seg.y += (next.y - seg.y) * Math.min(1, 5 * dt);
+        }
+    }
+
+    getTip() {
+        return this.segments[this.segments.length - 1];
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        // Arm — Grace's pink, tapering base to tip
+        ctx.strokeStyle = 'rgba(232, 148, 180, 0.95)';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (let i = 0; i < this.segments.length - 1; i++) {
+            const a = this.segments[i];
+            const b = this.segments[i + 1];
+            const t = i / (this.segments.length - 1);
+            ctx.lineWidth = 26 - t * 16; // thick at base, thin at tip
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+        }
+        // Yellow suckers along the arm, like her drawings
+        ctx.fillStyle = 'rgba(238, 220, 40, 0.9)';
+        for (let i = 1; i < this.segments.length; i++) {
+            const seg = this.segments[i];
+            const t = i / (this.segments.length - 1);
+            ctx.beginPath();
+            ctx.arc(seg.x, seg.y, 5 - t * 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+}
+
+class OctopusBoss {
+    constructor(game) {
+        this.game = game;
+        this.tentacle = new Tentacle();
+        this.fullReset();
+    }
+
+    fullReset() {
+        this.state = 'waiting';   // 'waiting'|'entering'|'idle'|'leap'|'cooldown'|'defeated'|'gone'
+        this.stateTimer = 0;
+        this.attackTimer = 2.5;   // first leap shortly after entering
+        this.leapDuration = 1.5;
+        this.enterDuration = 2.0;
+        this.sinkDuration = 3.5;
+        this.leapOffset = 0;      // vertical offset during leap (negative = up)
+        this.sinkOffset = 0;      // vertical offset while sinking (positive = down)
+        this.alpha = 1;
+        this.flashTimer = 0;      // phase-transition flash
+        this.lastPhase = 1;
+        this.tentacle.active = false;
+        this.tentacleTimer = 0;
+        this.splashDone = false;
+    }
+
+    // ── Layout ───────────────────────────────────────────────────
+    homeX() { return this.game.width * 0.84; }
+
+    drawHeight() { return Math.min(this.game.height * 0.36, 340); }
+
+    drawWidth() {
+        const img = this.game.images.octoIdle;
+        const aspect = (img.complete && img.naturalHeight > 0)
+            ? img.naturalWidth / img.naturalHeight
+            : 675 / 722;
+        return this.drawHeight() * aspect;
+    }
+
+    surfaceY() {
+        return this.game.getWaveSurfaceYAtX(2, this.homeX());
+    }
+
+    // Body center: partially submerged, bobbing on the wave surface
+    bodyY() {
+        const bob = Math.sin(this.game.elapsedTime * 1.6) * 6;
+        return this.surfaceY() + this.drawHeight() * 0.10 + bob
+            + this.leapOffset + this.sinkOffset;
+    }
+
+    // ── Phases ───────────────────────────────────────────────────
+    static COINS_TO_WIN = 40;
+
+    phase() {
+        const c = this.game.coinsCollected;
+        if (c >= 25) return 3;
+        if (c >= 10) return 2;
+        return 1;
+    }
+
+    attackInterval() {
+        return [0, 4.5, 3.4, 2.9][this.phase()];
+    }
+
+    // ── State machine ────────────────────────────────────────────
+    beginFight() {
+        this.fullReset();
+        this.state = 'entering';
+        this.stateTimer = 0;
+        this.sinkOffset = this.drawHeight() * 1.4; // start below the waves
+    }
+
+    onWipeout() {
+        // Abort any attack; back to idle with breathing room
+        if (this.state === 'leap' || this.state === 'cooldown') {
+            this.state = 'idle';
+        }
+        this.leapOffset = 0;
+        this.tentacle.active = false;
+        this.attackTimer = 3.0;
+    }
+
+    startDefeat() {
+        this.state = 'defeated';
+        this.stateTimer = 0;
+        this.leapOffset = 0;
+        this.tentacle.active = false;
+        this.game.playRandomSplash();
+    }
+
+    update(dt) {
+        const game = this.game;
+
+        // Phase transition: flash and a short pause before the new pattern
+        const p = this.phase();
+        if (p !== this.lastPhase && this.state !== 'defeated' && this.state !== 'gone') {
+            this.lastPhase = p;
+            this.flashTimer = 0.9;
+            this.attackTimer = Math.max(this.attackTimer, 1.6);
+        }
+        if (this.flashTimer > 0) this.flashTimer -= dt;
+
+        switch (this.state) {
+            case 'waiting':
+                break;
+
+            case 'entering': {
+                this.stateTimer += dt;
+                const t = Math.min(1, this.stateTimer / this.enterDuration);
+                const ease = 1 - Math.pow(1 - t, 3);
+                this.sinkOffset = this.drawHeight() * 1.4 * (1 - ease);
+                if (t >= 1) {
+                    this.sinkOffset = 0;
+                    this.state = 'idle';
+                    this.attackTimer = this.attackInterval() * 0.6;
+                }
+                break;
+            }
+
+            case 'idle': {
+                if (game.coinsCollected >= OctopusBoss.COINS_TO_WIN) {
+                    this.startDefeat();
+                    break;
+                }
+                // Hold the pattern while the phase flash plays out
+                if (this.flashTimer <= 0 && game.crashTimer <= 0) {
+                    this.attackTimer -= dt;
+                    if (this.attackTimer <= 0) {
+                        this.state = 'leap';
+                        this.stateTimer = 0;
+                        this.splashDone = false;
+                    }
+                }
+                break;
+            }
+
+            case 'leap': {
+                this.stateTimer += dt;
+                const t = Math.min(1, this.stateTimer / this.leapDuration);
+                // Parabolic arc: up out of the water, back down into it
+                const leapHeight = game.height * 0.26;
+                this.leapOffset = -Math.sin(t * Math.PI) * leapHeight;
+
+                // Splashdown: burst + sound + the wave is born
+                if (t >= 1 && !this.splashDone) {
+                    this.splashDone = true;
+                    this.leapOffset = 0;
+                    this.splashdown();
+                    this.state = 'cooldown';
+                    this.stateTimer = 0;
+                }
+                break;
+            }
+
+            case 'cooldown': {
+                this.stateTimer += dt;
+                if (this.stateTimer >= 0.7) {
+                    this.state = 'idle';
+                    this.attackTimer = this.attackInterval();
+                    // Phase 3: send a tentacle sweep between leaps
+                    if (this.phase() === 3 && !this.tentacle.active) {
+                        this.tentacleTimer = this.attackInterval() * 0.45;
+                    }
+                }
+                break;
+            }
+
+            case 'defeated': {
+                this.stateTimer += dt;
+                const t = Math.min(1, this.stateTimer / this.sinkDuration);
+                this.sinkOffset = this.drawHeight() * 1.6 * t * t;
+                this.alpha = 1 - t * 0.85;
+                if (t >= 1) {
+                    this.state = 'gone';
+                    game.onBossDefeated();
+                }
+                break;
+            }
+
+            case 'gone':
+                break;
+        }
+
+        // Tentacle sweep scheduling (phase 3, only while the octopus idles)
+        if (this.tentacleTimer > 0 && this.state === 'idle' && game.crashTimer <= 0) {
+            this.tentacleTimer -= dt;
+            if (this.tentacleTimer <= 0 && !this.tentacle.active) {
+                const baseX = this.homeX() - this.drawWidth() * 0.30;
+                this.tentacle.start(baseX, this.surfaceY() + 8);
+            }
+        }
+
+        if (this.tentacle.active) {
+            this.tentacle.update(dt, (x) => game.getWaveSurfaceYAtX(2, x));
+            this.checkTentacleHit();
+        }
+    }
+
+    splashdown() {
+        const game = this.game;
+        const surfY = this.surfaceY();
+        const x = this.homeX();
+
+        // Big splash burst at the entry point
+        game.spawnSpray(x - 30, surfY, 'burst');
+        game.spawnSpray(x + 30, surfY, 'burst');
+        game.spawnSpray(x, surfY - 10, 'burst');
+        game.playRandomSplash();
+
+        // The splash turns into a little wave Zeeb has to jump over.
+        // Normal danger-wave spawn, then pulled in to start at the octopus.
+        // spawnDangerWaveInstance declines silently if the slot's wave is
+        // still on screen — only reposition a wave we actually spawned.
+        const speed = [0, 340, 385, 420][this.phase()];
+        const wave = game.dangerWave;
+        if (!(wave.active && wave.x > -wave.width)) {
+            game.spawnDangerWaveInstance(wave, wave.sizeMultiplier || 1);
+            wave.x = x - this.drawWidth() * 0.35;
+            wave.speed = speed;
+        }
+
+        // Phase 2+: a second staggered wave rides out behind the first
+        if (this.phase() >= 2) {
+            const extra = game.dangerWaveExtra;
+            if (!(extra.active && extra.x > -extra.width)) {
+                game.spawnDangerWaveInstance(extra, extra.sizeMultiplier || 1.1);
+                extra.x = x + 240;
+                extra.speed = speed * 1.12;
+            }
+        }
+    }
+
+    checkTentacleHit() {
+        const game = this.game;
+        if (this.tentacle.hitPlayer || this.tentacle.retracting) return;
+        if (game.crashTimer > 0 || game.gameOver || game.player.invisible) return;
+        if (game.state !== 'playing') return;
+
+        const tip = this.tentacle.getTip();
+        const player = game.player;
+        const dx = Math.abs(tip.x - player.x);
+        if (dx < 46) {
+            const surfY = game.getWaveSurfaceYAtX(2, player.x);
+            const clearedIt = player.isJumping && player.y < surfY - 60;
+            if (!clearedIt) {
+                this.tentacle.hitPlayer = true;
+                this.tentacle.retracting = true;
+                game.triggerCrash(tip.x, 120);
+            }
+        }
+    }
+
+    draw(ctx) {
+        if (this.state === 'waiting' || this.state === 'gone') return;
+        const game = this.game;
+
+        this.tentacle.draw(ctx);
+
+        // Pick the face: X-eyes sinking, angry mid-attack, otherwise idle
+        let img = game.images.octoIdle;
+        if (this.state === 'defeated') img = game.images.octoDefeated;
+        else if (this.state === 'leap' || this.state === 'cooldown') img = game.images.octoAngry;
+        if (!img.complete || img.naturalWidth === 0) return;
+
+        const w = this.drawWidth();
+        const h = this.drawHeight();
+        const x = this.homeX();
+        const y = this.bodyY();
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.alpha);
+
+        // Slight squash-and-stretch during the leap
+        let scaleX = 1;
+        let scaleY = 1;
+        if (this.state === 'leap') {
+            const t = Math.min(1, this.stateTimer / this.leapDuration);
+            const stretch = Math.sin(t * Math.PI) * 0.10;
+            scaleX = 1 - stretch;
+            scaleY = 1 + stretch;
+        }
+
+        ctx.translate(x, y);
+        ctx.scale(scaleX, scaleY);
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+
+        // Phase-transition flash: white pulse over the body
+        if (this.flashTimer > 0) {
+            const f = Math.abs(Math.sin(this.flashTimer * 18));
+            ctx.globalAlpha = f * 0.55 * Math.max(0, this.alpha);
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        }
+        ctx.restore();
+    }
+}
+
+class OceanAnimation {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        
+        // Base size before DPR scaling
+        this.baseWidth = 900;
+        this.baseHeight = 600;
+        this.canvas.width = this.baseWidth;
+        this.canvas.height = this.baseHeight;
+        this.width = this.baseWidth;
+        this.height = this.baseHeight;
+        this.dpr = window.devicePixelRatio || 1;
+        this.assetVersion = '20260202a';
+        this.cloudSystem = (typeof window !== 'undefined' && window.CloudSystem)
+            ? new window.CloudSystem({
+                width: this.width,
+                height: this.height,
+                basePath: '../img/Clouds/'
+            })
+            : null;
+        
+        // Glow cache for danger waves
+        this.glowCache = new WeakMap();
+
+        this.visibleWaveLayers = [1, 2]; // mid, front layers
+
+        // Ocean water fill — gradient layer behind islands and waves
+        this.oceanFill = {
+            alpha: 1.0,             // 0–1 opacity
+            yStart: 0.58,           // vertical start (fraction of canvas height)
+            // Gradient stops (position 0 = top of ocean, 1 = bottom of canvas)
+            stops: [
+                { pos: 0,    color: '#0a1830' },  // dark horizon edge
+                { pos: 0.15, color: '#0e2845' },  // transition
+                { pos: 0.35, color: '#163d66' },  // bright mid-ocean blue
+                { pos: 0.55, color: '#123050' },  // deeper layer
+                { pos: 0.75, color: '#0d2238' },  // deep water
+                { pos: 1,    color: '#081428' },  // abyss
+            ],
+            // Moonlight sheen
+            sheenColor: 'rgba(100, 160, 220, 0.07)',  // soft blue-white glow
+            sheenY: 0.08,           // position within ocean fill (fraction)
+            sheenHeight: 0.12,      // band thickness (fraction)
+            sheenSpeed: 0.4,        // bob speed
+            sheenDrift: 0.008,      // bob amplitude (fraction of height)
+            // Caustic shimmer spots
+            causticCount: 10,
+            causticColor: 'rgba(120, 180, 230, 0.04)',
+            causticSize: 30,        // base radius in px
+            // Edge vignette
+            vignetteAlpha: 0.25,    // darkening strength at edges
+            vignetteWidth: 0.15,    // fraction of canvas width
+            // Underwater light rays (moonlight shafts)
+            rayCount: 5,
+            rayAlpha: 0.035,        // max opacity per ray
+            rayWidth: 0.06,         // base width (fraction of canvas width)
+            raySwaySpeed: 0.25,     // sway speed
+            raySwayAmount: 0.04,    // sway distance (fraction of width)
+            // Drifting current bands
+            currentCount: 3,
+            currentAlpha: 0.04,     // very faint
+            currentSpeed: 0.015,    // slow horizontal drift (fraction of width per second)
+            currentHeight: 0.08,    // band thickness (fraction of ocean height)
+            // Depth breathing — slow global brightness pulse
+            breatheSpeed: 0.15,     // pulse speed (cycles per second-ish)
+            breatheAmount: 0.03,    // brightness variation
+            // Surface ripple highlights
+            rippleCount: 6,
+            rippleAlpha: 0.04,      // very subtle
+            rippleYRange: 0.15,     // vertical zone near top of ocean (fraction of ocean height)
+            rippleSpeed: 0.02,      // drift speed
+        };
+
+        // Sunrise sun — the fight IS the sunrise. sunriseT() (driven by the
+        // coin bar) lifts it from below the horizon to fully risen at victory.
+        this.sun = {
+            x: 0.24,               // horizontal position (fraction of width)
+            yStart: 0.60,          // center starts below the horizon (~0.52)
+            yEnd: 0.15,            // fully risen position
+            size: 0.20,            // sun diameter as fraction of canvas height
+            // Where the gold circle sits inside Sun_Grace.png — the artwork
+            // is offset in a mostly-empty canvas, so we map the circle itself
+            imgCircleCX: 0.597,    // circle center X (fraction of image width)
+            imgCircleCY: 0.512,    // circle center Y (fraction of image height)
+            imgCircleDiam: 0.188,  // circle diameter (fraction of image width)
+            glowRadius: 2.6,       // glow radius multiplier (relative to diameter)
+            glowColor: [255, 190, 90],   // warm sunrise gold
+        };
+
+        // Pre-seed caustic spots (like stars but underwater)
+        this.oceanCaustics = [];
+        for (let i = 0; i < this.oceanFill.causticCount; i++) {
+            this.oceanCaustics.push({
+                x: Math.random(),           // fraction of width
+                y: Math.random(),           // fraction of ocean fill height
+                size: 0.7 + Math.random() * 0.6,  // size multiplier
+                speed: 0.3 + Math.random() * 0.5, // twinkle speed
+                phase: Math.random() * Math.PI * 2,
+            });
+        }
+
+        // Pre-seed light rays (spread across width, each with unique phase)
+        this.oceanRays = [];
+        for (let i = 0; i < this.oceanFill.rayCount; i++) {
+            this.oceanRays.push({
+                x: 0.12 + (i / (this.oceanFill.rayCount - 1)) * 0.76, // spread across 12%-88% of width
+                width: 0.8 + Math.random() * 0.5,   // width multiplier
+                alpha: 0.6 + Math.random() * 0.4,    // brightness multiplier
+                phase: Math.random() * Math.PI * 2,
+                speed: 0.8 + Math.random() * 0.4,    // sway speed multiplier
+            });
+        }
+
+        // Pre-seed current bands (wide horizontal streaks at different depths)
+        this.oceanCurrents = [];
+        for (let i = 0; i < this.oceanFill.currentCount; i++) {
+            this.oceanCurrents.push({
+                y: 0.2 + (i / (this.oceanFill.currentCount - 1)) * 0.6, // spread across ocean depth
+                speed: (0.7 + Math.random() * 0.6) * (i % 2 === 0 ? 1 : -1), // alternate direction
+                phase: Math.random() * this.width,
+                width: 0.8 + Math.random() * 0.4,  // width multiplier
+            });
+        }
+
+        // Pre-seed surface ripple highlights
+        this.oceanRipples = [];
+        for (let i = 0; i < this.oceanFill.rippleCount; i++) {
+            this.oceanRipples.push({
+                x: Math.random(),                       // start position (fraction of width)
+                y: Math.random() * this.oceanFill.rippleYRange, // near top of ocean
+                length: 0.08 + Math.random() * 0.12,    // width of highlight (fraction of canvas width)
+                speed: (0.5 + Math.random() * 1.0) * (Math.random() < 0.5 ? 1 : -1),
+                phase: Math.random() * Math.PI * 2,
+                fadeSpeed: 0.3 + Math.random() * 0.4,   // how fast it fades in/out
+            });
+        }
+
+        // Gerstner wave system (physically-based, replaces SVG tiling)
+        this.useGerstnerWaves = true; // Toggle: true = Gerstner, false = SVG tiles
+        this.gerstnerWaves = new GerstnerWaveSystem();
+        this.gerstnerWaves.init();
+        this.showDangerWaveExtra = true; // Show extra danger wave
+        
+        // Images
+        this.images = {
+            sky: new Image(),
+            islandLeft: new Image(),
+            islandRight: new Image(),
+            wave1: new Image(),
+            wave2: new Image(),
+            wave3: new Image(),
+            wave4: new Image(),
+            fishAliveLeft: new Image(),
+            fishAliveRight: new Image(),
+            fishDeadLeft: new Image(),
+            fishDeadRight: new Image(),
+            dangerWave2: new Image(),
+            dangerWave3: new Image(),
+            dangerWave4: new Image(),
+            dangerWave5: new Image(),
+            coin: new Image(),
+            sunsetSky: new Image(),
+            sun: new Image(),
+            sunSunset: new Image(),
+            moon: new Image(),
+            octoIdle: new Image(),
+            octoAngry: new Image(),
+            octoDefeated: new Image()
+        };
+        
+        // Z-Brocket easter egg — flies across the night sky (always left-to-right)
+        this.rocket = {
+            active: false,
+            x: 0,
+            y: 0,
+            speed: 0,
+            size: 0,
+            cooldown: 22, // first appearance at the 22-second mark
+            direction: 1,
+            baseY: 0,            // y at the edges (horizon entry/exit)
+            arcHeight: 0,        // how high the arc peaks above baseY
+            lasers: [],
+            lasersFired: 0,
+            lasersTotal: 0,
+            nextLaserTime: 0
+        };
+
+        // Danger wave image rotation - cycles through GraceWave2, 3, 4
+        this.dangerWaveImages = []; // Filled after loading: [dangerWave2, dangerWave3, dangerWave4]
+        this.dangerWaveImageIndex = 0; // Current rotation index
+        
+        // Per-sprite tip positions (ratios of waveWidth/waveHeight)
+        // These define where the curling tip is on each GraceWave sprite
+        // Tip is at the very top of the curling wave, left of center
+        this.dangerWaveTipPositions = [
+            { tipXRatio: 0.15, tipYRatio: -0.03, crestStartX: 0.05, crestEndX: 0.25 }, // GraceWave2
+            { tipXRatio: 0.17, tipYRatio: -0.03, crestStartX: 0.07, crestEndX: 0.27 }, // GraceWave3
+            { tipXRatio: 0.13, tipYRatio: -0.02, crestStartX: 0.03, crestEndX: 0.23 }, // GraceWave4
+            { tipXRatio: 0.15, tipYRatio: -0.03, crestStartX: 0.05, crestEndX: 0.25 }  // GraceWave5
+        ];
+        
+        // Wave / ocean water layers - positioned at very bottom of screen.
+        // NOTE: The tiled SVG images each contain a wavy crest on top AND a
+        // solid colour body below.  The body is what visually reads as the
+        // "ocean water" surface.  To darken or recolour the ocean water you
+        // should either edit the SVG fill or adjust the alpha / tint applied
+        // when drawing (see drawTiledWave).
+        //
+        // Layer index → name mapping:
+        //   0  backOceanWater    (wave1.svg)  – furthest, slowest
+        //   1  midOceanWater     (wave2.svg)  – dark-blue mid layer
+        //   2  frontOceanWater   (wave3.svg)  – closest, Zeeb rides this
+        //   3  bottomOceanWater  (wave2.svg)  – thin dark strip at bottom
+        this.waves = [
+            { // [0] backOceanWater (wave1.svg) - furthest, slowest, lighter blue
+                name: 'backOceanWater',
+                asset: 'wave1.svg',
+                offset: 0,
+                speed: 156,         // Full speed (ramps from 80% over first 20s)
+                heightRatio: 0.50,  // Wave height
+                yPosition: 0.55,    // Positioned low to ride the bottom
+                surfaceRatio: 0.15,
+                bobAmount: 0.008,   // Minimal bob to prevent gap
+                bobSpeed: 2.5,      // Much faster bobbing
+                bobPhase: 0,
+                initialOffset: 0,
+                loopCount: 0,
+                offsetInitialized: false
+            },
+            { // [1] midOceanWater (wave2.svg) - dark blue, medium speed
+                name: 'midOceanWater',
+                asset: 'wave2.svg',
+                offset: 0,
+                speed: 234,         // Full speed (ramps from 80% over first 20s)
+                heightRatio: 0.60,  // Wave height (15% larger)
+                yPosition: 0.56,    // Moved a bit further lower on screen
+                surfaceRatio: 0.15,
+                bobAmount: 0.025,   // Increased bobbing for more realistic motion
+                bobSpeed: 2.5,      // Slightly slower for more natural feel
+                bobPhase: 1.2,
+                initialOffset: 0.35,
+                loopCount: 0,
+                offsetInitialized: false
+            },
+            { // [2] frontOceanWater (wave3.svg) - closest, fastest, lighter teal/blue
+                // This is the primary ocean water surface the player rides on.
+                // Its apparent colour (~#73d5fe) comes from the SVG fill #1e88e5
+                // at 80% SVG opacity drawn with 90% canvas alpha over the sky.
+                // To darken the ocean water, lower the alpha values or edit wave3.svg fill.
+                name: 'frontOceanWater',
+                asset: 'wave3.svg',
+                offset: 0,
+                speed: 390,         // Full speed (ramps from 80% over first 20s)
+                heightRatio: 0.62,  // Wave height (15% taller)
+                yPosition: 0.57,    // Positioned slightly lower to hide edge
+                alpha: 0.9,         // Slightly more translucent to reveal fish
+                surfaceRatio: 0.15,
+                bobAmount: 0.030,   // More noticeable bobbing for front wave
+                bobSpeed: 3.0,      // Natural bobbing speed
+                bobPhase: 2.1,
+                initialOffset: 0.15,
+                loopCount: 0,
+                offsetInitialized: false
+            },
+            { // [3] bottomOceanWater (wave2.svg) - very short dark blue at the bottom
+                name: 'bottomOceanWater',
+                asset: 'wave2.svg',
+                offset: 0,
+                speed: 104,         // Full speed (ramps from 80% over first 20s)
+                heightRatio: 0.20,  // Slightly taller
+                yPosition: 0.85,    // Positioned at very bottom
+                yOffsetPx: -20,     // Move wave up ~50px from previous position
+                alpha: 0.9,
+                surfaceRatio: 0.10,
+                bobAmount: 0.003,   // Very minimal bob
+                bobSpeed: 2.0,      // Slow bobbing
+                bobPhase: 0.6,
+                initialOffset: 0.5,
+                loopCount: 0,
+                offsetInitialized: false
+            }
+        ];
+
+        this.fish = {
+            active: false,
+            state: 'alive',
+            entrySide: 'left',
+            x: -200,
+            y: this.height * 0.7,
+            width: 120,
+            height: 44,
+            speed: 0,
+            sinkSpeed: 60,
+            loopsPerSpawnMin: 3,
+            loopsPerSpawnMax: 6,
+            nextSpawnLoop: 3,
+            rightEntryChance: 0.2,
+            depthOffsetRatio: 0.10,
+            wiggleTime: 0,
+            direction: -1,
+            surfaceWaveIndex: 2,
+            hitPlayer: false,
+            initialSpawnTime: 1.5,     // First fish spawns at 1.5 seconds
+            initialSpawnInterval: 2.5, // Spawn every 2.5 seconds in first 10 seconds
+            initialPhaseDuration: 10,  // First 10 seconds have frequent fish
+            lastInitialSpawn: 0        // Track last spawn time in initial phase
+        };
+        
+        // Create player
+        this.player = new Player(this);
+
+        // The octopus. Fight begins when gameplay starts (beginFight()).
+        this.boss = new OctopusBoss(this);
+
+        // Victory video — Grace's cut lands as level4/victory.mp4; until the
+        // file exists this stays false and victory goes straight to level 3.
+        this.victoryVideoReady = false;
+        this._coinsBanked = false;
+        const vv = document.getElementById('victoryVideo');
+        if (vv) {
+            vv.addEventListener('loadedmetadata', () => { this.victoryVideoReady = true; });
+            vv.addEventListener('error', () => { this.victoryVideoReady = false; });
+        }
+
+        // Dangerous wave system
+        this.dangerWave = {
+            active: false,
+            x: 0,                    // Position of danger zone
+            width: 120,              // Width of danger zone
+            speed: 325,              // Pixels per second (faster than normal waves)
+            warningTime: 2.0,        // Seconds of warning before danger hits
+            spawnInterval: 5,        // Seconds between danger waves (varies)
+            nextSpawnTime: 3,        // Time until next spawn
+            color: 'rgba(255, 100, 50, 0.6)', // Warning color
+            foamColor: 'rgba(255, 255, 255, 0.9)',
+            hitPlayer: false,
+            graceTime: 0.12,         // Small delay before wipeout triggers (increased for fairness)
+            contactStart: null,
+            sizeMultiplier: 2.16,   // 60% larger than previous danger-wave size
+            yOffsetRatio: 0.10      // Lower so part of wave sits beyond frame bottom
+        };
+
+        this.dangerWaveExtra = {
+            active: false,
+            x: 0,
+            width: 120,
+            speed: 325,
+            warningTime: 2.0,
+            spawnChance: 0.15,       // Base chance to spawn with main wave (scales with score)
+            color: 'rgba(255, 100, 50, 0.6)',
+            foamColor: 'rgba(255, 255, 255, 0.9)',
+            hitPlayer: false,
+            graceTime: 0.12,
+            contactStart: null,
+            sizeMultiplier: 1.45,    // Reverted extra danger-wave size
+            yOffsetRatio: 0.10       // Lower so part of wave sits beyond frame bottom
+        };
+
+        // Target vertical line where danger-wave tops should align.
+        this.dangerWaveHitY = 400;
+        
+        // Wave pattern system
+        this.wavePattern = {
+            active: false,
+            type: null,           // 'rapidDouble' | 'tripleStaircase' | 'slowFast'
+            wavesRemaining: 0,
+            nextWaveDelay: 0,     // seconds until next wave in pattern
+            timer: 0
+        };
+
+        // Island parallax drift (very slow, left to right)
+        this.islandDriftX = 0;
+        this.islandDriftSpeed = 4; // px/s — super slow background drift
+
+        // Game state
+        this.state = 'title';       // 'title' | 'transition' | 'playing' | 'gameover'
+        this.transitionTimer = 0;
+        this.transitionDuration = 1.2; // seconds for island fade-out
+        this.titleMusicTriggered = false; // true after first interaction starts music
+        this.score = 0;
+        this.coinsCollected = 0;
+        this.lives = 3;
+        this.gameOver = false;
+        this.crashTimer = 0;        // Timer for crash animation
+        this.crashDuration = 1.5;   // Seconds to show crash
+        
+        // Close call bonus feedback
+        this.showCloseCall = false;
+        this.closeCallTimer = 0;
+
+        // Score pop animation
+        this.scorePop = 0;          // 0 = idle, counts down from 0.35
+        this.scorePopScale = 1;     // current scale for score text
+
+        // Coin HUD pop animation
+        this.coinPop = 0;
+        this.coinPopScale = 1;
+
+        // Floating score numbers
+        this.floatingScores = [];   // { x, y, text, timer, duration, color }
+
+        // Coin collection system
+        this.coins = [];
+        this.coinSpawnTimer = 2;
+        this.jumpCoinCount = 0;
+        this.jumpCoinValue = 0;
+        this.coinSpawnInterval = { min: 3, max: 4 };
+        this.coinSize = 36;
+        this.coinPointValue = 25;
+        this.coinSpeed = 180;
+        this.jumpCoinCount = 0;      // coins collected in current batch
+        this.jumpCoinValue = 0;      // total value accumulated in batch
+        this.coinBatchTimer = 0;     // countdown — when it hits 0, display the batch
+        this.coinsCollected = 0;     // total coins collected this run
+
+        // Speed hack (keys 1-9)
+        this.speedHack = 1.0;
+
+        // Ambient title-screen coins (rare, decorative)
+        this.titleCoins = [];
+        this.titleCoinTimer = 8 + Math.random() * 12; // first one after 8-20s
+
+        // Shark system
+        this.shark = {
+            active: false,
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 300,
+            speed: 280,             // px/s — faster than waves
+            surfaceWaveIndex: 2,    // rides front wave
+            depthOffset: 8,         // pixels below wave surface
+            nextSpawnScore: 800,    // first shark after 800 pts
+            spawnScoreInterval: { min: 1200, max: 2400 }, // score gap between sharks
+            warning: false,         // true while warning is showing
+            warningTimer: 0,        // counts down during warning
+            warningDuration: 1.8,   // seconds of warning before shark appears
+            // Dynamic swim — shark dives and surfaces in a cycle
+            swimPhase: 0,           // current phase in swim cycle (radians)
+            swimSpeed: 1.8,         // how fast the cycle runs
+            diveDepth: 60,          // max pixels below surface at deepest dive
+            surfaceHeight: -20,     // pixels above surface at peak breach
+            tilt: 0                 // nose tilt angle (radians)
+        };
+
+        // Jump combo tracker
+        this.comboCount = 0;        // waves cleared in current jump sequence
+        this.comboTimer = 0;        // resets when landing
+        
+        // Crash animation details
+        this.crashAnimation = {
+            active: false,
+            zeebX: 0,           // Zeeb's position during crash
+            zeebY: 0,
+            zeebScale: 1,       // Scale for shrinking effect
+            zeebRotation: 0,    // Rotation for spinning effect
+            waveX: 0,           // The wave that caught Zeeb
+            waveWidth: 0,       // Width of the wave
+            suctionX: 0,        // Target suction point (C curve)
+            suctionY: 0,
+            initialX: 0,        // Starting position
+            initialY: 0
+        };
+        
+        // Water spray particle system
+        this.sprayParticles = [];
+        this.sprayConfig = {
+            // Continuous wake trail — wide churned-water patches
+            wakeRate: 5,
+            wakeSpeedX: { min: -55, max: -20 },
+            wakeSpeedY: { min: -2, max: 2 },
+            wakeLife: 0.9,
+            wakeSize: { min: 3, max: 6 },
+            // Thin foam lines that trail behind
+            foamRate: 3,
+            foamSpeedX: { min: -45, max: -15 },
+            foamSpeedY: { min: -1.5, max: 1.5 },
+            foamLife: 0.7,
+            foamSize: { min: 2, max: 4 },
+            // Fine water droplets near the board
+            dropRate: 2,
+            dropSpeedX: { min: -35, max: -8 },
+            dropSpeedY: { min: -12, max: -2 },
+            dropLife: 0.35,
+            dropSize: { min: 1, max: 2.5 },
+            // Landing burst
+            burstCount: 14,
+            burstSpeedX: { min: -80, max: 10 },
+            burstSpeedY: { min: -60, max: -10 },
+            burstLife: 0.5,
+            burstSize: { min: 2, max: 5 },
+            burstFoamCount: 8,
+            burstFoamSpeedX: { min: -70, max: -10 },
+            burstFoamSpeedY: { min: -4, max: 4 },
+            burstFoamLife: 0.7,
+            burstFoamSize: { min: 4, max: 8 }
+        };
+
+        // Star field (night mode)
+        this.stars = [];
+        for (let i = 0; i < 100; i++) {
+            this.stars.push({
+                x: Math.random(),
+                y: Math.random() * 0.40, // sky only — well above horizon
+                size: 0.4 + Math.random() * 1.0,
+                twinkleSpeed: 0.15 + Math.random() * 0.5,
+                twinkleOffset: Math.random() * Math.PI * 2,
+                brightness: 0.5 + Math.random() * 0.5
+            });
+        }
+
+        // Shooting stars — random, favoring later in the game
+        this.shootingStars = [];
+        this.shootingStarCooldown = 20 + Math.random() * 20; // first one 20-40s in
+
+        // Animation timing
+        this.elapsedTime = 0;
+        this.fps = 0;
+        this.lastTime = 0;
+        this.isLoaded = false;
+        this.waveCrests = {};
+        this.waveDefs = {
+            1: {
+                width: 1920,
+                height: 300,
+                d: 'M0,120c133.3-26.7,266.7-30,400-10,133.3,20,266.7,16.7,400-10s266.7-23.3,400,10c133.3,33.3,266.7,36.7,400,10,133.3-26.7,240-26.7,320,0v180H0V120Z'
+            },
+            2: {
+                width: 1920,
+                height: 300,
+                d: 'M0,100c100-26.7,206.7-30,320-10,106.7,20,213.3,13.3,320-20,106.7-26.7,213.3-16.7,320,30,106.7,46.7,213.3,50,320,10s213.3-46.7,320-20c106.7,26.7,213.3,30,320,10v200H0V100Z'
+            },
+            3: {
+                width: 1920,
+                height: 300,
+                d: 'M0,130c53.3-13.3,106.7-18.3,160-15,53.3,6.7,106.7,15,160,25s106.7,8.3,160-5c53.3-13.3,106.7-25,160-35s106.7-11.7,160-5c53.3,10,106.7,23.3,160,40,53.3,20,106.7,33.3,160,40s106.7,5,160-5c53.3-13.3,106.7-25,160-35,53.3-6.7,106.7-8.3,160-5,53.3,6.7,106.7,11.7,160,15,53.3,2,106.7-3,160-15v170H0v-170Z'
+            }
+        };
+        for (let i = 1; i <= 3; i++) {
+            this.waveCrests[i] = this.buildCrestMapFromPath(this.waveDefs[i]);
+        }
+        
+        this.showDebug = new URLSearchParams(window.location.search).has('debug');
+        
+        // Keyboard controls
+        // Unlock audio on first user interaction (browsers block autoplay)
+        const unlockAudio = () => {
+            if (!this.titleMusicTriggered && this.state === 'title') {
+                this.titleMusicTriggered = true;
+                this.startTitleMusic();
+            }
+            if (!this.wavesAmbientStarted) {
+                this.wavesAmbient.play().catch(() => {});
+                this.wavesAmbientStarted = true;
+            }
+        };
+        window.addEventListener('keydown', unlockAudio, { once: true });
+        window.addEventListener('click', unlockAudio, { once: true });
+        window.addEventListener('touchstart', unlockAudio, { once: true });
+
+        window.addEventListener('keydown', (event) => {
+            if (this.state === 'confirm-quit') {
+                if (event.key === 'y' || event.key === 'Y' || event.key === 'Enter') {
+                    window.location.href = '../../index.html';
+                } else if (event.key === 'n' || event.key === 'N' || event.key === 'Escape') {
+                    this.state = this.prevState || 'playing';
+                }
+                return;
+            }
+            if (event.key === 'p' || event.key === 'P') {
+                if (this.state === 'playing') {
+                    this.pause();
+                }
+                return;
+            }
+            if (this.state === 'paused') return;
+            if (event.key >= '1' && event.key <= '9') {
+                this.speedHack = 1.0 + (parseInt(event.key) - 1) * 0.3125; // 1=1.0x, 9=3.5x
+                return;
+            }
+            if (event.key === 's' || event.key === 'S') {
+                if (this.state === 'playing') { this.score += 500; return; }
+            }
+            if (event.key === 'n' || event.key === 'N') {
+                if (this.state === 'playing') {
+                    this.score = Math.max(this.score, 3000);
+                    return;
+                }
+            }
+            if (event.key === 'i' || event.key === 'I') {
+                if (this.state === 'playing') { this.player.invisible = !this.player.invisible; return; }
+            }
+            if (event.key === 'd' || event.key === 'D') {
+                this.showDebug = !this.showDebug;
+            } else if (event.key === ' ' || event.key === 'Spacebar') {
+                event.preventDefault(); // Prevent page scroll
+                if (this.introVideoPlaying) {
+                    this.skipIntroVideo();
+                } else if (this.state === 'title') {
+                    this.startPlaying();
+                } else if (this.state === 'wipeout') {
+                    this.resumeAfterWipeout();
+                } else if (this.state === 'gameover') {
+                    this.restartGame();
+                } else if (this.state === 'victory') {
+                    this.finishVictory();
+                } else if (this.state === 'playing' && this.crashTimer <= 0) {
+                    this.player.jump();
+                }
+            }
+        });
+
+        // Canvas click/touch handler
+        const canvasClick = (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const scaleX = this.width / rect.width;
+            const scaleY = this.height / rect.height;
+            const cx = (clientX - rect.left) * scaleX;
+            const cy = (clientY - rect.top) * scaleY;
+
+            // Pause button hit test (playing state only — opens pause menu)
+            if (this.state === 'playing') {
+                const pb = this.getPauseButtonRect();
+                const dx = cx - (pb.x + pb.w / 2);
+                const dy = cy - (pb.y + pb.h / 2);
+                if (dx * dx + dy * dy <= (pb.w / 2 + 8) ** 2) {
+                    this.pause();
+                    e.preventDefault();
+                    return;
+                }
+                // Tap anywhere else to jump (mobile)
+                if (this.crashTimer <= 0) {
+                    this.player.jump();
+                }
+                e.preventDefault();
+                return;
+            }
+
+            // Wipeout — tap anywhere to resume
+            if (this.state === 'wipeout') {
+                this.resumeAfterWipeout();
+                e.preventDefault();
+                return;
+            }
+
+            // Paused — HTML overlay handles interactions
+            if (this.state === 'paused') return;
+
+            if (this.introVideoPlaying) {
+                this.skipIntroVideo();
+                return;
+            }
+
+            if (this.state === 'title') {
+                this.startPlaying();
+                return;
+            }
+            if (this.state === 'gameover') {
+                this.restartGame();
+                return;
+            }
+            if (this.state === 'victory') {
+                this.finishVictory();
+                return;
+            }
+            if (this.state === 'confirm-quit' && this._confirmBtns) {
+                const b = this._confirmBtns;
+                if (cy >= b.btnY && cy <= b.btnY + b.btnH) {
+                    if (cx >= b.yesX && cx <= b.yesX + b.btnW) {
+                        window.location.href = '../../index.html';
+                    } else if (cx >= b.noX && cx <= b.noX + b.btnW) {
+                        this.state = this.prevState || 'playing';
+                    }
+                }
+            }
+        };
+        this.canvas.addEventListener('click', canvasClick);
+        this.canvas.addEventListener('touchstart', canvasClick);
+
+        // Prevent mobile annoyances on canvas
+        this.canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Home link — return to main menu
+        const homeLink = document.getElementById('homeLink');
+        if (homeLink) {
+            homeLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (this.state === 'title') {
+                    // On title screen, go straight to main menu
+                    window.location.href = '../../index.html';
+                    return;
+                }
+                if (this.state === 'confirm-quit') return;
+                this.prevState = this.state;
+                this.state = 'confirm-quit';
+            });
+        }
+
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => this.resize(), 100);
+        });
+        document.addEventListener('fullscreenchange', () => this.resize());
+        document.addEventListener('webkitfullscreenchange', () => this.resize());
+
+        // Audio
+        this.titleMusic = new Audio('../Audio/The Drums Of Tiki.m4a');
+        this.titleMusic.loop = true;
+        this.titleMusic.volume = 0;
+        this.titleMusicStarted = false;
+        this.titleMusicFade = null; // { dir: 'in'|'out', elapsed: 0, duration: 5 }
+
+        this.music = new Audio(encodeURI('../Audio/Zeeb Islands The battle of the Octopus.m4a'));
+        this.music.loop = true;
+        this.music.volume = 0.5;
+        this.musicStarted = false;
+
+        // Splash sound effects (randomly pick one on each splash)
+        this.splashSounds = [
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 001.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 002.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 01.mp3')),
+            new Audio(encodeURI('../../audio/Sound_FX/Water Splash 02.mp3')),
+        ];
+        for (const s of this.splashSounds) s.volume = 0.1625;
+
+        // Coin pickup sound
+        this.coinSound = new Audio(encodeURI('../../audio/Sound_FX/coin high.mp3'));
+        this.coinSound.volume = 0.65;
+
+        // Ocean waves ambient loop
+        this.wavesAmbient = new Audio(encodeURI('../../audio/Sound_FX/main_waves.mp3'));
+        this.wavesAmbient.loop = true;
+        this.wavesAmbient.volume = 0.9;
+        this.wavesAmbientStarted = false;
+
+        // Load images
+        this.loadImages();
+    }
+
+    // Create a glowing silhouette canvas for danger wave effects
+    getGlowCanvas(img) {
+        if (!img || !img.complete || img.naturalWidth <= 0) return null;
+        
+        // Check cache first
+        if (this.glowCache.has(img)) {
+            return this.glowCache.get(img);
+        }
+        
+        // Create glow canvas
+        const glowCanvas = document.createElement('canvas');
+        const glowCtx = glowCanvas.getContext('2d');
+        
+        // Make canvas larger for blur effect
+        const padding = 40; // Extra space for blur
+        glowCanvas.width = img.naturalWidth + padding * 2;
+        glowCanvas.height = img.naturalHeight + padding * 2;
+        
+        // Draw the image centered with padding
+        glowCtx.drawImage(img, padding, padding, img.naturalWidth, img.naturalHeight);
+        
+        // Create white silhouette using source-in composite operation
+        glowCtx.globalCompositeOperation = 'source-in';
+        glowCtx.fillStyle = '#ffffff';
+        glowCtx.fillRect(0, 0, glowCanvas.width, glowCanvas.height);
+        
+        // Apply blur for glow effect
+        glowCtx.filter = 'blur(10px)';
+        glowCtx.drawImage(glowCanvas, 0, 0);
+        
+        // Cache and return
+        this.glowCache.set(img, glowCanvas);
+        return glowCanvas;
+    }
+
+    tryFullscreen() {
+        // On mobile, nudge Safari to collapse its address/tab bars
+        const isMobile = 'ontouchstart' in window && window.innerWidth <= 960;
+        if (!isMobile) return;
+        // Fullscreen API (works on Android Chrome, not iOS Safari)
+        const el = document.documentElement;
+        const rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+        if (rfs) {
+            rfs.call(el).then(() => {
+                setTimeout(() => this.resize(), 150);
+            }).catch(() => {});
+        }
+        // scrollTo trick — nudges iOS Safari to collapse its chrome
+        setTimeout(() => {
+            window.scrollTo(0, 1);
+            setTimeout(() => this.resize(), 300);
+        }, 50);
+    }
+
+    resize() {
+        const rect = this.canvas.getBoundingClientRect();
+        const nextWidth = rect.width || this.baseWidth;
+        const nextHeight = rect.height || this.baseHeight;
+
+        this.width = nextWidth;
+        this.height = nextHeight;
+        this.dpr = window.devicePixelRatio || 1;
+
+        this.canvas.width = Math.round(this.width * this.dpr);
+        this.canvas.height = Math.round(this.height * this.dpr);
+        this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        this.ctx.imageSmoothingEnabled = true;
+        this.player.updateLayout();
+        if (this.cloudSystem) {
+            try {
+                this.cloudSystem.resize(this.width, this.height);
+            } catch (err) {
+                console.warn('Cloud system resize failed; disabling clouds.', err);
+                this.cloudSystem = null;
+            }
+        }
+    }
+
+    getWaveMetrics(image, wave) {
+        const waveHeight = this.height * wave.heightRatio;
+        const waveY = this.height * wave.yPosition + (wave.yOffsetPx || 0);
+        let tileWidth = this.width;
+
+        if (image && image.naturalWidth > 0 && image.naturalHeight > 0) {
+            const scale = waveHeight / image.naturalHeight;
+            tileWidth = image.naturalWidth * scale;
+        }
+
+        if (!tileWidth || !Number.isFinite(tileWidth)) {
+            tileWidth = this.width;
+        }
+
+        return {
+            waveHeight,
+            waveY,
+            tileWidth: Math.max(tileWidth, 1)
+        };
+    }
+
+    getDangerWaveTopY() {
+        // Scale danger wave position with canvas height (was hardcoded 400 for 600px canvas)
+        return this.height * 0.67;
+    }
+    
+    tokenizePath(d) {
+        const tokens = d.match(/[a-zA-Z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g);
+        return tokens || [];
+    }
+
+    sampleCubic(p0, p1, p2, p3, steps, visit) {
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const mt = 1 - t;
+            const x =
+                mt * mt * mt * p0.x +
+                3 * mt * mt * t * p1.x +
+                3 * mt * t * t * p2.x +
+                t * t * t * p3.x;
+            const y =
+                mt * mt * mt * p0.y +
+                3 * mt * mt * t * p1.y +
+                3 * mt * t * t * p2.y +
+                t * t * t * p3.y;
+            visit(x, y);
+        }
+    }
+
+    sampleLine(p0, p1, steps, visit) {
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const x = p0.x + (p1.x - p0.x) * t;
+            const y = p0.y + (p1.y - p0.y) * t;
+            visit(x, y);
+        }
+    }
+
+    buildCrestMapFromPath(def) {
+        if (!def || !def.d) {
+            return null;
+        }
+
+        const width = def.width;
+        const height = def.height;
+        const bins = 1024;
+        const crest = new Float32Array(bins);
+        crest.fill(Number.POSITIVE_INFINITY);
+
+        const visit = (x, y) => {
+            const clampedX = Math.max(0, Math.min(width, x));
+            const idx = Math.max(0, Math.min(bins - 1, Math.floor((clampedX / width) * (bins - 1))));
+            if (y < crest[idx]) {
+                crest[idx] = y;
+            }
+        };
+
+        const tokens = this.tokenizePath(def.d);
+        let i = 0;
+        let cmd = '';
+        let cx = 0;
+        let cy = 0;
+        let sx = 0;
+        let sy = 0;
+
+        const readNumber = () => {
+            const value = parseFloat(tokens[i]);
+            i += 1;
+            return value;
+        };
+
+        while (i < tokens.length) {
+            const token = tokens[i];
+            if (/^[a-zA-Z]$/.test(token)) {
+                cmd = token;
+                i += 1;
+            }
+
+            if (cmd === 'M' || cmd === 'm') {
+                const x = readNumber();
+                const y = readNumber();
+                cx = cmd === 'm' ? cx + x : x;
+                cy = cmd === 'm' ? cy + y : y;
+                sx = cx;
+                sy = cy;
+                visit(cx, cy);
+                cmd = cmd === 'm' ? 'l' : 'L';
+                continue;
+            }
+
+            if (cmd === 'C' || cmd === 'c') {
+                const isRel = cmd === 'c';
+                while (i < tokens.length && !/^[a-zA-Z]$/.test(tokens[i])) {
+                    const x1 = readNumber();
+                    const y1 = readNumber();
+                    const x2 = readNumber();
+                    const y2 = readNumber();
+                    const x = readNumber();
+                    const y = readNumber();
+
+                    const p0 = { x: cx, y: cy };
+                    const p1 = { x: isRel ? cx + x1 : x1, y: isRel ? cy + y1 : y1 };
+                    const p2 = { x: isRel ? cx + x2 : x2, y: isRel ? cy + y2 : y2 };
+                    const p3 = { x: isRel ? cx + x : x, y: isRel ? cy + y : y };
+
+                    this.sampleCubic(p0, p1, p2, p3, 40, visit);
+                    cx = p3.x;
+                    cy = p3.y;
+                }
+                continue;
+            }
+
+            if (cmd === 'L' || cmd === 'l') {
+                const isRel = cmd === 'l';
+                while (i < tokens.length && !/^[a-zA-Z]$/.test(tokens[i])) {
+                    const x = readNumber();
+                    const y = readNumber();
+                    const p0 = { x: cx, y: cy };
+                    const p1 = { x: isRel ? cx + x : x, y: isRel ? cy + y : y };
+                    this.sampleLine(p0, p1, 8, visit);
+                    cx = p1.x;
+                    cy = p1.y;
+                }
+                continue;
+            }
+
+            if (cmd === 'H' || cmd === 'h') {
+                const isRel = cmd === 'h';
+                while (i < tokens.length && !/^[a-zA-Z]$/.test(tokens[i])) {
+                    const x = readNumber();
+                    const p0 = { x: cx, y: cy };
+                    const p1 = { x: isRel ? cx + x : x, y: cy };
+                    this.sampleLine(p0, p1, 6, visit);
+                    cx = p1.x;
+                }
+                continue;
+            }
+
+            if (cmd === 'V' || cmd === 'v') {
+                const isRel = cmd === 'v';
+                while (i < tokens.length && !/^[a-zA-Z]$/.test(tokens[i])) {
+                    const y = readNumber();
+                    const p0 = { x: cx, y: cy };
+                    const p1 = { x: cx, y: isRel ? cy + y : y };
+                    this.sampleLine(p0, p1, 6, visit);
+                    cy = p1.y;
+                }
+                continue;
+            }
+
+            if (cmd === 'Z' || cmd === 'z') {
+                const p0 = { x: cx, y: cy };
+                const p1 = { x: sx, y: sy };
+                this.sampleLine(p0, p1, 10, visit);
+                cx = sx;
+                cy = sy;
+                continue;
+            }
+
+            // Unknown command; skip token to avoid infinite loop.
+            i += 1;
+        }
+
+        // Fill any empty bins by carrying forward the last known crest.
+        let last = height * 0.2;
+        for (let idx = 0; idx < bins; idx++) {
+            if (!Number.isFinite(crest[idx])) {
+                crest[idx] = last;
+            } else {
+                last = crest[idx];
+            }
+        }
+
+        // Convert to ratios so they scale with the wave height.
+        for (let idx = 0; idx < bins; idx++) {
+            crest[idx] = crest[idx] / height;
+        }
+
+        return {
+            sourceWidth: width,
+            values: crest
+        };
+    }
+
+    getWaveSurfaceY(waveIndex) {
+        // Gerstner: use center of screen as X sample point
+        if (this.useGerstnerWaves) {
+            return this.gerstnerWaves.getSurfaceY(waveIndex, this.width * 0.5, this.width, this.height);
+        }
+        if (waveIndex < 0 || waveIndex >= this.waves.length) return this.height * 0.5;
+
+        const wave = this.waves[waveIndex];
+        const metrics = this.getWaveMetrics(this.images[`wave${waveIndex + 1}`], wave);
+        const bob = Math.sin(this.elapsedTime * wave.bobSpeed + (wave.bobPhase || 0)) * (this.height * wave.bobAmount);
+
+        return metrics.waveY + metrics.waveHeight * wave.surfaceRatio + bob;
+    }
+
+    getWaveSurfaceYAtX(waveIndex, x) {
+        // Gerstner: query exact surface Y at the given X
+        if (this.useGerstnerWaves) {
+            const y = this.gerstnerWaves.getSurfaceY(waveIndex, x, this.width, this.height);
+            const minY = this.height * 0.35;
+            const maxY = this.height * 0.85;
+            return Math.max(minY, Math.min(maxY, y));
+        }
+        if (waveIndex < 0 || waveIndex >= this.waves.length) return this.height * 0.5;
+
+        const wave = this.waves[waveIndex];
+        const image = this.images[`wave${waveIndex + 1}`];
+        const metrics = this.getWaveMetrics(image, wave);
+        const bob = Math.sin(this.elapsedTime * wave.bobSpeed + (wave.bobPhase || 0)) * (this.height * wave.bobAmount);
+        const crestMap = this.waveCrests[waveIndex + 1];
+
+        if (!crestMap || !crestMap.values) {
+            return metrics.waveY + metrics.waveHeight * wave.surfaceRatio + bob;
+        }
+
+        const tileWidth = metrics.tileWidth;
+        const localX = ((x + wave.offset) % tileWidth + tileWidth) % tileWidth;
+        const crestValues = crestMap.values;
+        const crestIndex = Math.min(
+            crestValues.length - 1,
+            Math.max(0, Math.floor((localX / tileWidth) * (crestValues.length - 1)))
+        );
+        let crestRatio = crestValues[crestIndex];
+
+        // SAFEGUARD: Clamp crest ratio to reasonable bounds (0.1 to 0.6)
+        // This prevents extreme Y values from bad crest map data
+        crestRatio = Math.max(0.1, Math.min(0.6, crestRatio));
+
+        const surfaceY = metrics.waveY + metrics.waveHeight * crestRatio + bob;
+
+        // SAFEGUARD: Clamp final Y to reasonable screen bounds
+        const minY = this.height * 0.35;
+        const maxY = this.height * 0.85;
+        return Math.max(minY, Math.min(maxY, surfaceY));
+    }
+
+    advanceWave(wave, dt, tileWidth) {
+        if (!wave) {
+            return;
+        }
+
+        // Use Gerstner wave system's speed multiplier if available, otherwise fallback
+        const speedMultiplier = this.useGerstnerWaves
+            ? this.gerstnerWaves.getSpeedMultiplier()
+            : (() => {
+                const rampDuration = 20;
+                const rampStart = 0.8;
+                const rampProgress = Math.min(1, this.elapsedTime / rampDuration);
+                const ramp = rampStart + (1 - rampStart) * rampProgress;
+                const scoreBoost = this.score >= 900 ? 1.4 : 1.0;
+                return ramp * scoreBoost;
+            })();
+        const effectiveSpeed = wave.speed * speedMultiplier * this.speedHack;
+
+        if (!tileWidth || !Number.isFinite(tileWidth)) {
+            wave.offset += effectiveSpeed * dt;
+            return;
+        }
+
+        if (!wave.offsetInitialized) {
+            wave.offset = tileWidth * (wave.initialOffset || 0);
+            wave.offsetInitialized = true;
+        }
+
+        const nextOffset = wave.offset + effectiveSpeed * dt;
+        const loopsPassed = Math.floor(nextOffset / tileWidth);
+        if (loopsPassed > 0) {
+            wave.loopCount = (wave.loopCount || 0) + loopsPassed;
+        }
+        wave.offset = nextOffset % tileWidth;
+    }
+
+    spawnFish(frontWave) {
+        const scale = Math.max(0.8, Math.min(1.2, Math.min(this.width / 900, this.height / 600)));
+        const entrySide = Math.random() < this.fish.rightEntryChance ? 'right' : 'left';
+        const direction = entrySide === 'left' ? 1 : -1;
+        this.fish.active = true;
+        this.fish.state = 'alive';
+        this.fish.entrySide = entrySide;
+        this.fish.wiggleTime = 0;
+        this.fish.hitPlayer = false;
+        this.fish.width = 120 * scale;
+        this.fish.height = 44 * scale;
+        this.fish.direction = direction;
+        this.fish.x = entrySide === 'right'
+            ? this.width + this.fish.width * 1.6
+            : -this.fish.width * 1.6;
+        this.fish.speed = frontWave.speed * 0.55 * direction;
+        const baseY = this.getWaveSurfaceYAtX(this.fish.surfaceWaveIndex, this.fish.x);
+        this.fish.y = baseY + this.height * this.fish.depthOffsetRatio;
+    }
+
+    getNextFishSpawnGap() {
+        const minGap = Math.min(this.fish.loopsPerSpawnMin, this.fish.loopsPerSpawnMax);
+        const maxGap = Math.max(this.fish.loopsPerSpawnMin, this.fish.loopsPerSpawnMax);
+        return minGap + Math.floor(Math.random() * (maxGap - minGap + 1));
+    }
+
+    updateFish(dt) {
+        const frontWave = this.waves[2];
+        if (!frontWave) {
+            return;
+        }
+
+        // Check if we're in the initial 10-second phase with frequent fish spawning
+        const inInitialPhase = this.elapsedTime <= this.fish.initialPhaseDuration;
+        
+        if (!this.fish.active) {
+            if (inInitialPhase) {
+                // In first 10 seconds: spawn fish more frequently
+                if (this.elapsedTime >= this.fish.lastInitialSpawn + this.fish.initialSpawnInterval) {
+                    this.spawnFish(frontWave);
+                    this.fish.lastInitialSpawn = this.elapsedTime;
+                }
+            } else {
+                // After 10 seconds: use normal loop-based spawning
+                if ((frontWave.loopCount || 0) >= this.fish.nextSpawnLoop) {
+                    this.spawnFish(frontWave);
+                    this.fish.nextSpawnLoop += this.getNextFishSpawnGap();
+                }
+            }
+        }
+
+        if (!this.fish.active) {
+            return;
+        }
+
+        if (this.fish.state === 'dead') {
+            this.fish.y += this.fish.sinkSpeed * dt;
+        } else {
+            this.fish.x += this.fish.speed * this.speedHack * dt;
+            this.fish.wiggleTime += dt * 2;
+            const baseY = this.getWaveSurfaceYAtX(this.fish.surfaceWaveIndex, this.fish.x);
+            const wiggle = Math.sin(this.fish.wiggleTime) * (this.height * 0.01);
+            this.fish.y = baseY + this.height * this.fish.depthOffsetRatio + wiggle;
+        }
+
+        if (this.fish.state === 'alive' && !this.fish.hitPlayer && !this.gameOver && this.crashTimer <= 0) {
+            const zeebX = this.player.x;
+            const zeebY = this.player.y;
+            const zeebWidth = this.player.surfboardWidth * 0.35;
+            const zeebHeight = this.player.getSurfboardHeight() * 0.5;
+            const fishWidth = this.fish.width * 0.6;
+            const fishHeight = this.fish.height * 0.5;
+
+            const hit =
+                Math.abs(zeebX - this.fish.x) < (zeebWidth + fishWidth) * 0.5 &&
+                Math.abs(zeebY - this.fish.y) < (zeebHeight + fishHeight) * 0.5;
+
+            if (hit) {
+                this.fish.hitPlayer = true;
+                this.fish.state = 'dead';
+                this.fish.speed = 0; // Dead fish should sink, not swim.
+            }
+        }
+
+        if (
+            (this.fish.direction < 0 && this.fish.x < -this.fish.width * 2) ||
+            (this.fish.direction > 0 && this.fish.x > this.width + this.fish.width * 2) ||
+            (this.fish.state === 'dead' && this.fish.y > this.height + this.fish.height * 2)
+        ) {
+            this.fish.active = false;
+        }
+    }
+    
+    // ==================== DANGEROUS WAVE SYSTEM ====================
+    
+    spawnDangerWaveInstance(wave, sizeMultiplier = 1) {
+        if (!wave) {
+            return;
+        }
+        // Don't overwrite a wave that's anywhere on or near the screen
+        if (wave.active && wave.x > -wave.width) {
+            return;
+        }
+        wave.active = true;
+        wave.x = this.width + 120; // Start well off-screen right
+        wave.width = (80 + Math.random() * 60) * sizeMultiplier; // Random width 80-140
+        wave.heightScale = 0.92 + Math.random() * 0.08; // 92-100% of peak height (consistent since all sprites are same size)
+        wave.hitPlayer = false;
+        wave.contactStart = null;
+        wave.everCleared = false;   // Reset cleared tracking
+        wave.pointsAwarded = false; // Reset points tracking
+        wave.clearanceY = null;     // Reset clearance height tracking
+        
+        // Assign rotating danger wave image (GraceWave2, 3, 4)
+        if (this.dangerWaveImages.length > 0) {
+            const imgIdx = this.dangerWaveImageIndex % this.dangerWaveImages.length;
+            wave.img = this.dangerWaveImages[imgIdx];
+            wave.imgName = `GraceWave${imgIdx + 2}.png`;
+            // Assign per-sprite tip position for crest/foam alignment
+            wave.tipPos = this.dangerWaveTipPositions[imgIdx] || this.dangerWaveTipPositions[0];
+            this.dangerWaveImageIndex++;
+        }
+    }
+
+    // Spawn timing scales with score — more waves as you climb
+    getDangerSpawnTiming() {
+        const s = this.score;
+        let t;
+        if (s >= 10000) t = { min: 1.1, range: 1.0, extraChance: 0.75 };
+        else if (s >= 6000)  t = { min: 1.3, range: 1.2, extraChance: 0.70 };
+        else if (s >= 4000)  t = { min: 1.5, range: 1.4, extraChance: 0.65 };
+        else if (s >= 2000)  t = { min: 1.8, range: 1.7, extraChance: 0.55 };
+        else if (s >= 1500)  t = { min: 2.4, range: 1.8, extraChance: 0.45 };
+        else if (s >= 900)   t = { min: 3.0, range: 2.2, extraChance: 0.35 };
+        else if (s >= 500)   t = { min: 3.5, range: 2.3, extraChance: 0.25 };
+        else if (s >= 200)   t = { min: 4.0, range: 2.8, extraChance: 0.18 };
+        else                 t = { min: 4.5, range: 3.3, extraChance: 0.10 };
+        // Speed hack shrinks spawn intervals so waves come faster
+        t.min /= this.speedHack;
+        t.range /= this.speedHack;
+        return t;
+    }
+
+    getDangerWaveSpeed() {
+        // Base speed scales with score
+        const s = this.score;
+        let base = 325;
+        if (s >= 10000) base = 550;
+        else if (s >= 6000) base = 480;
+        else if (s >= 4000) base = 430;
+        else if (s >= 2000) base = 390;
+        else if (s >= 900) base = 360;
+
+        // Random variation: some waves come fast, some slow — keeps player guessing
+        const variation = 0.7 + Math.random() * 0.6; // 0.7x to 1.3x
+        return base * variation;
+    }
+
+    spawnDangerWave() {
+        // Try to spawn a wave pattern instead of a solo wave
+        if (!this.wavePattern.active && this.score >= 300) {
+            const patternChance = Math.min(0.55, (this.score - 300) / 2000);
+            if (Math.random() < patternChance && this.startWavePattern()) {
+                // Pattern handles its own spawn timing
+                const timing = this.getDangerSpawnTiming();
+                this.dangerWave.nextSpawnTime = this.elapsedTime + timing.min + timing.range + 2;
+                return;
+            }
+        }
+
+        // Normal solo wave spawn with speed variation
+        this.spawnDangerWaveInstance(this.dangerWave, this.dangerWave.sizeMultiplier || 1);
+        this.dangerWave.speed = this.getDangerWaveSpeed();
+
+        const timing = this.getDangerSpawnTiming();
+        this.dangerWave.nextSpawnTime = this.elapsedTime + timing.min + Math.random() * timing.range;
+
+        if (Math.random() < timing.extraChance) {
+            this.spawnDangerWaveInstance(this.dangerWaveExtra, this.dangerWaveExtra.sizeMultiplier || 1.1);
+            this.dangerWaveExtra.x += 250 + Math.random() * 150;
+            this.dangerWaveExtra.speed = this.getDangerWaveSpeed(); // independent speed
+        }
+    }
+    
+    updateDangerWave(dt) {
+        // Handle crash timer countdown
+        if (this.crashTimer > 0) {
+            this.crashTimer -= dt;
+            if (this.crashTimer <= 0) {
+                this.crashTimer = 0;
+                this.crashAnimation.active = false;
+
+                // Clear all active danger waves and patterns
+                this.dangerWave.active = false;
+                this.dangerWave.hitPlayer = false;
+                this.dangerWave.contactStart = null;
+                this.dangerWave.speed = this.getDangerWaveSpeed ? this.getDangerWaveSpeed() : 325;
+                this.dangerWaveExtra.active = false;
+                this.dangerWaveExtra.hitPlayer = false;
+                this.dangerWaveExtra.contactStart = null;
+                this.dangerWaveExtra.speed = this.getDangerWaveSpeed ? this.getDangerWaveSpeed() : 325;
+                this.wavePattern.active = false;
+                this.wavePattern.wavesRemaining = 0;
+                this.fish.active = false;
+
+                // Octopus backs off and resets to idle (coins are kept —
+                // a wipeout restarts the attack, not the progress)
+                this.boss.onWipeout();
+
+                if (this.lives <= 0) {
+                    this.gameOver = true;
+                    this.state = 'gameover';
+                } else {
+                    // Pause and wait for player to press space
+                    this.state = 'wipeout';
+
+
+                }
+            }
+        }
+        
+        // Don't spawn new waves if game over or currently crashing
+        if (this.gameOver || this.crashTimer > 0) {
+            return;
+        }
+        
+        // Boss fight: no timed spawns and no wave patterns — every danger wave
+        // is born from the octopus's splash (OctopusBoss.spawnSplashWave).
+
+        this.updateDangerWaveInstance(this.dangerWave, dt);
+        this.updateDangerWaveInstance(this.dangerWaveExtra, dt);
+        // Golden wave update removed
+    }
+    
+    // Wave pattern system
+
+    getPatternForScore() {
+        const s = this.score;
+        if (s < 300) return null;
+
+        const patterns = ['rapidDouble'];
+        if (s >= 800)  patterns.push('tripleStaircase');
+        if (s >= 1500) patterns.push('slowFast');
+
+        return patterns[Math.floor(Math.random() * patterns.length)];
+    }
+
+    startWavePattern() {
+        const type = this.getPatternForScore();
+        if (!type) return false;
+
+        this.wavePattern.active = true;
+        this.wavePattern.type = type;
+
+        const baseSpeed = this.getDangerWaveSpeed();
+        this.dangerWave.speed = baseSpeed;
+
+        switch (type) {
+            case 'rapidDouble':
+                // Two waves, tight gap — spawn first now, second after short delay
+                this.spawnDangerWaveInstance(this.dangerWave, this.dangerWave.sizeMultiplier || 1);
+                this.dangerWave.speed = baseSpeed;
+                this.wavePattern.wavesRemaining = 1;
+                this.wavePattern.nextWaveDelay = 0.45;
+                this.wavePattern.timer = this.wavePattern.nextWaveDelay;
+                break;
+
+            case 'tripleStaircase':
+                // Three waves, each faster — spawn first now
+                this.spawnDangerWaveInstance(this.dangerWave, this.dangerWave.sizeMultiplier || 1);
+                this.wavePattern.wavesRemaining = 2;
+                this.wavePattern.nextWaveDelay = 0.7;
+                this.wavePattern.timer = this.wavePattern.nextWaveDelay;
+                this.wavePattern._speedStep = 1; // tracks which wave we're on
+                break;
+
+            case 'slowFast':
+                // Wide slow wave first
+                this.spawnDangerWaveInstance(this.dangerWave, (this.dangerWave.sizeMultiplier || 1) * 1.3);
+                this.dangerWave.speed = baseSpeed * 0.7;
+                this.wavePattern.wavesRemaining = 1;
+                this.wavePattern.nextWaveDelay = 1.2;
+                this.wavePattern.timer = this.wavePattern.nextWaveDelay;
+                this.wavePattern._baseSpeed = baseSpeed;
+                break;
+        }
+
+        return true;
+    }
+
+    spawnPatternWave() {
+        const type = this.wavePattern.type;
+        const baseSpeed = this.wavePattern._baseSpeed || 325;
+
+        // Find a free wave slot — only reuse if fully off-screen left
+        const slotFree = (w) => !w.active || w.x <= -w.width;
+        let target = slotFree(this.dangerWaveExtra) ? this.dangerWaveExtra : null;
+        if (!target && slotFree(this.dangerWave)) target = this.dangerWave;
+
+        if (!target) {
+            // Both slots busy — retry in 0.3s
+            this.wavePattern.timer = 0.3;
+            return;
+        }
+
+        const sizeMul = target === this.dangerWave
+            ? (this.dangerWave.sizeMultiplier || 1)
+            : (this.dangerWaveExtra.sizeMultiplier || 1);
+
+        switch (type) {
+            case 'rapidDouble':
+                this.spawnDangerWaveInstance(target, sizeMul);
+                break;
+
+            case 'tripleStaircase': {
+                this.wavePattern._speedStep++;
+                const speedMul = 1 + (this.wavePattern._speedStep - 1) * 0.15;
+                this.spawnDangerWaveInstance(target, sizeMul);
+                target.speed = 325 * speedMul;
+                break;
+            }
+
+            case 'slowFast':
+                this.spawnDangerWaveInstance(target, sizeMul * 0.7);
+                target.speed = baseSpeed * 1.5;
+                this.dangerWave.speed = 325;
+                break;
+        }
+
+        this.wavePattern.wavesRemaining--;
+        if (this.wavePattern.wavesRemaining > 0) {
+            this.wavePattern.timer = this.wavePattern.nextWaveDelay;
+        }
+    }
+
+    // ── Coin system ──────────────────────────────────────────────
+
+    spawnCoinCluster() {
+        const count = 2 + Math.floor(Math.random() * 2); // 2-3
+        const startX = this.width + 40;
+        const spacing = 45;
+
+        for (let i = 0; i < count; i++) {
+            const isAir = Math.random() < 0.35;
+            this.coins.push({
+                x: startX + i * spacing,
+                y: 0,
+                type: isAir ? 'air' : 'surface',
+                airOffsetY: isAir ? (60 + Math.random() * 60) : 0,
+                collected: false,
+                collectTimer: 0,
+                pulsePhase: Math.random() * Math.PI * 2
+            });
+        }
+    }
+
+    updateCoins(dt) {
+        if (this.gameOver || this.crashTimer > 0) return;
+
+        // Batch timer — resets coin streak after a lull
+        if (this.coinBatchTimer > 0) {
+            this.coinBatchTimer -= dt;
+            if (this.coinBatchTimer <= 0) {
+                this.jumpCoinCount = 0;
+                this.jumpCoinValue = 0;
+            }
+        }
+
+        this.coinSpawnTimer -= dt * this.speedHack;
+        if (this.coinSpawnTimer <= 0) {
+            this.spawnCoinCluster();
+            const { min, max } = this.coinSpawnInterval;
+            this.coinSpawnTimer = min + Math.random() * (max - min);
+        }
+
+        for (let i = this.coins.length - 1; i >= 0; i--) {
+            const coin = this.coins[i];
+
+            coin.x -= this.coinSpeed * this.speedHack * dt;
+
+            const surfaceY = this.getWaveSurfaceYAtX(2, coin.x);
+            if (coin.type === 'surface') {
+                coin.y = surfaceY - this.coinSize * 0.6;
+            } else {
+                coin.y = surfaceY - coin.airOffsetY;
+            }
+
+            if (coin.collected) {
+                coin.collectTimer -= dt;
+                if (coin.collectTimer <= 0) {
+                    this.coins.splice(i, 1);
+                }
+                continue;
+            }
+
+            const dx = coin.x - this.player.x;
+            const dy = coin.y - this.player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < this.coinSize / 2 + this.player.surfboardWidth * 0.45) {
+                coin.collected = true;
+                coin.collectTimer = 0.25;
+                this.coinSound.currentTime = 0;
+                this.coinSound.play().catch(() => {});
+
+                this.coinsCollected++;
+                this.coinPop = 0.3;
+            }
+
+            if (coin.x < -50) {
+                this.coins.splice(i, 1);
+            }
+        }
+    }
+
+    drawCoins(ctx) {
+        const img = this.images.coin;
+        if (!img.complete || img.naturalWidth === 0) return;
+
+        for (const coin of this.coins) {
+            ctx.save();
+            let scale = 1 + 0.12 * Math.sin(this.elapsedTime * 4 + coin.pulsePhase);
+
+            if (coin.collected) {
+                const t = coin.collectTimer / 0.25;
+                scale *= t;
+                ctx.globalAlpha = t;
+            }
+
+            const size = this.coinSize * scale;
+            ctx.drawImage(img, coin.x - size / 2, coin.y - size / 2, size, size);
+            ctx.restore();
+        }
+    }
+
+    awardJumpCoins() {
+        // Now handled inline in updateCoins — kept for compatibility
+    }
+
+    awardJumpPoints(points, waveX, isCloseCall) {
+        this.score += points;
+        this.scorePop = 0.3;
+        this.comboCount++;
+
+        // Only show floating text for special moments
+        if (isCloseCall) {
+            this.floatingScores.push({
+                x: waveX,
+                y: this.player.y - 30,
+                text: `CLOSE CALL! +${points}`,
+                timer: 0,
+                duration: 1.0,
+                color: '#32ff64'
+            });
+        }
+
+        // Combo bonus for clearing 2+ waves while airborne
+        if (this.comboCount === 2) {
+            const comboBonus = 200;
+            this.score += comboBonus;
+            this.scorePop = 0.35;
+            this.floatingScores.push({
+                x: this.player.x,
+                y: this.player.y - 50,
+                text: `2x COMBO! +${comboBonus}`,
+                timer: 0,
+                duration: 1.2,
+                color: '#ff66ff'
+            });
+        } else if (this.comboCount > 2) {
+            const comboBonus = this.comboCount * 150;
+            this.score += comboBonus;
+            this.scorePop = 0.35;
+            this.floatingScores.push({
+                x: this.player.x,
+                y: this.player.y - 50,
+                text: `${this.comboCount}x COMBO! +${comboBonus}`,
+                timer: 0,
+                duration: 1.2,
+                color: '#ff66ff'
+            });
+        }
+    }
+
+    updateDangerWaveInstance(wave, dt) {
+        if (!wave || !wave.active) {
+            return;
+        }
+
+        // Move danger wave from right to left (boost speed at 900+ points)
+        const dangerBoost = this.score >= 900 ? 1.5 : 1.0;
+        const prevX = wave.x;
+        wave.x -= wave.speed * dangerBoost * this.speedHack * dt;
+
+        // Check collision with player
+        if (!wave.hitPlayer) {
+            // Get Zeeb's actual position on the surfboard (centered on board)
+            const zeebX = this.player.x;
+            const zeebY = this.player.y;
+
+            // Zeeb's collision box
+            const zeebWidth = this.player.surfboardWidth * 0.45;  // Wider hitbox
+            const zeebHeight = this.player.getSurfboardHeight() * 0.6;
+            const zeebLeft = zeebX - zeebWidth / 2;
+            const zeebRight = zeebX + zeebWidth / 2;
+
+            // Calculate visual sprite dimensions (must match drawDangerWave)
+            const img = wave.img || this.images.dangerWave2;
+            const waveHeight = this.height * 0.24 * (wave.sizeMultiplier || 1) * (wave.heightScale || 1);
+            let waveWidth = waveHeight;
+            if (img.complete && img.naturalWidth > 0) {
+                const aspect = img.naturalWidth / img.naturalHeight;
+                waveWidth = waveHeight * aspect;
+            }
+
+            // Use swept range (prevX → wave.x) to prevent tunneling at high speeds
+            // dangerLeft = furthest-left edge (current frame), dangerRight = furthest-right edge (previous frame)
+            const dangerousPortionRatio = 0.55;
+            const dangerLeft = (wave.x - waveWidth * 0.3);                              // leading edge NOW
+            const dangerRight = (prevX - waveWidth * 0.3) + waveWidth * dangerousPortionRatio; // trailing edge LAST FRAME
+
+            // Wave height for collision
+            const waveTop = this.getDangerWaveTopY();
+            const waveBottom = this.height;
+
+            // Check if danger wave overlaps with Zeeb's position (swept)
+            const horizontalHit = dangerRight > zeebLeft && dangerLeft < zeebRight;
+
+            // Vertical zones for collision detection
+            // Player clears if they are ABOVE the wave top at any point during the wave's approach
+            const clearanceHeight = waveTop + 5; // Must be near or above wave top
+            const inDangerZone = zeebY > waveTop + 10; // Crash if below wave top by 10px
+            const playerCleared = zeebY < clearanceHeight;
+            const recentlyJumped = (this.elapsedTime - this.player.lastJumpTime) <= 0.5;
+
+            // Only check clearance when the wave is near the player (within ~100px)
+            const waveNearby = dangerRight > zeebLeft - 80 && dangerLeft < zeebRight + 80;
+            if (waveNearby && playerCleared && this.player.isJumping) {
+                if (!wave.everCleared) {
+                    wave.everCleared = true;
+                    wave.clearanceY = zeebY;
+                }
+            }
+            
+            // EARLY EXIT: If player ever cleared this wave, they're safe - no crash possible!
+            if (wave.everCleared) {
+                // Wave was cleared - just need to award points when we overlap
+                if (horizontalHit && !wave.pointsAwarded) {
+                    wave.hitPlayer = true; // Mark as passed
+                    wave.pointsAwarded = true;
+                    wave.contactStart = null;
+                    
+                    // Check for close call bonus - only triggers if BARELY cleared!
+                    // Player must be above wave top (positive distance) but within 15px
+                    const distanceAboveWave = waveTop - (wave.clearanceY || zeebY);
+                    if (distanceAboveWave > 0 && distanceAboveWave < 15) {
+                        this.awardJumpPoints(150, wave.x, true);
+                        this.showCloseCall = true;
+                        this.closeCallTimer = 1.0;
+                    } else {
+                        this.awardJumpPoints(100, wave.x, false);
+                    }
+                    
+                    // Trigger wave-riding animation!
+                    this.player.isRidingWave = true;
+                    this.player.rideWaveTimer = this.player.rideWaveDuration;
+                }
+                // Skip all crash checks - player is safe
+            } else if (horizontalHit) {
+                // Player is horizontally overlapping with wave danger zone and NEVER cleared
+                
+                if (playerCleared && this.player.isJumping) {
+                    // Currently clearing - mark it!
+                    wave.everCleared = true;
+                    wave.clearanceY = zeebY;
+                    wave.hitPlayer = true;
+                    wave.contactStart = null;
+                    
+                    if (!wave.pointsAwarded) {
+                        wave.pointsAwarded = true;
+                        const distanceAboveWave = waveTop - zeebY;
+                        if (distanceAboveWave > 0 && distanceAboveWave < 15) {
+                            this.awardJumpPoints(150, wave.x, true);
+                            this.showCloseCall = true;
+                            this.closeCallTimer = 1.0;
+                        } else {
+                            this.awardJumpPoints(100, wave.x, false);
+                        }
+                        this.player.isRidingWave = true;
+                        this.player.rideWaveTimer = this.player.rideWaveDuration;
+                    }
+                } else if (inDangerZone && !this.player.isJumping) {
+                    // In danger zone and not jumping - they're gonna crash!
+                    if (wave.contactStart === null) {
+                        wave.contactStart = this.elapsedTime;
+                        console.log(`Contact started - not jumping, zeebY=${zeebY.toFixed(0)} > waveTop+30=${(waveTop+30).toFixed(0)}`);
+                    }
+                    if (this.elapsedTime - wave.contactStart >= wave.graceTime) {
+                        // CRASH! Player didn't jump (after grace delay)
+                        wave.hitPlayer = true;
+                        this.triggerCrash(wave.x, wave.width);
+                        console.log('Wipeout! Didn\'t jump!');
+                    }
+                } else if (inDangerZone && this.player.isJumping && this.player.velocityY > 0) {
+                    // In danger zone, jumping but going DOWN and NEVER cleared - didn't make it!
+                    if (wave.contactStart === null) {
+                        wave.contactStart = this.elapsedTime;
+                        console.log(`Contact started - falling, zeebY=${zeebY.toFixed(0)}, vel=${this.player.velocityY.toFixed(0)}`);
+                    }
+                    if (this.elapsedTime - wave.contactStart >= wave.graceTime * 0.5) {
+                        wave.hitPlayer = true;
+                        this.triggerCrash(wave.x, wave.width);
+                        console.log('Wipeout! Jump was not high enough!');
+                    }
+                }
+                // If jumping and still rising, they're safe (might still clear)
+            } else {
+                wave.contactStart = null;
+            }
+        }
+
+        // Remove danger wave when it goes off-screen
+        if (wave.x < -wave.width) {
+            // Award points if player cleared the wave but overlap was missed
+            if (wave.everCleared && !wave.pointsAwarded) {
+                wave.pointsAwarded = true;
+                this.awardJumpPoints(100, this.player.x, false);
+                this.player.isRidingWave = true;
+                this.player.rideWaveTimer = this.player.rideWaveDuration;
+            }
+            wave.active = false;
+        }
+    }
+    
+    resumeAfterWipeout() {
+        this.state = 'playing';
+        this.music.volume = 0.5;
+        this.lastTime = performance.now();
+        // Reset player position
+        this.player.isJumping = false;
+        this.player.velocityY = 0;
+        this.player.jumpCount = 0;
+        this.player.x = this.width * this.player.baseXRatio;
+        const surfaceY = this.player.getRideSurfaceY(2, this.player.x);
+        this.player.y = surfaceY;
+        this.player.smoothY = surfaceY;
+        this.player.landingSettle = 0;
+        // Breathing room before next danger wave
+        const postCrash = this.getDangerSpawnTiming();
+        this.dangerWave.nextSpawnTime = this.elapsedTime + postCrash.min + Math.random() * 1.5;
+    }
+
+    updateWipeout(deltaTime) {
+        const dt = Math.min(deltaTime / 1000, 0.05);
+        this.elapsedTime += dt;
+
+        // Animate clouds
+        if (this.cloudSystem) {
+            try { this.cloudSystem.update(dt); } catch (e) { this.cloudSystem = null; }
+        }
+
+        // Animate wave layers
+        if (this.useGerstnerWaves) {
+            this.gerstnerWaves.update(dt, this.elapsedTime, this.score);
+        }
+        for (let i = 0; i < this.waves.length; i++) {
+            const wave = this.waves[i];
+            const image = this.images[`wave${i + 1}`];
+            const metrics = this.getWaveMetrics(image, wave);
+            this.advanceWave(wave, dt, metrics.tileWidth);
+        }
+
+    }
+
+    drawWipeoutOverlay(ctx) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        // Lives remaining
+        ctx.font = "bold 36px 'Lilita One', Arial";
+        ctx.fillStyle = '#ff6666';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.lineWidth = 4;
+        const msg = this.lives === 1 ? 'Wipeout! Last life!' : `Wipeout! ${this.lives} lives left`;
+        ctx.strokeText(msg, this.width / 2, this.height / 2 - 20);
+        ctx.fillText(msg, this.width / 2, this.height / 2 - 20);
+
+        // Prompt
+        ctx.font = "24px 'Lilita One', Arial";
+        ctx.fillStyle = 'white';
+        ctx.strokeText('Tap or press SPACE to get back out there', this.width / 2, this.height / 2 + 25);
+        ctx.fillText('Tap or press SPACE to get back out there', this.width / 2, this.height / 2 + 25);
+
+        ctx.restore();
+    }
+
+    drawVictoryOverlay(ctx) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        ctx.font = "bold 42px 'Lilita One', Arial";
+        ctx.fillStyle = '#ffd700';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.lineWidth = 4;
+        ctx.strokeText('The Octopus is Defeated!', this.width / 2, this.height / 2 - 30);
+        ctx.fillText('The Octopus is Defeated!', this.width / 2, this.height / 2 - 30);
+
+        ctx.font = "24px 'Lilita One', Arial";
+        ctx.fillStyle = 'white';
+        ctx.strokeText(`Coins collected: ${this.coinsCollected}`, this.width / 2, this.height / 2 + 15);
+        ctx.fillText(`Coins collected: ${this.coinsCollected}`, this.width / 2, this.height / 2 + 15);
+
+        const promptAlpha = 0.6 + 0.4 * Math.sin(this.elapsedTime * 2.5);
+        ctx.globalAlpha = promptAlpha;
+        ctx.strokeText('Tap or press SPACE to continue', this.width / 2, this.height / 2 + 55);
+        ctx.fillText('Tap or press SPACE to continue', this.width / 2, this.height / 2 + 55);
+
+        ctx.restore();
+    }
+
+    triggerCrash(waveX = null, waveWidth = null) {
+        this.lives--;
+        this.crashTimer = this.crashDuration;
+        this.music.volume *= 0.5;
+        console.log(`CRASH! Lives remaining: ${this.lives}`);
+        
+        // Setup crash animation
+        this.crashAnimation.active = true;
+        this.crashAnimation.initialX = this.player.x;
+        this.crashAnimation.initialY = this.player.y;
+        this.crashAnimation.zeebX = this.player.x;
+        this.crashAnimation.zeebY = this.player.y;
+        this.crashAnimation.zeebScale = 1;
+        this.crashAnimation.zeebRotation = 0;
+        
+        // Calculate suction point (left side of wave, in the C curve)
+        if (waveX !== null && waveWidth !== null) {
+            const visualOffset = waveWidth * 0.3;
+            // The C curve is on the left side of the wave
+            this.crashAnimation.suctionX = waveX - visualOffset - waveWidth * 0.7;
+            // Pull toward the middle height of the wave
+            this.crashAnimation.suctionY = this.height * 0.75;
+            this.crashAnimation.waveX = waveX;
+            this.crashAnimation.waveWidth = waveWidth;
+        } else {
+            // Fallback if wave position not provided
+            this.crashAnimation.suctionX = this.width * 0.7;
+            this.crashAnimation.suctionY = this.height * 0.75;
+        }
+    }
+    
+    drawDangerWave(ctx, wave) {
+        if (!wave || !wave.active) return;
+        
+        const dw = wave;
+        const img = wave.img || this.images.dangerWave2; // Use wave's assigned image, fallback to GraceWave2
+        
+        ctx.save();
+        
+        // Calculate wave size - ensure bottom edge is always off-screen
+        const waveY = this.getDangerWaveTopY();
+        const minHeight = this.height - waveY + 80; // must reach well past canvas bottom
+        const baseHeight = this.height * 0.24 * (dw.sizeMultiplier || 1) * (dw.heightScale || 1);
+        const waveHeight = Math.max(baseHeight, minHeight);
+        let waveWidth = waveHeight; // Default square aspect
+
+        // Use actual image aspect ratio if loaded
+        if (img.complete && img.naturalWidth > 0) {
+            const aspect = img.naturalWidth / img.naturalHeight;
+            waveWidth = waveHeight * aspect;
+        }
+        const waveX = dw.x - waveWidth * 0.3; // Offset so curl hits at dw.x
+        
+        // Add subtle bobbing animation
+        const bob = Math.sin(this.elapsedTime * 4) * 3;
+        
+        // Optional squash animation for more dynamic feel
+        const squashScale = 1 + Math.sin(this.elapsedTime * 4) * 0.05;
+        
+        // === LAYER 1: Soft glow behind the wave (dimmed for night) ===
+        if (img.complete && img.naturalWidth > 0) {
+            const glowCanvas = this.getGlowCanvas(img);
+            if (glowCanvas) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                ctx.globalAlpha = 0.06;
+                
+                // Draw glow just slightly larger for subtle edge separation
+                const glowScale = 1.05;
+                const glowWidth = waveWidth * glowScale;
+                const glowHeight = waveHeight * glowScale * squashScale;
+                const glowOffsetX = (glowWidth - waveWidth) / 2;
+                const glowOffsetY = (glowHeight - waveHeight) / 2;
+                
+                ctx.drawImage(
+                    glowCanvas,
+                    waveX - glowOffsetX,
+                    waveY + bob - glowOffsetY,
+                    glowWidth,
+                    glowHeight
+                );
+                ctx.restore();
+            }
+        }
+        
+        // === LAYER 2: Base sprite ===
+        if (img.complete && img.naturalWidth > 0) {
+            // Apply squash scale for dynamic animation
+            ctx.save();
+            ctx.translate(waveX + waveWidth/2, waveY + bob + waveHeight);
+            ctx.scale(1, squashScale);
+            ctx.drawImage(
+                img,
+                -waveWidth/2,
+                -waveHeight,
+                waveWidth,
+                waveHeight
+            );
+            ctx.restore();
+        } else {
+            // Fallback if image not loaded - simple curved shape
+            ctx.fillStyle = 'rgba(20, 50, 90, 0.8)';
+            ctx.beginPath();
+            ctx.arc(dw.x, this.height * 0.5, 60, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // === LAYER 3: Foam accent particles across entire wave ===
+        // Scattered white dots distributed across the wave sprite for a natural foam look
+        ctx.save();
+        const particleCount = 14;
+
+        for (let i = 0; i < particleCount; i++) {
+            const seed = i * 137.5;
+            const timeOffset = seed + this.elapsedTime * 2;
+
+            // Distribute particles across the full wave area
+            // Use golden-ratio-based spacing for natural scatter
+            const rawX = (i * 0.618033988) % 1; // golden ratio mod 1 for even spread
+            const rawY = ((i * 0.414213562) + 0.1) % 0.85; // silver ratio for Y, clamped to wave body
+
+            // Map to wave sprite coordinates
+            const px = waveX + waveWidth * (0.05 + rawX * 0.85);
+            // Concentrate more particles in upper portion where foam naturally appears
+            const yBias = rawY * rawY; // Quadratic bias toward top
+            const py = waveY + bob + waveHeight * (0.05 + yBias * 0.65) + Math.sin(timeOffset) * 2;
+
+            // Gentle flicker effect — each particle twinkles independently
+            const flicker = Math.sin(timeOffset * 3 + seed) * 0.5 + 0.5;
+            const radius = 0.6 + (Math.sin(timeOffset * 2 + seed) + 1) * 0.6;
+
+            ctx.globalAlpha = 0.15 + flicker * 0.25;
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowBlur = 2;
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.25)';
+
+            ctx.beginPath();
+            ctx.arc(px, py, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+        
+        ctx.restore();
+    }
+    
+    drawCrashEffect(ctx) {
+        if (this.crashTimer <= 0) return;
+        
+        const progress = 1 - (this.crashTimer / this.crashDuration);  // 0 to 1 as animation progresses
+        
+        // Ease functions for smooth animation
+        const easeInQuad = (t) => t * t;
+        const easeOutQuad = (t) => 1 - (1 - t) * (1 - t);
+        
+        ctx.save();
+        
+        // Screen shake effect (less intense)
+        const shake = Math.sin(this.crashTimer * 30) * 5 * (1 - progress);
+        ctx.translate(shake, shake * 0.5);
+        
+        // Red flash overlay (fades out)
+        ctx.fillStyle = `rgba(255, 0, 0, ${(1 - progress) * 0.2})`;
+        ctx.fillRect(0, 0, this.width, this.height);
+        
+        ctx.restore();
+        
+        // Animate Zeeb getting sucked into the wave
+        if (this.crashAnimation.active) {
+            ctx.save();
+            
+            // Update Zeeb's position - pulled toward the C curve
+            const pullProgress = easeInQuad(progress);
+            this.crashAnimation.zeebX = this.crashAnimation.initialX + 
+                (this.crashAnimation.suctionX - this.crashAnimation.initialX) * pullProgress;
+            this.crashAnimation.zeebY = this.crashAnimation.initialY + 
+                (this.crashAnimation.suctionY - this.crashAnimation.initialY) * pullProgress;
+            
+            // Spinning effect - accelerates as he gets sucked in
+            this.crashAnimation.zeebRotation = progress * progress * Math.PI * 8; // Multiple full rotations
+            
+            // Shrinking effect - gets smaller as he spins away
+            this.crashAnimation.zeebScale = 1 - (progress * 0.9); // Shrinks to 10% size
+            
+            // Draw Zeeb spinning and shrinking
+            const zeebSize = this.player.getSurfboardHeight();
+            const drawWidth = this.player.surfboardWidth * this.crashAnimation.zeebScale;
+            const drawHeight = zeebSize * this.crashAnimation.zeebScale;
+            
+            ctx.translate(this.crashAnimation.zeebX, this.crashAnimation.zeebY);
+            ctx.rotate(this.crashAnimation.zeebRotation);
+            
+            // Add spiral motion for more dramatic effect
+            const spiralOffset = Math.sin(progress * Math.PI * 6) * (30 * (1 - progress));
+            ctx.translate(spiralOffset, 0);
+            
+            // Fade out as he gets sucked in
+            ctx.globalAlpha = 1 - (progress * 0.7);
+            
+            // Draw Zeeb's surfboard (includes Zeeb)
+            if (this.player.surfboardImage.complete && this.player.surfboardImage.naturalWidth > 0) {
+                ctx.drawImage(
+                    this.player.surfboardImage,
+                    -drawWidth / 2,
+                    -drawHeight / 2,
+                    drawWidth,
+                    drawHeight
+                );
+            }
+            
+            ctx.restore();
+        }
+        
+        // "WIPEOUT!" text appears after Zeeb starts spinning away
+        if (progress > 0.3) {
+            ctx.save();
+            const textProgress = (progress - 0.3) / 0.7;
+            ctx.fillStyle = `rgba(255, 255, 255, ${easeOutQuad(textProgress)})`;
+            ctx.font = "bold 48px 'Lilita One', Arial";
+            ctx.textAlign = 'center';
+            ctx.fillText('WIPEOUT!', this.width / 2, this.height / 2);
+            ctx.restore();
+        }
+    }
+    
+    pause() {
+        if (this.state !== 'playing') return;
+        this.state = 'paused';
+        this.music.volume *= 0.5;
+        PauseOverlay.show();
+    }
+
+    resume() {
+        if (this.state !== 'paused') return;
+        this.state = 'playing';
+        this.music.volume = 0.5;
+        this.lastTime = performance.now();
+        PauseOverlay.hide();
+    }
+
+    drawPauseOverlay() {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        // Dialog box
+        const boxW = 300;
+        const boxH = 170;
+        const boxX = (this.width - boxW) / 2;
+        const boxY = (this.height - boxH) / 2;
+
+        ctx.fillStyle = 'rgba(10, 20, 40, 0.92)';
+        ctx.strokeStyle = 'rgba(100, 170, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, boxW, boxH, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        // Title
+        ctx.fillStyle = 'white';
+        ctx.font = "48px 'Lilita One', 'Boogaloo', Arial";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('PAUSED', this.width / 2, boxY + 45);
+
+        // Resume button
+        const btnW = 200;
+        const btnH = 38;
+        const resumeY = boxY + 85;
+        const btnX = (this.width - btnW) / 2;
+
+        ctx.fillStyle = 'rgba(30, 100, 60, 0.8)';
+        ctx.strokeStyle = 'rgba(80, 200, 120, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(btnX, resumeY, btnW, btnH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = "bold 16px 'Lilita One', Arial";
+        ctx.fillText('Resume', this.width / 2, resumeY + btnH / 2);
+
+        // Main Menu button
+        const menuY = resumeY + btnH + 10;
+
+        ctx.fillStyle = 'rgba(80, 50, 30, 0.8)';
+        ctx.strokeStyle = 'rgba(200, 150, 80, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(btnX, menuY, btnW, btnH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('Main Menu', this.width / 2, menuY + btnH / 2);
+
+        ctx.restore();
+
+        // Store button rects for click detection
+        this._pauseBtns = { btnX, btnW, btnH, resumeY, menuY };
+    }
+
+    // Pause button geometry (top-right, below score)
+    getPauseButtonRect() {
+        const size = 36;
+        const padding = 14;
+        return { x: this.width - size - padding, y: 50, w: size, h: size };
+    }
+
+    drawPauseButton(ctx) {
+        if (this.state !== 'playing' && this.state !== 'paused') return;
+        const { x, y, w, h } = this.getPauseButtonRect();
+        ctx.save();
+        // Semi-transparent background circle
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + h / 2, w / 2 + 2, 0, Math.PI * 2);
+        ctx.fill();
+        // Icon
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        if (this.state === 'paused') {
+            // Play triangle ▶
+            ctx.beginPath();
+            ctx.moveTo(x + w * 0.3, y + h * 0.2);
+            ctx.lineTo(x + w * 0.8, y + h * 0.5);
+            ctx.lineTo(x + w * 0.3, y + h * 0.8);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            // Pause bars ⏸
+            const barW = w * 0.2;
+            const barH = h * 0.55;
+            const barY = y + h * 0.225;
+            ctx.fillRect(x + w * 0.25, barY, barW, barH);
+            ctx.fillRect(x + w * 0.55, barY, barW, barH);
+        }
+        ctx.restore();
+    }
+
+    drawConfirmQuit() {
+        const ctx = this.ctx;
+        // Dim overlay
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        // Dialog box
+        const boxW = 340;
+        const boxH = 150;
+        const boxX = (this.width - boxW) / 2;
+        const boxY = (this.height - boxH) / 2;
+
+        ctx.fillStyle = 'rgba(10, 20, 40, 0.92)';
+        ctx.strokeStyle = 'rgba(100, 170, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, boxW, boxH, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        // Title
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = "bold 22px Boogaloo, cursive";
+        ctx.fillText('Return to Main Menu?', this.width / 2, boxY + 40);
+
+        // Yes button
+        const btnW = 100;
+        const btnH = 36;
+        const btnY = boxY + 85;
+        const yesX = this.width / 2 - btnW - 15;
+        const noX = this.width / 2 + 15;
+
+        ctx.fillStyle = 'rgba(30, 100, 60, 0.8)';
+        ctx.strokeStyle = 'rgba(80, 200, 120, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(yesX, btnY, btnW, btnH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = "bold 16px 'Lilita One', Arial";
+        ctx.fillText('Yes', yesX + btnW / 2, btnY + btnH / 2);
+
+        // No button
+        ctx.fillStyle = 'rgba(100, 30, 30, 0.8)';
+        ctx.strokeStyle = 'rgba(200, 80, 80, 0.6)';
+        ctx.beginPath();
+        ctx.roundRect(noX, btnY, btnW, btnH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('No', noX + btnW / 2, btnY + btnH / 2);
+
+        ctx.restore();
+
+        // Store button rects for click detection
+        this._confirmBtns = { yesX, noX, btnY, btnW, btnH };
+    }
+
+    drawGameUI(ctx) {
+        ctx.save();
+
+        // Octopus progress bar (top center) — coins fill it, 40 wins.
+        // Replaces the level 2 score display; score still ticks internally.
+        {
+            const barW = Math.min(280, this.width * 0.42);
+            const barH = 18;
+            const barX = (this.width - barW) / 2;
+            const barY = 22;
+            const goal = OctopusBoss.COINS_TO_WIN;
+            const fill = Math.min(1, this.coinsCollected / goal);
+
+            // Track
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, barW, barH, barH / 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Fill — gold like the coins
+            if (fill > 0) {
+                ctx.fillStyle = '#ffd24a';
+                ctx.beginPath();
+                ctx.roundRect(barX + 2, barY + 2, Math.max(barH - 4, (barW - 4) * fill), barH - 4, (barH - 4) / 2);
+                ctx.fill();
+            }
+
+            // Coin icon at the left end, popping on collect
+            const coinImg = this.images.coin;
+            if (coinImg.complete && coinImg.naturalWidth > 0) {
+                const cs = this.coinPopScale;
+                const iconSize = 30 * cs;
+                ctx.drawImage(coinImg, barX - 16 - iconSize / 2, barY + barH / 2 - iconSize / 2, iconSize, iconSize);
+            }
+
+            // Count text under the bar
+            ctx.font = "bold 17px 'Lilita One', Arial";
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.lineWidth = 3;
+            const label = `${Math.min(this.coinsCollected, goal)} / ${goal}`;
+            ctx.strokeText(label, barX + barW / 2, barY + barH + 18);
+            ctx.fillText(label, barX + barW / 2, barY + barH + 18);
+        }
+
+        // Lives display (top left)
+        ctx.textAlign = 'left';
+        ctx.font = "24px 'Lilita One', Arial";
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 3;
+        const livesText = `Lives: ${Math.max(0, this.lives)}`;
+        ctx.strokeText(livesText, 20, 35);
+        ctx.fillText(livesText, 20, 35);
+
+        // Floating score numbers near the action
+        for (const fs of this.floatingScores) {
+            // Coin batch text: hold in place while batch is still active
+            const batchActive = fs.isCoinBatch && this.coinBatchTimer > 0;
+            const t = batchActive ? 0 : fs.timer / fs.duration; // freeze progress while batching
+            const alpha = Math.max(0, 1 - t * t);
+            const rise = t * 60;
+            let size = fs.text.includes('CLOSE') ? 28 : 22;
+            if (fs.fontSize === 'big') size = 34;
+            else if (fs.fontSize === 'medium') size = 28;
+
+            // Slight scale bump when batch text updates
+            let scaleBump = 1;
+            if (fs.isCoinBatch && fs.timer < 0.1) {
+                scaleBump = 1 + (0.1 - fs.timer) * 2; // quick 1.0→1.2 pop
+            }
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.font = `bold ${Math.round(size * scaleBump)}px 'Lilita One', Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = fs.color;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.lineWidth = 3;
+            const fx = Math.min(Math.max(fs.x, 60), this.width - 60);
+            const fy = fs.y - rise;
+            ctx.strokeText(fs.text, fx, fy);
+            ctx.fillText(fs.text, fx, fy);
+            ctx.restore();
+        }
+        
+        // Shark warning overlay
+        if (this.shark.warning && !this.shark.active) {
+            const pulse = Math.sin(this.elapsedTime * 14) * 0.5 + 0.5;
+            // Red vignette
+            ctx.save();
+            const vg = ctx.createRadialGradient(
+                this.width / 2, this.height / 2, this.height * 0.25,
+                this.width / 2, this.height / 2, this.height * 0.75
+            );
+            vg.addColorStop(0, 'rgba(255, 0, 0, 0)');
+            vg.addColorStop(1, `rgba(255, 0, 0, ${0.08 + pulse * 0.12})`);
+            ctx.fillStyle = vg;
+            ctx.fillRect(0, 0, this.width, this.height);
+            // Warning text
+            ctx.textAlign = 'center';
+            ctx.font = "bold 38px 'Lilita One', Arial";
+            ctx.fillStyle = `rgba(255, 60, 60, ${0.6 + pulse * 0.4})`;
+            ctx.strokeStyle = `rgba(0, 0, 0, ${0.5 + pulse * 0.3})`;
+            ctx.lineWidth = 5;
+            const warnY = this.height * 0.30;
+            ctx.strokeText('SHARK!', this.width / 2, warnY);
+            ctx.fillText('SHARK!', this.width / 2, warnY);
+            ctx.restore();
+        }
+
+        // Game over overlay
+        if (this.gameOver) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, this.width, this.height);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = "bold 48px Boogaloo, cursive";
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', this.width / 2, this.height / 2 - 30);
+            
+            ctx.font = "24px 'Lilita One', Arial";
+            ctx.fillText(`Final Score: ${this.score}`, this.width / 2, this.height / 2 + 20);
+            ctx.fillText('Press SPACE to restart', this.width / 2, this.height / 2 + 60);
+        }
+        
+        ctx.restore();
+    }
+    
+    spawnSpray(x, y, type) {
+        const cfg = this.sprayConfig;
+        const rnd = Math.random;
+        const lerp = (a, b) => a + rnd() * (b - a);
+
+        const push = (kind, spdX, spdY, life, sz, count, spreadX, spreadY) => {
+            for (let i = 0; i < count; i++) {
+                this.sprayParticles.push({
+                    kind,
+                    x: x + (rnd() - 0.5) * (spreadX || 8),
+                    y: y + (rnd() - 0.5) * (spreadY || 4),
+                    vx: lerp(spdX.min, spdX.max),
+                    vy: lerp(spdY.min, spdY.max),
+                    life: 0,
+                    maxLife: life * (0.7 + rnd() * 0.6),
+                    size: lerp(sz.min, sz.max),
+                    rot: rnd() * Math.PI * 2
+                });
+            }
+        };
+
+        if (type === 'burst') {
+            // Water droplets arcing up
+            push('drop', cfg.burstSpeedX, cfg.burstSpeedY, cfg.burstLife, cfg.burstSize, cfg.burstCount, 20, 8);
+            // Wider foam patches from impact
+            push('wake', cfg.burstFoamSpeedX, cfg.burstFoamSpeedY, cfg.burstFoamLife, cfg.burstFoamSize, cfg.burstFoamCount, 16, 6);
+        } else {
+            // Churned water trail — wide semi-transparent patches
+            push('wake', cfg.wakeSpeedX, cfg.wakeSpeedY, cfg.wakeLife, cfg.wakeSize, cfg.wakeRate, 8, 6);
+            // Thin foam lines trailing behind
+            push('foam', cfg.foamSpeedX, cfg.foamSpeedY, cfg.foamLife, cfg.foamSize, cfg.foamRate, 6, 3);
+            // Fine droplets kicked up near the board
+            push('drop', cfg.dropSpeedX, cfg.dropSpeedY, cfg.dropLife, cfg.dropSize, cfg.dropRate, 10, 4);
+        }
+    }
+
+    updateSpray(dt) {
+        for (let i = this.sprayParticles.length - 1; i >= 0; i--) {
+            const p = this.sprayParticles[i];
+            p.life += dt;
+            if (p.life >= p.maxLife) {
+                this.sprayParticles.splice(i, 1);
+                continue;
+            }
+            if (p.kind === 'drop') {
+                // Droplets arc up then fall back to water
+                p.vy += 120 * dt;
+            } else {
+                // Wake and foam drift horizontally in the water
+                p.vy *= (1 - 1.5 * dt);
+            }
+            p.vx *= (1 - 0.4 * dt);
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+        }
+    }
+
+    drawSpray(ctx) {
+        if (this.sprayParticles.length === 0) return;
+        ctx.save();
+        ctx.shadowBlur = 0;
+
+        for (const p of this.sprayParticles) {
+            const t = p.life / p.maxLife;
+            const fadeOut = 1 - t;
+            const r = p.size * (1 + t * 0.4); // Grow slightly as they spread
+
+            if (p.kind === 'wake') {
+                // Churned water — soft blue-white ellipses that widen over time
+                ctx.globalAlpha = fadeOut * 0.3;
+                ctx.fillStyle = 'rgba(200, 230, 250, 0.6)';
+                ctx.beginPath();
+                ctx.ellipse(p.x, p.y, r * 1.8, r * 0.8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // White highlight in center
+                ctx.globalAlpha = fadeOut * 0.2;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.ellipse(p.x, p.y, r * 0.9, r * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (p.kind === 'foam') {
+                // Thin white foam lines trailing behind
+                ctx.globalAlpha = fadeOut * 0.35;
+                ctx.fillStyle = 'rgba(230, 245, 255, 0.7)';
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, r * 2.2, r * 0.35, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            } else if (p.kind === 'drop') {
+                // Water droplets — small bright circles
+                ctx.globalAlpha = fadeOut * 0.5;
+                ctx.fillStyle = 'rgba(210, 235, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, r * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+                // Bright specular highlight
+                ctx.globalAlpha = fadeOut * 0.35;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(p.x - r * 0.15, p.y - r * 0.15, r * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+
+    restartGame() {
+        this.state = 'playing';
+        this.score = 0;
+        this.coinsCollected = 0;
+        this.lives = 3;
+        this.gameOver = false;
+        this.crashTimer = 0;
+        this.sprayParticles = [];
+        this.floatingScores = [];
+        this.coins = [];
+        this.coinSpawnTimer = 2;
+        this.jumpCoinCount = 0;
+        this.jumpCoinValue = 0;
+        this.scorePop = 0;
+        this.scorePopScale = 1;
+        this.coinPop = 0;
+        this.coinPopScale = 1;
+        this.comboCount = 0;
+        this.comboTimer = 0;
+        this.wavePattern.active = false;
+        this.wavePattern.wavesRemaining = 0;
+        this.dangerWave.active = false;
+        this.dangerWave.speed = 325;
+        this.dangerWaveExtra.speed = 325;
+        this.dangerWave.nextSpawnTime = this.elapsedTime + 3;
+        this.player.currentWaveIndex = 2;
+        this.player.targetWaveIndex = 2;
+        this.player.isJumping = false;
+        this.player.jumpCount = 0;
+        this.player.velocityY = 0;
+        // Reset shark
+        this.shark.active = false;
+        this.shark.warning = false;
+        this.shark.warningTimer = 0;
+        this.shark.nextSpawnScore = 800;
+        // Reset fish spawning for initial phase
+        this.fish.lastInitialSpawn = 0;
+        const frontWave = this.waves[2];
+        this.fish.nextSpawnLoop = Math.ceil((frontWave.loopCount || 0)) + this.getNextFishSpawnGap();
+        this.music.volume = 0.5;
+        this._coinsBanked = false;
+        this.boss.beginFight();
+        this.player.beginEntry();
+    }
+
+    drawFish(ctx) {
+        if (!this.fish.active) {
+            return;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+
+        // Swap the image selection - fish entering from left should use right-facing image
+        const fishImage = this.fish.state === 'dead'
+            ? (this.fish.entrySide === 'left' ? this.images.fishDeadRight : this.images.fishDeadLeft)
+            : (this.fish.entrySide === 'left' ? this.images.fishAliveRight : this.images.fishAliveLeft);
+
+        if (fishImage.complete && fishImage.naturalWidth > 0) {
+            ctx.save();
+            ctx.drawImage(
+                fishImage,
+                this.fish.x - this.fish.width * 0.5,
+                this.fish.y - this.fish.height * 0.6,
+                this.fish.width,
+                this.fish.height
+            );
+            ctx.restore();
+        } else {
+            ctx.fillStyle = '#7aa7c7';
+            ctx.beginPath();
+            ctx.ellipse(
+                this.fish.x,
+                this.fish.y,
+                this.fish.width * 0.5,
+                this.fish.height * 0.5,
+                0,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    // ── Shark system ─────────────────────────────────────────────
+    updateShark(dt) {
+        const shark = this.shark;
+
+        // Don't spawn sharks during crash or wipeout
+        if (this.crashTimer > 0 || this.state !== 'playing') return;
+
+        if (!shark.active && !shark.warning) {
+            // Check if it's time to spawn next shark — but not while danger waves are on screen
+            const wavesBusy = this.dangerWave.active || this.dangerWaveExtra.active || this.wavePattern.active;
+            if (this.score >= shark.nextSpawnScore && !wavesBusy) {
+                shark.warning = true;
+                shark.warningTimer = shark.warningDuration;
+            }
+            return;
+        }
+
+        // Warning countdown
+        if (shark.warning && !shark.active) {
+            shark.warningTimer -= dt;
+            if (shark.warningTimer <= 0) {
+                // Spawn the shark from the right
+                shark.warning = false;
+                shark.active = true;
+                shark.x = this.width + shark.width;
+                shark.swimPhase = Math.PI * 0.5; // start surfacing
+                const surfY = this.getWaveSurfaceYAtX(shark.surfaceWaveIndex, shark.x);
+                shark.y = surfY + shark.depthOffset;
+            }
+            return;
+        }
+
+        // Move shark left along wave surface
+        shark.x -= shark.speed * this.speedHack * dt;
+        const surfY = this.getWaveSurfaceYAtX(shark.surfaceWaveIndex, shark.x);
+
+        // Dynamic swim cycle: dive deep → surface → breach → dive again
+        shark.swimPhase += shark.swimSpeed * dt;
+        const swimCycle = Math.sin(shark.swimPhase);
+        // Map sin(-1..1) to depth: -1 = deepest dive, +1 = surface breach
+        const depthOffset = swimCycle < 0
+            ? shark.depthOffset + (-swimCycle) * shark.diveDepth   // diving down
+            : shark.depthOffset - swimCycle * (-shark.surfaceHeight); // breaching up
+        shark.y = surfY + depthOffset;
+
+        // Nose tilts based on direction of vertical movement
+        const swimVelocity = Math.cos(shark.swimPhase) * shark.swimSpeed;
+        shark.tilt = swimVelocity * 0.12; // positive = nose up, negative = nose down
+
+        // Only dangerous when near surface (swimCycle > -0.3)
+        shark.canHit = swimCycle > -0.3;
+
+        // Off-screen left → despawn
+        if (shark.x < -shark.width * 2) {
+            shark.active = false;
+            const gap = shark.spawnScoreInterval;
+            shark.nextSpawnScore = this.score + gap.min + Math.random() * (gap.max - gap.min);
+            return;
+        }
+
+        // Collision with Zeeb (only when shark is near surface)
+        if (shark.canHit && !this.player.invisible && this.crashTimer <= 0 && !this.gameOver) {
+            const zeebX = this.player.x;
+            const zeebY = this.player.y;
+            const zeebW = this.player.surfboardWidth * 0.35;
+            const zeebH = this.player.getSurfboardHeight() * 0.5;
+            const sharkW = shark.width * 0.38;
+            const sharkH = shark.height * 0.3;
+
+            const hit =
+                Math.abs(zeebX - shark.x) < (zeebW + sharkW) * 0.5 &&
+                Math.abs(zeebY - shark.y) < (zeebH + sharkH) * 0.5;
+
+            if (hit) {
+                shark.active = false;
+                const gap = shark.spawnScoreInterval;
+                shark.nextSpawnScore = this.score + gap.min + Math.random() * (gap.max - gap.min);
+                this.triggerCrash(shark.x, shark.width);
+            }
+        }
+    }
+
+    drawShark(ctx) {
+        const shark = this.shark;
+        if (!shark.active) return;
+
+        const img = this.images.shark;
+        if (img.complete && img.naturalWidth > 0) {
+            ctx.save();
+            const aspect = img.naturalWidth / img.naturalHeight;
+            const drawH = shark.height;
+            const drawW = drawH * aspect;
+
+            ctx.globalAlpha = 1;
+
+            // Tilt the shark based on swim direction
+            ctx.translate(shark.x, shark.y);
+            ctx.rotate(shark.tilt);
+            ctx.drawImage(
+                img,
+                -drawW * 0.5,
+                -drawH * 0.5,
+                drawW,
+                drawH
+            );
+            ctx.restore();
+        } else {
+            // Fallback: simple gray triangle fin
+            ctx.save();
+            ctx.fillStyle = '#6a7a8a';
+            ctx.beginPath();
+            ctx.moveTo(shark.x, shark.y - 20);
+            ctx.lineTo(shark.x + 15, shark.y + 5);
+            ctx.lineTo(shark.x - 15, shark.y + 5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    drawTiledWave(image, metrics, offset, yOffset = 0, alpha = 1, waveIndex = 0) {
+        this.ctx.save();
+        this.ctx.globalAlpha = alpha;
+
+        if (!image || !image.complete || image.naturalWidth <= 0) {
+            // Fallback: Draw colored rectangles if waves don't load
+            const colors = ['#4A90E2', '#357ABD', '#2E5A8E', '#1a3a5c'];
+            this.ctx.fillStyle = colors[waveIndex % colors.length];
+            this.ctx.fillRect(0, metrics.waveY + yOffset, this.width, metrics.waveHeight);
+            this.ctx.restore();
+            return;
+        }
+
+        const tileWidth = metrics.tileWidth;
+        const tileHeight = metrics.waveHeight;
+        const yPos = metrics.waveY + yOffset;
+
+        // Calculate starting position and snap to integer pixels to prevent
+        // sub-pixel gaps between tiles (which cause hairline seams).
+        const normalizedOffset = ((offset % tileWidth) + tileWidth) % tileWidth;
+        const startX = Math.round(-normalizedOffset - tileWidth);
+        const roundedTileWidth = Math.round(tileWidth);
+        const roundedYPos = Math.round(yPos);
+        const drawHeight = Math.round(tileHeight) + 1;
+
+        // Rasterize overlapping SVG copies to a cached canvas so the
+        // anti-aliased edges at the SVG viewBox boundary overlap each other.
+        // We then source-clip the clean interior — no seams.
+        const pad = 4;
+        const cacheKey = `_tileCache_${waveIndex}`;
+        let cached = this[cacheKey];
+        if (!cached || cached.w !== roundedTileWidth || cached.h !== drawHeight) {
+            const offscreen = document.createElement('canvas');
+            offscreen.width = roundedTileWidth + pad * 2;
+            offscreen.height = drawHeight;
+            const offCtx = offscreen.getContext('2d');
+            // Draw 3 copies so the center tile's edges are covered by neighbors
+            offCtx.drawImage(image, pad - roundedTileWidth, 0, roundedTileWidth, drawHeight);
+            offCtx.drawImage(image, pad, 0, roundedTileWidth, drawHeight);
+            offCtx.drawImage(image, pad + roundedTileWidth, 0, roundedTileWidth, drawHeight);
+            cached = { canvas: offscreen, w: roundedTileWidth, h: drawHeight, pad };
+            this[cacheKey] = cached;
+        }
+
+        for (let x = startX; x < this.width + roundedTileWidth; x += roundedTileWidth) {
+            // Source-clip from the interior (skipping the padded edges)
+            this.ctx.drawImage(
+                cached.canvas,
+                pad, 0, roundedTileWidth, drawHeight,
+                x, roundedYPos, roundedTileWidth, drawHeight
+            );
+        }
+
+        this.ctx.restore();
+    }
+    
+    loadImages() {
+        let loadCount = 0;
+        const totalImages = 20; // sky + 2 islands + 4 waves + 4 fish + 4 dangerWaves + 1 coin + 1 moon + 3 octopus
+        let playerLoaded = false;
+        
+        const checkLoaded = () => {
+            loadCount++;
+            if (loadCount === totalImages && playerLoaded) {
+                this.isLoaded = true;
+                console.log('All images loaded');
+                this.start();
+            }
+        };
+        
+        // Load player images (just the surfboard with Zeeb)
+        this.player.loadImages(() => {
+            playerLoaded = true;
+            if (loadCount === totalImages) {
+                this.isLoaded = true;
+                console.log('All images loaded');
+                this.start();
+            }
+        });
+        
+        // Load sky
+        this.images.sky.onload = checkLoaded;
+        this.images.sky.onerror = () => {
+            console.error('Failed to load sky.jpeg');
+            checkLoaded();
+        };
+        const versionTag = this.assetVersion ? `?v=${this.assetVersion}` : '';
+        this.images.sky.src = `../img/sky.jpeg${versionTag}`;
+
+        // (No sunset sky or sun images in night mode)
+
+        // Load the sun (Grace's) — sunrise arena
+        this.images.sun.onload = checkLoaded;
+        this.images.sun.onerror = () => {
+            console.error('Failed to load Sun_Grace.png');
+            checkLoaded();
+        };
+        this.images.sun.src = `../img/Sun_Grace.png${versionTag}`;
+        
+        // Load island (left)
+        this.images.islandLeft.onload = checkLoaded;
+        this.images.islandLeft.onerror = () => {
+            console.error('Failed to load Island Left.svg');
+            checkLoaded();
+        };
+        this.images.islandLeft.src = `../img/Island Left.svg${versionTag}`;
+
+        // Load island (right)
+        this.images.islandRight.onload = checkLoaded;
+        this.images.islandRight.onerror = () => {
+            console.error('Failed to load Island Right.svg');
+            checkLoaded();
+        };
+        this.images.islandRight.src = `../img/Island Right.svg${versionTag}`;
+        
+        // Load waves (SVG files)
+        this.images.wave1.onload = checkLoaded;
+        this.images.wave1.onerror = () => {
+            console.error('Failed to load wave1.svg');
+            checkLoaded();
+        };
+        this.images.wave1.src = `../img/wave1.svg${versionTag}`;
+        
+        this.images.wave2.onload = checkLoaded;
+        this.images.wave2.onerror = () => {
+            console.error('Failed to load wave2.svg');
+            checkLoaded();
+        };
+        this.images.wave2.src = `../img/wave2.svg${versionTag}`;
+        
+        this.images.wave3.onload = checkLoaded;
+        this.images.wave3.onerror = () => {
+            console.error('Failed to load wave3.svg');
+            checkLoaded();
+        };
+        this.images.wave3.src = `../img/wave3.svg${versionTag}`;
+        
+        // Load wave4 using wave2.svg (dark blue bottom wave)
+        this.images.wave4.onload = checkLoaded;
+        this.images.wave4.onerror = () => {
+            console.error('Failed to load wave2.svg for wave4');
+            checkLoaded();
+        };
+        this.images.wave4.src = `../img/wave2.svg${versionTag}`;
+
+        this.images.fishAliveLeft.onload = checkLoaded;
+        this.images.fishAliveLeft.onerror = () => {
+            console.error('Failed to load alive_fish_left.svg');
+            checkLoaded();
+        };
+        this.images.fishAliveLeft.src = `../img/alive_fish_left.svg${versionTag}`;
+
+        this.images.fishAliveRight.onload = checkLoaded;
+        this.images.fishAliveRight.onerror = () => {
+            console.error('Failed to load alive_fish_right.svg');
+            checkLoaded();
+        };
+        this.images.fishAliveRight.src = `../img/alive_fish_right.svg${versionTag}`;
+
+        this.images.fishDeadLeft.onload = checkLoaded;
+        this.images.fishDeadLeft.onerror = () => {
+            console.error('Failed to load dead_fish.svg');
+            checkLoaded();
+        };
+        this.images.fishDeadLeft.src = `../img/dead_fish.svg${versionTag}`;
+
+        this.images.fishDeadRight.onload = checkLoaded;
+        this.images.fishDeadRight.onerror = () => {
+            console.error('Failed to load dead_fish_right.svg');
+            checkLoaded();
+        };
+        this.images.fishDeadRight.src = `../img/dead_fish_right.svg${versionTag}`;
+        
+        // Load danger wave images - GraceWave2, 3, 4 (rotated between spawns)
+        this.images.dangerWave2.onload = checkLoaded;
+        this.images.dangerWave2.onerror = () => {
+            console.error('Failed to load GraceWave2.png');
+            checkLoaded();
+        };
+        this.images.dangerWave2.src = `../img/GraceWave2.png${versionTag}`;
+        
+        this.images.dangerWave3.onload = checkLoaded;
+        this.images.dangerWave3.onerror = () => {
+            console.error('Failed to load GraceWave3.png');
+            checkLoaded();
+        };
+        this.images.dangerWave3.src = `../img/GraceWave3.png${versionTag}`;
+        
+        this.images.dangerWave4.onload = checkLoaded;
+        this.images.dangerWave4.onerror = () => {
+            console.error('Failed to load GraceWave4.png');
+            checkLoaded();
+        };
+        this.images.dangerWave4.src = `../img/GraceWave4.png${versionTag}`;
+        
+        this.images.dangerWave5.onload = checkLoaded;
+        this.images.dangerWave5.onerror = () => {
+            console.error('Failed to load GraceWave5.png');
+            checkLoaded();
+        };
+        this.images.dangerWave5.src = `../img/GraceWave5.png${versionTag}`;
+
+        this.images.coin.onload = checkLoaded;
+        this.images.coin.onerror = () => { console.error('Failed to load coin.png'); checkLoaded(); };
+        this.images.coin.src = `../img/coin.png${versionTag}`;
+
+        // Octopus boss sprites — same body, three faces, registered to one canvas
+        this.images.octoIdle.onload = checkLoaded;
+        this.images.octoIdle.onerror = () => { console.error('Failed to load octo_idle.png'); checkLoaded(); };
+        this.images.octoIdle.src = `../img/octo_idle.png${versionTag}`;
+
+        this.images.octoAngry.onload = checkLoaded;
+        this.images.octoAngry.onerror = () => { console.error('Failed to load octo_angry.png'); checkLoaded(); };
+        this.images.octoAngry.src = `../img/octo_angry.png${versionTag}`;
+
+        this.images.octoDefeated.onload = checkLoaded;
+        this.images.octoDefeated.onerror = () => { console.error('Failed to load octo_defeated.png'); checkLoaded(); };
+        this.images.octoDefeated.src = `../img/octo_defeated.png${versionTag}`;
+    }
+    
+    updateTitle(deltaTime) {
+        const dt = Math.min(deltaTime / 1000, 0.05);
+        this.elapsedTime += dt;
+
+        // Animate clouds
+        if (this.cloudSystem) {
+            try {
+                this.cloudSystem.update(dt);
+            } catch (err) {
+                this.cloudSystem = null;
+            }
+        }
+
+        // (Z-Brocket rocket stripped for the boss fight)
+        this.updateShootingStars(dt);
+
+        // Drift islands (same parallax as gameplay)
+        this.islandDriftX -= this.islandDriftSpeed * dt;
+
+        // Animate wave layers (slower on title screen)
+        const waveDt = dt * 0.45;
+        if (this.useGerstnerWaves) {
+            this.gerstnerWaves.update(waveDt, this.elapsedTime, this.score);
+        }
+        for (let i = 0; i < this.waves.length; i++) {
+            const wave = this.waves[i];
+            const image = this.images[`wave${i + 1}`];
+            const metrics = this.getWaveMetrics(image, wave);
+            this.advanceWave(wave, waveDt, metrics.tileWidth);
+        }
+
+        // Title music fade
+        this.updateTitleMusicFade(dt);
+
+        // Ambient title coins — ride the wave surface
+        this.titleCoinTimer -= dt;
+        if (this.titleCoinTimer <= 0) {
+            const count = Math.random() < 0.3 ? 2 : 1;
+            for (let i = 0; i < count; i++) {
+                this.titleCoins.push({
+                    x: this.width + 30 + i * 40,
+                    surfaceWaveIndex: 2,
+                    pulsePhase: Math.random() * Math.PI * 2
+                });
+            }
+            this.titleCoinTimer = 15 + Math.random() * 25;
+        }
+        for (let i = this.titleCoins.length - 1; i >= 0; i--) {
+            this.titleCoins[i].x -= 55 * dt;
+            if (this.titleCoins[i].x < -40) this.titleCoins.splice(i, 1);
+        }
+
+        if (dt > 0) {
+            this.fps = 1 / dt;
+        }
+    }
+
+    drawTitle() {
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, this.width, this.height);
+
+        // Pre-dawn sky — the sun peeks over the horizon on the title screen
+        this.fillSky(ctx);
+
+        // Stars (fading toward dawn)
+        this.drawStars(ctx);
+        this.drawShootingStars(ctx);
+
+        // Back clouds
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(ctx, 0); }
+            catch (err) { this.cloudSystem = null; }
+        }
+
+        // Sun (between cloud layers, like sun in level 1)
+        this.drawSun(ctx);
+
+        // Z-Brocket (in front of moon, in the distant sky)
+        this.drawRocket(ctx);
+
+        // Front clouds
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(ctx, 1); }
+            catch (err) { this.cloudSystem = null; }
+        }
+
+        // Ocean water fill — gradient + effects behind horizon sparkles and islands
+        this.drawOceanFill(ctx);
+
+        // Horizon (sparkles sit on top of ocean fill)
+        this.drawHorizon();
+
+        // Islands
+        this.drawIslands(ctx, this.islandDriftX);
+
+        // Wave layers (no fish, no danger waves)
+        if (this.useGerstnerWaves) {
+            for (let i = 0; i < this.gerstnerWaves.layers.length; i++) {
+                if (this.visibleWaveLayers.includes(i)) {
+                    this.gerstnerWaves.drawLayer(this.ctx, i, this.width, this.height);
+                }
+            }
+        } else {
+            for (let i = 0; i < this.waves.length; i++) {
+                const wave = this.waves[i];
+                const image = this.images[`wave${i + 1}`];
+                const metrics = this.getWaveMetrics(image, wave);
+                const bob = Math.sin(this.elapsedTime * wave.bobSpeed + (wave.bobPhase || 0)) * (this.height * wave.bobAmount);
+                const alpha = wave.alpha ?? 1;
+                if (this.visibleWaveLayers.includes(i)) {
+                    this.drawTiledWave(image, metrics, wave.offset, bob, alpha, i);
+                }
+            }
+        }
+
+        // Ambient title coins
+        const coinImg = this.images.coin;
+        if (coinImg.complete && coinImg.naturalWidth > 0) {
+            for (const tc of this.titleCoins) {
+                ctx.save();
+                const surfaceY = this.getWaveSurfaceYAtX(tc.surfaceWaveIndex, tc.x);
+                const coinY = surfaceY - this.coinSize * 0.6;
+                const s = 1 + 0.12 * Math.sin(this.elapsedTime * 4 + tc.pulsePhase);
+                const sz = this.coinSize * s;
+                ctx.globalAlpha = 0.75;
+                ctx.drawImage(coinImg, tc.x - sz / 2, coinY - sz / 2, sz, sz);
+                ctx.restore();
+            }
+        }
+
+        // Dark gradient overlay for text readability
+        ctx.save();
+        const overlay = ctx.createLinearGradient(0, 0, 0, this.height * 0.55);
+        overlay.addColorStop(0, 'rgba(0, 0, 0, 0.35)');
+        overlay.addColorStop(0.6, 'rgba(0, 0, 0, 0.15)');
+        overlay.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = overlay;
+        ctx.fillRect(0, 0, this.width, this.height * 0.55);
+        ctx.restore();
+
+        // Title text — scales to fit canvas
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const titleSize = Math.min(52, this.width * 0.09);
+        ctx.shadowColor = 'rgba(0, 80, 180, 0.6)';
+        ctx.shadowBlur = 20;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${titleSize}px Boogaloo, cursive`;
+        ctx.fillText('The Battle of the Octopus', this.width / 2, this.height * 0.15);
+
+        ctx.shadowBlur = 0;
+        ctx.fillText('The Battle of the Octopus', this.width / 2, this.height * 0.15);
+
+        // "Press SPACE or tap to play" prompt with gentle pulse
+        const promptAlpha = 0.6 + 0.4 * Math.sin(this.elapsedTime * 2.5);
+        ctx.globalAlpha = promptAlpha;
+        const promptSize = Math.min(24, this.width * 0.045);
+        ctx.font = `bold ${promptSize}px 'Lilita One', Arial`;
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 3;
+        ctx.strokeText('Press SPACE or tap to play', this.width / 2, this.height * 0.25);
+        ctx.fillText('Press SPACE or tap to play', this.width / 2, this.height * 0.25);
+
+        ctx.restore();
+
+    }
+
+    drawTransition() {
+        const ctx = this.ctx;
+        const t = Math.min(1, this.transitionTimer / this.transitionDuration);
+        // Ease-in-out curve
+        const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        // Draw the same scene as title (sky, clouds, horizon, waves)
+        ctx.clearRect(0, 0, this.width, this.height);
+
+        // Pre-dawn sky
+        this.fillSky(ctx);
+
+        // Stars (fading toward dawn)
+        this.drawStars(ctx);
+        this.drawShootingStars(ctx);
+
+        // Back clouds
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(ctx, 0); } catch (err) { this.cloudSystem = null; }
+        }
+
+        // Sun
+        this.drawSun(ctx);
+
+        // Z-Brocket
+        this.drawRocket(ctx);
+
+        // Front clouds
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(ctx, 1); } catch (err) { this.cloudSystem = null; }
+        }
+
+        this.drawOceanFill(ctx);
+        this.drawHorizon();
+
+        // Islands — same as title and gameplay
+        this.drawIslands(ctx, this.islandDriftX);
+
+        // Waves
+        if (this.useGerstnerWaves) {
+            for (let i = 0; i < this.gerstnerWaves.layers.length; i++) {
+                if (this.visibleWaveLayers.includes(i)) {
+                    this.gerstnerWaves.drawLayer(this.ctx, i, this.width, this.height);
+                }
+            }
+        }
+
+        // Title text fades out too
+        const titleAlpha = 1 - ease;
+        const titleSize2 = Math.min(52, this.width * 0.09);
+        ctx.save();
+        ctx.globalAlpha = titleAlpha;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0, 80, 180, 0.6)';
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${titleSize2}px Boogaloo, cursive`;
+        ctx.fillText('The Battle of the Octopus', this.width / 2, this.height * 0.15);
+        ctx.shadowBlur = 0;
+        ctx.fillText('The Battle of the Octopus', this.width / 2, this.height * 0.15);
+        ctx.restore();
+    }
+
+    // Pre-render darkened night versions of images (avoids alpha bleed)
+    createNightImage(img, tintAlpha = 0.6) {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const cx = c.getContext('2d');
+        cx.drawImage(img, 0, 0);
+        cx.globalCompositeOperation = 'source-atop';
+        // Warm violet dusk tint — islands read as dawn silhouettes
+        cx.fillStyle = `rgba(30, 20, 45, ${tintAlpha})`;
+        cx.fillRect(0, 0, c.width, c.height);
+        return c;
+    }
+
+    start() {
+        console.log('Starting ocean animation');
+        // Create dawn-tinted island images (lighter than the old night 0.6)
+        const il = this.images.islandLeft;
+        if (il.complete && il.naturalWidth > 0) {
+            this.nightIslandLeft = this.createNightImage(il, 0.45);
+        } else {
+            il.onload = () => { this.nightIslandLeft = this.createNightImage(il, 0.45); };
+        }
+        const ir = this.images.islandRight;
+        if (ir.complete && ir.naturalWidth > 0) {
+            this.nightIslandRight = this.createNightImage(ir, 0.45);
+        } else {
+            ir.onload = () => { this.nightIslandRight = this.createNightImage(ir, 0.45); };
+        }
+        // Danger waves use original images — blue waves look fine against dark ocean
+        this.dangerWaveImages = [
+            this.images.dangerWave2,
+            this.images.dangerWave3,
+            this.images.dangerWave4,
+            this.images.dangerWave5
+        ];
+        this.dangerWaveImageIndex = 0;
+        this.resize();
+        this.state = 'title';
+        this.lastTime = performance.now();
+        this.startTitleMusic();
+
+        // Universal pause overlay
+        const self = this;
+        PauseOverlay.init({
+            onResume: function () { self.resume(); },
+            menuUrl: '../../index.html'
+        });
+
+        this.animate();
+    }
+
+    startTitleMusic() {
+        if (this.titleMusicStarted || this.introVideoPlaying) return;
+        this.titleMusicStarted = true;
+        this.titleMusic.volume = 0;
+        this.titleMusic.play().catch(() => {});
+        this.titleMusicFade = { dir: 'in', elapsed: 0, duration: 5 };
+    }
+
+    playRandomSplash() {
+        const s = this.splashSounds[Math.floor(Math.random() * this.splashSounds.length)];
+        s.currentTime = 0;
+        s.play().catch(() => {});
+    }
+
+    updateTitleMusicFade(dt) {
+        if (!this.titleMusicFade || this.introVideoPlaying) return;
+        this.titleMusicFade.elapsed += dt;
+        const t = Math.min(1, this.titleMusicFade.elapsed / this.titleMusicFade.duration);
+        if (this.titleMusicFade.dir === 'in') {
+            this.titleMusic.volume = t * 0.5;
+            if (t >= 1) this.titleMusicFade = null;
+        } else {
+            this.titleMusic.volume = Math.max(0, (1 - t) * 0.5);
+            if (t >= 1) {
+                this.titleMusic.pause();
+                this.titleMusic.currentTime = 0;
+                this.titleMusicFade = null;
+            }
+        }
+    }
+
+    goToTitle() {
+        document.body.classList.remove('theatre');
+        this.state = 'title';
+        this.titleMusicTriggered = true; // already interacted
+        this.gameOver = false;
+        this.score = 0;
+        this.coinsCollected = 0;
+        this.lives = 3;
+        this.crashTimer = 0;
+        this.speedBoostTriggered = false;
+        this.speedBoostFlash = 0;
+        this.sprayParticles = [];
+        this.coins = [];
+        this.dangerWave.active = false;
+        this.titleCoins = [];
+        this.titleCoinTimer = 8 + Math.random() * 12;
+        this.boss.fullReset();
+        // Stop gameplay music + waves ambient, start title music with fade-in
+        this.music.pause();
+        this.music.currentTime = 0;
+        this.musicStarted = false;
+        this.titleMusicStarted = false;
+        this.titleMusicFade = null;
+        this.titleMusic.currentTime = 0;
+        this.startTitleMusic();
+    }
+
+    startPlaying() {
+        this.beginGameplay();
+    }
+
+    // Called by OctopusBoss when the sink animation finishes
+    onBossDefeated() {
+        this.state = 'victory';
+        this.music.volume *= 0.4;
+        this.floatingScores = [];
+        // Clear any wave still sweeping in
+        this.dangerWave.active = false;
+        this.dangerWaveExtra.active = false;
+    }
+
+    // Victory tap/space: bank coins, play Grace's victory video if the file
+    // exists (level4/victory.mp4), then walk back out to level 3.
+    finishVictory() {
+        if (!this._coinsBanked) {
+            this._coinsBanked = true;
+            const existing = parseInt(localStorage.getItem('zeeb_coins') || '0', 10);
+            localStorage.setItem('zeeb_coins', (existing + this.coinsCollected).toString());
+        }
+        const exit = () => { window.location.href = '../level3/index.html'; };
+
+        const video = document.getElementById('victoryVideo');
+        const overlay = document.getElementById('victoryOverlay');
+        const skipBtn = document.getElementById('skipVictory');
+        if (!this.victoryVideoReady || !video || !overlay) {
+            exit();
+            return;
+        }
+
+        this.music.pause();
+        overlay.classList.remove('hidden');
+        video.currentTime = 0;
+        video.muted = false;
+        // finishVictory runs from a real tap/keypress, so play() is allowed
+        video.play().catch(() => {});
+
+        let done = false;
+        const finish = () => {
+            if (done) return;
+            done = true;
+            video.pause();
+            exit();
+        };
+        video.addEventListener('ended', finish, { once: true });
+        if (skipBtn) skipBtn.addEventListener('click', finish, { once: true });
+    }
+
+    playIntroVideo() {
+        const overlay = document.getElementById('introOverlay');
+        const video = document.getElementById('introVideo');
+        const skipBtn = document.getElementById('skipIntro');
+
+        // Stop all music during intro video
+        this.titleMusic.pause();
+        this.titleMusic.currentTime = 0;
+        this.titleMusicFade = null;
+        this.titleMusicStarted = false;
+        this.music.pause();
+        this.music.currentTime = 0;
+        this.musicStarted = false;
+
+        this.introVideoPlaying = true;
+        overlay.classList.remove('hidden');
+        video.currentTime = 0;
+        video.play().catch(() => {});
+
+        const finishIntro = () => {
+            if (!this.introVideoPlaying) return;
+            this.introVideoPlaying = false;
+            video.pause();
+            overlay.classList.add('hidden');
+            this.beginGameplay();
+        };
+
+        video.addEventListener('ended', finishIntro, { once: true });
+        skipBtn.addEventListener('click', finishIntro, { once: true });
+    }
+
+    skipIntroVideo() {
+        if (!this.introVideoPlaying) return;
+        const video = document.getElementById('introVideo');
+        const overlay = document.getElementById('introOverlay');
+        this.introVideoPlaying = false;
+        video.pause();
+        overlay.classList.add('hidden');
+        this.beginGameplay();
+    }
+
+    beginGameplay() {
+        // In mobile landscape, request fullscreen to hide Safari nav bar
+        this.tryFullscreen();
+        // Darken the page background like a theatre
+        document.body.classList.add('theatre');
+        // Begin transition: fade the title island out before gameplay
+        this.state = 'transition';
+        this.transitionTimer = 0;
+        // Start music fade during transition
+        if (!this.titleMusicStarted) {
+            this.titleMusicStarted = true;
+            this.titleMusic.volume = 0.5;
+            this.titleMusic.play().catch(() => {});
+        }
+        this.titleMusicFade = { dir: 'out', elapsed: 0, duration: 5 };
+        if (!this.musicStarted) {
+            this.music.volume = 0.5;
+            this.music.play().catch(() => {});
+            this.musicStarted = true;
+        }
+    }
+
+    finishTransition() {
+        this.state = 'playing';
+        this.gameStartTime = this.elapsedTime;
+        // Splash in
+        this.playRandomSplash();
+        this.score = 0;
+        this.coinsCollected = 0;
+        this.lives = 3;
+        this.gameOver = false;
+        this.crashTimer = 0;
+        this.sprayParticles = [];
+        this.floatingScores = [];
+        this.coins = [];
+        this.coinSpawnTimer = 2;
+        this.jumpCoinCount = 0;
+        this.jumpCoinValue = 0;
+        this.scorePop = 0;
+        this.scorePopScale = 1;
+        this.coinPop = 0;
+        this.coinPopScale = 1;
+        this.comboCount = 0;
+        this.wavePattern.active = false;
+        this.wavePattern.wavesRemaining = 0;
+        this.dangerWave.active = false;
+        this.dangerWave.speed = 325;
+        this.dangerWaveExtra.speed = 325;
+        this.dangerWave.nextSpawnTime = this.elapsedTime + 3;
+        this.islandFadeIn = 0; // fade gameplay islands in over 1.5s
+        this._coinsBanked = false;
+        this.boss.beginFight();
+        this.player.beginEntry();
+    }
+    
+    update(deltaTime) {
+        // Convert deltaTime to seconds
+        const dt = Math.min(deltaTime / 1000, 0.05);
+        this.elapsedTime += dt;
+
+        // Continue title music fade-out during gameplay
+        this.updateTitleMusicFade(dt);
+
+        if (this.cloudSystem) {
+            try {
+                this.cloudSystem.update(dt);
+            } catch (err) {
+                console.warn('Cloud system update failed; disabling clouds.', err);
+                this.cloudSystem = null;
+            }
+        }
+
+        // (Z-Brocket rocket stripped for the boss fight)
+        this.updateShootingStars(dt);
+
+        // Drift islands slowly for parallax
+        this.islandDriftX -= this.islandDriftSpeed * dt;
+
+        // Fade gameplay islands in
+        if (this.islandFadeIn < 1) {
+            this.islandFadeIn = Math.min(1, this.islandFadeIn + dt / 1.5);
+        }
+
+        // Update each wave layer
+        if (this.useGerstnerWaves) {
+            this.gerstnerWaves.update(dt, this.elapsedTime, this.score);
+        }
+        for (let i = 0; i < this.waves.length; i++) {
+            const wave = this.waves[i];
+            const image = this.images[`wave${i + 1}`];
+            const metrics = this.getWaveMetrics(image, wave);
+
+            this.advanceWave(wave, dt, metrics.tileWidth);
+        }
+
+        // Fish and shark are stripped — the octopus owns this ocean.
+        // The boss drives all danger-wave spawns (see OctopusBoss.update).
+        if (this.state === 'playing') {
+            this.boss.update(dt);
+        }
+        this.updateDangerWave(dt);
+        this.updateCoins(dt);
+        
+        // Update close call timer
+        if (this.closeCallTimer > 0) {
+            this.closeCallTimer -= dt;
+            if (this.closeCallTimer <= 0) {
+                this.closeCallTimer = 0;
+                this.showCloseCall = false;
+            }
+        }
+
+        // Reset combo when player lands
+        if (!this.player.isJumping && this.comboCount > 0) {
+            this.comboCount = 0;
+        }
+        
+        // Score pop animation
+        if (this.scorePop > 0) {
+            this.scorePop -= dt;
+            const t = 1 - (this.scorePop / 0.35); // 0→1
+            // Quick elastic: overshoot then settle
+            this.scorePopScale = 1 + 0.35 * Math.sin(t * Math.PI) * (1 - t * 0.5);
+        } else {
+            this.scorePopScale = 1;
+        }
+
+        // Coin HUD pop animation
+        if (this.coinPop > 0) {
+            this.coinPop -= dt;
+            const t = 1 - (this.coinPop / 0.3);
+            this.coinPopScale = 1 + 0.4 * Math.sin(t * Math.PI) * (1 - t * 0.5);
+        } else {
+            this.coinPopScale = 1;
+        }
+
+        // Floating score numbers
+        for (let i = this.floatingScores.length - 1; i >= 0; i--) {
+            const fs = this.floatingScores[i];
+            // Freeze coin batch text while still collecting
+            if (fs.isCoinBatch && this.coinBatchTimer > 0) {
+                // Keep it alive and anchored — follow player position
+                fs.x = this.player.x;
+                fs.y = this.player.y - 40;
+                continue;
+            }
+            fs.timer += dt;
+            if (fs.timer >= fs.duration) {
+                this.floatingScores.splice(i, 1);
+            }
+        }
+
+        // Win condition: the octopus is defeated by coins, not points.
+        // OctopusBoss.update() flips state to 'victory' when the sink
+        // animation finishes — no score threshold in the boss fight.
+
+        // Update player (but not during crash)
+        if (this.crashTimer <= 0 && !this.gameOver) {
+            this.player.update(deltaTime);
+        }
+
+        // Continuous wake spray from left tip of surfboard
+        if (!this.player.isJumping && !this.player.isEntering &&
+            !this.gameOver && this.crashTimer <= 0) {
+            const tip = this.player.getBackTip();
+            this.spawnSpray(tip.x, tip.y, 'wake');
+        }
+
+        this.updateSpray(dt);
+
+        if (dt > 0) {
+            this.fps = 1 / dt;
+        }
+    }
+    
+    getRocketArc(r) {
+        // Progress 0→1 across the full travel (including off-screen margins)
+        const margin = r.size * 2;
+        const totalDist = this.width + margin * 2;
+        const t = (r.x + margin) / totalDist; // 0 at left entry, 1 at right exit
+        // Sine arc: highest (most negative Y offset) at center, zero at edges
+        const arcOffset = -r.arcHeight * Math.sin(t * Math.PI);
+        const y = r.baseY + arcOffset;
+        // Tangent angle: derivative of -arcHeight * sin(t*PI) w.r.t. x
+        // dy/dx = -arcHeight * PI * cos(t*PI) / totalDist
+        const tilt = Math.atan2(-r.arcHeight * Math.PI * Math.cos(t * Math.PI), totalDist);
+        return { y, tilt };
+    }
+
+    updateRocket(dt) {
+        const r = this.rocket;
+        if (r.active) {
+            r.x += r.speed * dt;
+
+            // Compute current arc position
+            const arc = this.getRocketArc(r);
+            r.y = arc.y;
+
+            // Update laser blips — advance along the arc
+            for (let i = r.lasers.length - 1; i >= 0; i--) {
+                const l = r.lasers[i];
+                l.age += dt;
+                l.xOffset += l.speed * dt;
+                if (l.age > l.lifetime) {
+                    r.lasers.splice(i, 1);
+                }
+            }
+
+            // Fire laser blips on schedule
+            if (r.lasersFired < r.lasersTotal) {
+                r.nextLaserTime -= dt;
+                if (r.nextLaserTime <= 0) {
+                    // Blip starts at rocket's current x, travels ahead along the arc
+                    r.lasers.push({
+                        xOffset: r.size,        // starts just ahead of nose
+                        speed: r.speed * (2.5 + Math.random() * 1.5), // 2.5-4x rocket speed
+                        age: 0,
+                        lifetime: 1.5 + Math.random() * 1.0,
+                        hue: Math.random() < 0.5 ? 120 : 180,
+                        radius: 2 + Math.random() * 1.5,
+                        startX: r.x   // rocket x when fired
+                    });
+                    r.lasersFired++;
+                    r.nextLaserTime = 0.8 + Math.random() * 1.5;
+                }
+            }
+
+            // Off-screen right? Done.
+            const margin = r.size * 2;
+            if (r.x > this.width + margin) {
+                r.active = false;
+                r.lasers = [];
+                r.cooldown = 30 + Math.random() * 50;
+            }
+        } else {
+            r.cooldown -= dt;
+            if (r.cooldown <= 0) {
+                r.active = true;
+                r.direction = 1;
+                r.size = 28 + Math.random() * 20;
+                r.baseY = this.height * (0.12 + Math.random() * 0.10); // edge Y: 12-22% down
+                r.arcHeight = this.height * (0.03 + Math.random() * 0.05); // arc peaks 3-8% higher
+                r.speed = 20 + Math.random() * 20;
+                console.log('Z-Brocket launched! size:', r.size.toFixed(0), 'baseY:', r.baseY.toFixed(0), 'speed:', r.speed.toFixed(0));
+                r.x = -r.size * 2;
+                r.y = r.baseY;
+                r.lasers = [];
+                r.lasersFired = 0;
+                r.lasersTotal = 1 + Math.floor(Math.random() * 4);
+                r.nextLaserTime = 1.5 + Math.random() * 3;
+            }
+        }
+    }
+
+    drawRocket(ctx) {
+        const r = this.rocket;
+
+        // Draw laser blips — small dots following the arc trajectory
+        for (const l of r.lasers) {
+            const fade = 1 - (l.age / l.lifetime);
+            const alpha = 0.9 * fade;
+            if (alpha <= 0) continue;
+
+            // Compute blip position along the arc using its offset from where it was fired
+            const blipX = l.startX + l.xOffset;
+            // Use a temporary rocket-like object to query the arc at this x
+            const tmpR = { x: blipX, size: r.size, arcHeight: r.arcHeight, baseY: r.baseY };
+            const blipArc = this.getRocketArc(tmpR);
+            const blipY = blipArc.y + (r.size * (this.images.rocket.naturalWidth / this.images.rocket.naturalHeight)) * 0.5;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+
+            // Tiny rod aligned to the arc tangent
+            const rodLen = 8 + l.radius * 2;
+            const tilt = blipArc.tilt;
+            const dx = Math.cos(tilt) * rodLen * 0.5;
+            const dy = Math.sin(tilt) * rodLen * 0.5;
+
+            // Glow
+            ctx.strokeStyle = `hsla(${l.hue}, 100%, 70%, 0.35)`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(blipX - dx, blipY - dy);
+            ctx.lineTo(blipX + dx, blipY + dy);
+            ctx.stroke();
+
+            // Bright core
+            ctx.strokeStyle = `hsla(${l.hue}, 100%, 90%, 0.95)`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(blipX - dx, blipY - dy);
+            ctx.lineTo(blipX + dx, blipY + dy);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        if (!r.active) return;
+        const img = this.images.rocket;
+        if (!img.complete || img.naturalWidth === 0) return;
+
+        const aspect = img.naturalWidth / img.naturalHeight;
+        const drawW = r.size;              // long axis (horizontal)
+        const drawH = r.size * aspect;     // short axis (vertical)
+
+        // Arc tilt — nose follows the curve
+        const arc = this.getRocketArc(r);
+
+        ctx.save();
+        ctx.globalAlpha = 1.0;
+
+        // Engine glow at the tail (left side)
+        const tailX = r.x;
+        const tailY = r.y + drawH * 0.5;
+        const glow = ctx.createRadialGradient(tailX, tailY, 0, tailX, tailY, drawH * 1.2);
+        glow.addColorStop(0, 'rgba(255, 160, 60, 0.25)');
+        glow.addColorStop(0.5, 'rgba(255, 100, 40, 0.08)');
+        glow.addColorStop(1, 'rgba(255, 80, 30, 0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(tailX - drawH * 1.2, tailY - drawH * 1.2, drawH * 2.4, drawH * 2.4);
+
+        // Draw rotated + tilted rocket
+        const cx = r.x + drawW * 0.5;
+        const cy = r.y + drawH * 0.5;
+        ctx.translate(cx, cy);
+        // +90° base rotation (nose right) + arc tilt
+        ctx.rotate(Math.PI / 2 + arc.tilt);
+        ctx.drawImage(img, -drawH / 2, -drawW / 2, drawH, drawW);
+
+        ctx.restore();
+    }
+
+    spawnShootingStar() {
+        // Random start along the top edge, any x position
+        const startX = this.width * Math.random();
+        const startY = this.height * (Math.random() * 0.05);
+        // Diagonal downward — random angle between ~110° and ~150° (down-left)
+        // or ~30° and ~70° (down-right), picked randomly
+        const goLeft = Math.random() < 0.5;
+        const angle = goLeft
+            ? Math.PI * (0.58 + Math.random() * 0.2)   // 104-140° down-left
+            : Math.PI * (0.08 + Math.random() * 0.2);  // 14-50° down-right
+        const speed = 150 + Math.random() * 120;
+        this.shootingStars.push({
+            x: startX,
+            y: startY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            age: 0,
+            lifetime: 1.2 + Math.random() * 0.8,
+            size: 1.0 + Math.random() * 0.8,
+            tailLen: 8 + Math.random() * 6
+        });
+    }
+
+    updateShootingStars(dt) {
+        // Update active shooting stars
+        for (let i = this.shootingStars.length - 1; i >= 0; i--) {
+            const s = this.shootingStars[i];
+            s.age += dt;
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            if (s.age > s.lifetime) {
+                this.shootingStars.splice(i, 1);
+            }
+        }
+
+        // Don't spawn while rocket is flying
+        if (this.rocket.active) return;
+
+        this.shootingStarCooldown -= dt;
+        if (this.shootingStarCooldown <= 0) {
+            // Spawn 1-3 shooting stars
+            const count = 1 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < count; i++) {
+                this.spawnShootingStar();
+            }
+
+            // Next cooldown — shorter at higher scores (favor back end of game)
+            // score 0-2999: 25-50s gaps, score 3000-5999: 15-30s, score 6000+: 10-20s
+            let minGap = 25, maxGap = 50;
+            if (this.score >= 6000) { minGap = 10; maxGap = 20; }
+            else if (this.score >= 3000) { minGap = 15; maxGap = 30; }
+            this.shootingStarCooldown = minGap + Math.random() * (maxGap - minGap);
+        }
+    }
+
+    drawShootingStars(ctx) {
+        // No shooting stars once dawn takes over
+        const dawnFade = Math.max(0, 1 - this.sunriseT() * 1.5);
+        if (dawnFade <= 0) return;
+        for (const s of this.shootingStars) {
+            if (s.age < 0) continue; // still waiting on stagger delay
+
+            // Fade in fast, fade out near end, also fade out as it approaches horizon
+            const lifeFade = s.age < 0.1 ? s.age / 0.1 : 1 - Math.pow(s.age / s.lifetime, 2);
+            const horizonY = this.height * 0.38;
+            const horizonFade = s.y > horizonY ? 0 : s.y > horizonY - 40 ? (horizonY - s.y) / 40 : 1;
+            const alpha = Math.max(0, Math.min(1, lifeFade * horizonFade * 0.8 * dawnFade));
+            if (alpha <= 0) continue;
+
+            // Direction for the tail
+            const speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+            const dx = (s.vx / speed) * s.tailLen;
+            const dy = (s.vy / speed) * s.tailLen;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+
+            // Faint tail
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = s.size * 0.8;
+            ctx.beginPath();
+            ctx.moveTo(s.x - dx, s.y - dy);
+            ctx.lineTo(s.x, s.y);
+            ctx.stroke();
+
+            // Bright head
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+    }
+
+    drawIslands(ctx, drift = 0) {
+        const islandLeftImg = this.images.islandLeft;
+        if (!islandLeftImg || !islandLeftImg.complete || islandLeftImg.naturalWidth === 0) return;
+
+        const s = 1.0 + Math.sin(this.elapsedTime * 1.5) * 0.02; // gentle pulsate
+        const nightLeft = this.nightIslandLeft || islandLeftImg;
+        const pixelsPerInch = 96;
+        const baseH = pixelsPerInch * 1;
+        const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
+        const baseW = baseH * islandAspect;
+        const baseX = this.width * 0.08;
+        const baseY = this.height * 0.52;
+        const drawW = baseW * s;
+        const drawH = baseH * s;
+
+        if (drift) {
+            const cycle = this.width + drawW + 200;
+            const leftX = ((baseX + drift) % cycle + cycle) % cycle - drawW - 100;
+            ctx.drawImage(nightLeft, leftX, baseY, drawW, drawH);
+        } else {
+            const drawX = baseX - (drawW - baseW) / 2;
+            const drawY = baseY - (drawH - baseH) / 2;
+            ctx.drawImage(nightLeft, drawX, drawY, drawW, drawH);
+        }
+
+        const islandRightImg = this.images.islandRight;
+        if (islandRightImg && islandRightImg.complete && islandRightImg.naturalWidth > 0) {
+            const nightRight = this.nightIslandRight || islandRightImg;
+            const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
+            const rightBaseW = baseH * rightAspect;
+            const rightBaseX = this.width * 0.92 - rightBaseW;
+            const rightBaseY = this.height * 0.54;
+            const rightDrawW = rightBaseW * s;
+            const rightDrawH = baseH * s;
+
+            if (drift) {
+                const cycleR = this.width + rightDrawW + 200;
+                const rightX = ((rightBaseX + drift) % cycleR + cycleR) % cycleR - rightDrawW - 100;
+                ctx.drawImage(nightRight, rightX, rightBaseY, rightDrawW, rightDrawH);
+            } else {
+                const rightDrawX = rightBaseX - (rightDrawW - rightBaseW) / 2;
+                const rightDrawY = rightBaseY - (rightDrawH - baseH) / 2;
+                ctx.drawImage(nightRight, rightDrawX, rightDrawY, rightDrawW, rightDrawH);
+            }
+        }
+    }
+
+    drawOceanFill(ctx) {
+        if (!this.oceanFill) return;
+        const of = this.oceanFill;
+        const yTop = this.height * of.yStart;
+        const yBot = this.height;
+        const oceanH = yBot - yTop;
+        ctx.save();
+        ctx.globalAlpha = of.alpha;
+
+        // 1. Multi-stop depth gradient
+        const grad = ctx.createLinearGradient(0, yTop, 0, yBot);
+        for (const s of of.stops) grad.addColorStop(s.pos, s.color);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, yTop, this.width, oceanH);
+
+        // 2. Light sheen band (bobs slowly) — moonlight silver before dawn,
+        // turning to a gold sun-path on the water as the sun rises
+        const st = this.sunriseT();
+        const sMix = (a, b) => Math.round(a + (b - a) * st);
+        const sr = sMix(100, 255);
+        const sg = sMix(160, 195);
+        const sb = sMix(220, 110);
+        const sa = 0.07 + 0.10 * st;
+        const sheenOffset = Math.sin(this.elapsedTime * of.sheenSpeed) * this.height * of.sheenDrift;
+        const sheenY = yTop + oceanH * of.sheenY + sheenOffset;
+        const sheenH = oceanH * of.sheenHeight;
+        const sheen = ctx.createLinearGradient(0, sheenY, 0, sheenY + sheenH);
+        sheen.addColorStop(0,   `rgba(${sr}, ${sg}, ${sb}, 0)`);
+        sheen.addColorStop(0.5, `rgba(${sr}, ${sg}, ${sb}, ${sa})`);
+        sheen.addColorStop(1,   `rgba(${sr}, ${sg}, ${sb}, 0)`);
+        ctx.fillStyle = sheen;
+        ctx.fillRect(0, sheenY, this.width, sheenH);
+
+        // 3. Caustic shimmer spots
+        for (const c of this.oceanCaustics) {
+            const a = 0.5 + 0.5 * Math.sin(this.elapsedTime * c.speed + c.phase);
+            ctx.globalAlpha = a * 0.06;
+            const cx = c.x * this.width;
+            const cy = yTop + c.y * oceanH;
+            const r = of.causticSize * c.size;
+            const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            cg.addColorStop(0, 'rgba(140, 200, 240, 0.8)');
+            cg.addColorStop(1, 'rgba(140, 200, 240, 0)');
+            ctx.fillStyle = cg;
+            ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        }
+
+        // 4. Drifting current bands
+        for (const cur of this.oceanCurrents) {
+            const bandY = yTop + oceanH * cur.y;
+            const bandH = oceanH * of.currentHeight * cur.width;
+            const driftX = (cur.phase + this.elapsedTime * of.currentSpeed * this.width * cur.speed) % (this.width * 2) - this.width * 0.5;
+            ctx.globalAlpha = of.currentAlpha;
+            const cg = ctx.createLinearGradient(driftX - this.width * 0.3, 0, driftX + this.width * 0.3, 0);
+            cg.addColorStop(0,   'rgba(80, 140, 200, 0)');
+            cg.addColorStop(0.3, 'rgba(80, 140, 200, 1)');
+            cg.addColorStop(0.7, 'rgba(80, 140, 200, 1)');
+            cg.addColorStop(1,   'rgba(80, 140, 200, 0)');
+            ctx.fillStyle = cg;
+            const vg = ctx.createLinearGradient(0, bandY - bandH / 2, 0, bandY + bandH / 2);
+            vg.addColorStop(0, 'rgba(80, 140, 200, 0)');
+            vg.addColorStop(0.5, 'rgba(80, 140, 200, 1)');
+            vg.addColorStop(1, 'rgba(80, 140, 200, 0)');
+            ctx.fillStyle = vg;
+            ctx.fillRect(0, bandY - bandH / 2, this.width, bandH);
+        }
+
+        // 5. Depth breathing — slow global brightness pulse
+        const breathe = Math.sin(this.elapsedTime * of.breatheSpeed) * of.breatheAmount;
+        if (breathe > 0) {
+            ctx.globalAlpha = breathe;
+            ctx.fillStyle = 'rgba(60, 120, 180, 1)';
+            ctx.fillRect(0, yTop, this.width, oceanH);
+        } else {
+            ctx.globalAlpha = -breathe;
+            ctx.fillStyle = 'rgba(4, 10, 20, 1)';
+            ctx.fillRect(0, yTop, this.width, oceanH);
+        }
+
+        // 6. Surface ripple highlights
+        for (const rip of this.oceanRipples) {
+            const fade = 0.5 + 0.5 * Math.sin(this.elapsedTime * rip.fadeSpeed + rip.phase);
+            const rx = ((rip.x + this.elapsedTime * of.rippleSpeed * rip.speed) % 1.4 - 0.2) * this.width;
+            const ry = yTop + oceanH * rip.y;
+            const rw = this.width * rip.length;
+            const rh = Math.max(1, this.height * 0.003); // scales with canvas
+            ctx.globalAlpha = of.rippleAlpha * fade;
+            const rg = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+            rg.addColorStop(0,   'rgba(160, 200, 240, 0)');
+            rg.addColorStop(0.2, 'rgba(160, 200, 240, 1)');
+            rg.addColorStop(0.5, 'rgba(200, 225, 250, 1)');
+            rg.addColorStop(0.8, 'rgba(160, 200, 240, 1)');
+            rg.addColorStop(1,   'rgba(160, 200, 240, 0)');
+            ctx.fillStyle = rg;
+            ctx.fillRect(rx, ry, rw, rh);
+        }
+
+        // 7. Edge vignette (darken left/right edges)
+        ctx.globalAlpha = of.vignetteAlpha;
+        const vw = this.width * of.vignetteWidth;
+        const vigL = ctx.createLinearGradient(0, 0, vw, 0);
+        vigL.addColorStop(0, 'rgba(4, 8, 16, 1)');
+        vigL.addColorStop(1, 'rgba(4, 8, 16, 0)');
+        ctx.fillStyle = vigL;
+        ctx.fillRect(0, yTop, vw, oceanH);
+        const vigR = ctx.createLinearGradient(this.width - vw, 0, this.width, 0);
+        vigR.addColorStop(0, 'rgba(4, 8, 16, 0)');
+        vigR.addColorStop(1, 'rgba(4, 8, 16, 1)');
+        ctx.fillStyle = vigR;
+        ctx.fillRect(this.width - vw, yTop, vw, oceanH);
+
+        // (Light rays disabled — too visible)
+
+        ctx.restore();
+    }
+
+    // 0 = pre-dawn dark, 1 = sun fully up. Coins drive the sunrise: the sky
+    // warms and the sun climbs as the octopus loses ground.
+    sunriseT() {
+        if (this.state === 'victory') return 1;
+        if (this.state === 'title' || this.state === 'transition') return 0.10;
+        const c = Math.min(1, this.coinsCollected / OctopusBoss.COINS_TO_WIN);
+        return 0.10 + 0.90 * c;
+    }
+
+    // Dawn sky gradient — each stop lerps from pre-dawn indigo to sunrise
+    // glow, warmest at the horizon. Replaces the fixed night gradient.
+    fillSky(ctx) {
+        const t = this.sunriseT();
+        const mix = (a, b) => Math.round(a + (b - a) * t);
+        //            pos    pre-dawn        fully risen
+        const stops = [
+            [0,    [5, 13, 26],   [46, 68, 120]],
+            [0.2,  [7, 18, 33],   [76, 98, 152]],
+            [0.4,  [10, 22, 40],  [126, 128, 178]],
+            [0.55, [14, 26, 49],  [186, 142, 168]],
+            [0.7,  [20, 30, 58],  [232, 158, 132]],
+            [0.85, [28, 34, 66],  [248, 186, 110]],
+            [1,    [36, 38, 74],  [255, 214, 130]],
+        ];
+        const grad = ctx.createLinearGradient(0, 0, 0, this.height);
+        for (const [pos, n, d] of stops) {
+            grad.addColorStop(pos, `rgb(${mix(n[0], d[0])}, ${mix(n[1], d[1])}, ${mix(n[2], d[2])})`);
+        }
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, this.width, this.height);
+    }
+
+    drawSun(ctx) {
+        const s = this.sun;
+        const t = this.sunriseT();
+        const cx = this.width * s.x;
+        const cy = this.height * (s.yStart + (s.yEnd - s.yStart) * t);
+        const diam = this.height * s.size;
+
+        // Warm glow halo, stronger as the sun climbs. The ocean fill draws
+        // after this, so a low sun is naturally hidden behind the water.
+        const glowR = diam * s.glowRadius;
+        const glowA = 0.10 + 0.20 * t;
+        const [gr, gg, gb] = s.glowColor;
+        const glow = ctx.createRadialGradient(cx, cy, diam * 0.25, cx, cy, glowR);
+        glow.addColorStop(0, `rgba(${gr}, ${gg}, ${gb}, ${glowA})`);
+        glow.addColorStop(0.4, `rgba(${gr}, ${gg}, ${gb}, ${glowA * 0.4})`);
+        glow.addColorStop(1, `rgba(${gr}, ${gg}, ${gb}, 0)`);
+        ctx.save();
+        ctx.fillStyle = glow;
+        ctx.fillRect(cx - glowR, cy - glowR, glowR * 2, glowR * 2);
+
+        // Grace's sun — the gold circle is offset inside the PNG, so scale
+        // and place the whole image so the circle lands centered on (cx, cy)
+        const sunImg = this.images.sun;
+        if (sunImg && sunImg.complete && sunImg.naturalWidth > 0) {
+            const drawW = diam / s.imgCircleDiam;
+            const drawH = drawW * sunImg.naturalHeight / sunImg.naturalWidth;
+            ctx.drawImage(sunImg, cx - drawW * s.imgCircleCX, cy - drawH * s.imgCircleCY, drawW, drawH);
+        } else {
+            // Fallback: flat gold circle in the same style
+            ctx.fillStyle = '#ecb73c';
+            ctx.beginPath();
+            ctx.arc(cx, cy, diam / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    drawStars(ctx) {
+        // Stars melt away as the sun comes up
+        const dawnFade = Math.max(0, 1 - this.sunriseT() * 1.5);
+        if (dawnFade <= 0) return;
+        for (const star of this.stars) {
+            const twinkle = 0.5 + 0.5 * Math.sin(this.elapsedTime * star.twinkleSpeed + star.twinkleOffset);
+            const alpha = star.brightness * twinkle * dawnFade;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(star.x * this.width, star.y * this.height, star.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    drawHorizon() {
+        const ctx = this.ctx;
+        const t = this.elapsedTime; // For animations
+
+        // B: Sky gradient (area above the horizon blend).
+        // Keep this very soft to avoid visible banding/stops.
+        const skyGradientTop = this.height * 0.14;
+        const skyGradientBottom = this.height * 0.56;
+        ctx.save();
+        const skyGradient = ctx.createLinearGradient(0, skyGradientTop, 0, skyGradientBottom);
+        skyGradient.addColorStop(0,    'rgba(10, 22, 40, 0)');
+        skyGradient.addColorStop(0.28, 'rgba(10, 22, 40, 0.06)');
+        skyGradient.addColorStop(0.52, 'rgba(10, 22, 40, 0.14)');
+        skyGradient.addColorStop(0.74, 'rgba(10, 22, 40, 0.11)');
+        skyGradient.addColorStop(1,    'rgba(10, 22, 40, 0)');
+        ctx.fillStyle = skyGradient;
+        ctx.fillRect(0, skyGradientTop, this.width, skyGradientBottom - skyGradientTop);
+        ctx.restore();
+        
+        // (Ocean BG layer removed — replaced by drawOceanFill which runs before drawHorizon)
+        
+        // === LAYER 2: Horizon glow ===
+        // Dawn horizon — cool moonlit band warming to sunrise gold as the
+        // sun climbs (sunriseT drives the color and the intensity)
+        const horizonY = this.height * 0.52;
+        const glowH = this.height * 0.16;
+        const st = this.sunriseT();
+        const hMix = (a, b) => Math.round(a + (b - a) * st);
+        const hr = hMix(120, 255);
+        const hg = hMix(165, 185);
+        const hb = hMix(230, 110);
+        const hBoost = 1 + 0.8 * st; // glow strengthens toward sunrise
+        ctx.save();
+        const glow = ctx.createLinearGradient(0, horizonY - glowH * 0.5, 0, horizonY + glowH * 0.5);
+        glow.addColorStop(0,    `rgba(${hr}, ${hg}, ${hb}, 0)`);
+        glow.addColorStop(0.20, `rgba(${hr}, ${hg}, ${hb}, ${0.06 * hBoost})`);
+        glow.addColorStop(0.40, `rgba(${hr}, ${hg}, ${hb}, ${0.14 * hBoost})`);
+        glow.addColorStop(0.50, `rgba(${hr}, ${hg}, ${hb}, ${0.18 * hBoost})`);
+        glow.addColorStop(0.60, `rgba(${hr}, ${hg}, ${hb}, ${0.14 * hBoost})`);
+        glow.addColorStop(0.80, `rgba(${hr}, ${hg}, ${hb}, ${0.06 * hBoost})`);
+        glow.addColorStop(1,    `rgba(${hr}, ${hg}, ${hb}, 0)`);
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, horizonY - glowH * 0.5, this.width, glowH);
+        ctx.restore();
+        
+        // === LAYER 3: Animated moonlight sheen on distant water ===
+        // A subtle pale band that slowly drifts vertically,
+        // giving the distant ocean a living, breathing quality.
+        const sheenBase = this.height * 0.47;
+        const sheenDrift = Math.sin(t * 0.4) * (this.height * 0.008); // slow drift
+        const sheenY = sheenBase + sheenDrift;
+        const sheenH = this.height * 0.045;
+
+        ctx.save();
+        const sheen = ctx.createLinearGradient(0, sheenY, 0, sheenY + sheenH);
+        sheen.addColorStop(0,   'rgba(60, 90, 140, 0)');
+        sheen.addColorStop(0.35,'rgba(60, 90, 140, 0.02)');
+        sheen.addColorStop(0.5, 'rgba(70, 100, 150, 0.03)');
+        sheen.addColorStop(0.65,'rgba(60, 90, 140, 0.02)');
+        sheen.addColorStop(1,   'rgba(60, 90, 140, 0)');
+        ctx.fillStyle = sheen;
+        ctx.fillRect(0, sheenY, this.width, sheenH);
+        ctx.restore();
+        
+        // === LAYER 4: Distant water sparkle (disabled — felt artificial) ===
+        // ctx.save();
+        // const sparkleY = this.height * 0.66;
+        // const sparkleH = this.height * 0.08;
+        // const sparkleCount = 14;
+        // for (let i = 0; i < sparkleCount; i++) {
+        //     const phase = i * 1.7 + t * 0.3;
+        //     const alpha = Math.max(0, Math.sin(phase) * 0.6 + 0.2);
+        //     const sx = ((i * 137.5 + t * 8) % (this.width + 40)) - 20;
+        //     const sy = sparkleY + Math.sin(i * 2.3 + t * 0.5) * sparkleH * 0.4;
+        //     const size = 2.5 + Math.sin(phase * 1.3) * 1.5;
+        //     ctx.globalAlpha = alpha * 0.55;
+        //     ctx.fillStyle = '#ffffff';
+        //     ctx.beginPath();
+        //     ctx.arc(sx, sy, size, 0, Math.PI * 2);
+        //     ctx.fill();
+        // }
+        // ctx.restore();
+    }
+    
+    draw() {
+        // Clear canvas
+        this.ctx.clearRect(0, 0, this.width, this.height);
+
+        // Dawn sky — warms as the coin bar fills
+        this.fillSky(this.ctx);
+
+        // Stars (fading out as the sun rises)
+        this.drawStars(this.ctx);
+        this.drawShootingStars(this.ctx);
+
+        // Back cloud layer
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(this.ctx, 0); }
+            catch (err) { this.cloudSystem = null; }
+        }
+
+        // The rising sun — its height tracks the coin bar
+        this.drawSun(this.ctx);
+
+        // Z-Brocket
+        this.drawRocket(this.ctx);
+
+        // Front cloud layer
+        if (this.cloudSystem) {
+            try { this.cloudSystem.drawLayer(this.ctx, 1); }
+            catch (err) { this.cloudSystem = null; }
+        }
+
+        // Draw horizon and distant water (between sky and waves)
+        // Ocean water fill — same as title screen
+        this.drawOceanFill(this.ctx);
+
+        // Horizon (sparkles on top of ocean fill)
+        this.drawHorizon();
+
+        // Islands — same layout, with slow parallax drift during gameplay
+        this.drawIslands(this.ctx, this.islandDriftX);
+
+        // Draw waves in order (back to front)
+        if (this.useGerstnerWaves) {
+            // Gerstner physics-based waves — draw layers behind player (skip frontOcean layer 3)
+            for (let i = 0; i < this.gerstnerWaves.layers.length; i++) {
+                if (this.visibleWaveLayers.includes(i) && i !== 3) {
+                    this.gerstnerWaves.drawLayer(this.ctx, i, this.width, this.height);
+                }
+                // Fish lives behind the front wave but in front of the mid/back water.
+                if (i === 1) {
+                    this.drawFish(this.ctx);
+                }
+            }
+        } else {
+            // SVG tiled waves (original)
+            for (let i = 0; i < this.waves.length; i++) {
+                const wave = this.waves[i];
+                const image = this.images[`wave${i + 1}`];
+                const metrics = this.getWaveMetrics(image, wave);
+                const bob = Math.sin(this.elapsedTime * wave.bobSpeed + (wave.bobPhase || 0)) * (this.height * wave.bobAmount);
+                const alpha = wave.alpha ?? 1;
+
+                // Only draw visible wave layers
+                if (this.visibleWaveLayers.includes(i)) {
+                    this.drawTiledWave(image, metrics, wave.offset, bob, alpha, i);
+                }
+
+                // Fish lives behind the front wave but in front of the mid/back water.
+                if (i === 1) {
+                    this.drawFish(this.ctx);
+                }
+            }
+        }
+
+        // The octopus sits behind its own splash waves
+        this.boss.draw(this.ctx);
+
+        // Draw danger waves above standard waves, but still behind Zeeb.
+        this.drawDangerWave(this.ctx, this.dangerWave);
+        if (this.showDangerWaveExtra) {
+            this.drawDangerWave(this.ctx, this.dangerWaveExtra);
+        }
+
+        // Draw coins above waves, behind player
+        this.drawCoins(this.ctx);
+
+        // Draw water spray behind player
+        this.drawSpray(this.ctx);
+
+        // Draw player in front of all wave layers.
+        // Don't draw normal player during crash animation, wipeout, or invisible hack
+        if (!this.player.invisible && this.state !== 'wipeout' && (!this.crashAnimation.active || this.crashTimer <= 0)) {
+            this.player.draw(this.ctx);
+        }
+
+        // Front ocean layer drawn AFTER player — overlaps Zeeb's lower body
+        if (this.useGerstnerWaves && this.visibleWaveLayers.includes(3)) {
+            this.gerstnerWaves.drawLayer(this.ctx, 3, this.width, this.height);
+        }
+
+        // Draw crash effect overlay (includes Zeeb animation during crash)
+        this.drawCrashEffect(this.ctx);
+        
+
+
+
+        // Draw game UI (score, lives, game over)
+        this.drawGameUI(this.ctx);
+
+        // Pause button (mobile-friendly)
+        this.drawPauseButton(this.ctx);
+
+        // Debug info
+        if (this.showDebug) {
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '14px monospace';
+            this.ctx.fillText(`FPS: ${this.fps.toFixed(0)}`, 10, 20);
+            this.ctx.fillText(`Zeeb riding: wave[2] frontOceanWater`, 10, 40);
+            // Wave layer legend
+            this.ctx.fillText(`--- Wave Legend ---`, 10, 64);
+            this.ctx.fillStyle = '#FF6B35';
+            this.ctx.fillText(`■ [1] MID WAVE (wave2.svg) — orange dashes`, 10, 80);
+            this.ctx.fillStyle = '#00FFFF';
+            this.ctx.fillText(`■ [2] FRONT OCEAN (wave3.svg) — cyan dashes ← Zeeb`, 10, 96);
+            this.ctx.fillStyle = 'white';
+            this.ctx.fillText(`Press SPACEBAR to jump!`, 10, 116);
+
+            // Cheat keys
+            this.ctx.fillStyle = '#ffcc00';
+            this.ctx.fillText(`--- Cheats ---`, 10, 140);
+            this.ctx.fillStyle = '#ccc';
+            this.ctx.fillText(`1-9: speed hack  |  S: +500 pts  |  N: +3000 pts`, 10, 156);
+            this.ctx.fillText(`I: invisible  |  D: debug toggle`, 10, 172);
+
+            // Draw ruler on left side (inches with quarter-inch marks)
+            this.drawDebugRuler(this.ctx);
+            this.drawDebugGrid(this.ctx);
+            this.drawDebugLabels(this.ctx);
+            this.drawDebugDangerWaveBoxes(this.ctx);
+        }
+    }
+
+    drawDebugGrid(ctx) {
+        ctx.save();
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+
+        // Horizontal lines (Y percentages)
+        for (let pct = 0; pct <= 100; pct += 10) {
+            const y = this.height * pct / 100;
+            const isMajor = pct % 20 === 0;
+            ctx.strokeStyle = isMajor ? 'rgba(255, 255, 0, 0.35)' : 'rgba(255, 255, 0, 0.15)';
+            ctx.lineWidth = isMajor ? 1.5 : 0.75;
+            ctx.setLineDash(isMajor ? [] : [4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(this.width, y);
+            ctx.stroke();
+            // Label
+            if (isMajor) {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+                ctx.fillText(`${pct}%`, this.width - 40, y - 3);
+            }
+        }
+
+        // Vertical lines (X percentages)
+        for (let pct = 0; pct <= 100; pct += 10) {
+            const x = this.width * pct / 100;
+            const isMajor = pct % 20 === 0;
+            ctx.strokeStyle = isMajor ? 'rgba(0, 255, 255, 0.3)' : 'rgba(0, 255, 255, 0.12)';
+            ctx.lineWidth = isMajor ? 1.5 : 0.75;
+            ctx.setLineDash(isMajor ? [] : [4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, this.height);
+            ctx.stroke();
+            if (isMajor && pct > 0 && pct < 100) {
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+                ctx.fillText(`${pct}%`, x + 2, 12);
+            }
+        }
+
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
+
+    drawDebugLabels(ctx) {
+        const labelX = 140;
+        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+        const drawLabel = (text, x, y) => {
+            const textX = clamp(x, 10, this.width - 10);
+            const textY = clamp(y, 12, this.height - 6);
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        };
+
+        ctx.save();
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+
+        drawLabel('sky (Sky1.png)', 10, 16);
+
+        const islandLeftImg = this.images.islandLeft;
+        if (islandLeftImg.complete && islandLeftImg.naturalWidth > 0) {
+            const pixelsPerInch = 96;
+            const islandHeight = pixelsPerInch * 1;
+            const islandAspect = islandLeftImg.naturalWidth / islandLeftImg.naturalHeight;
+            const islandWidth = islandHeight * islandAspect;
+            const islandX = this.width * 0.08;
+            const islandY = this.height * 0.52;
+            drawLabel('islandLeft (Island Left.svg)', islandX, islandY - 6);
+
+            const islandRightImg = this.images.islandRight;
+            if (islandRightImg.complete && islandRightImg.naturalWidth > 0) {
+                const rightAspect = islandRightImg.naturalWidth / islandRightImg.naturalHeight;
+                const islandRightWidth = islandHeight * rightAspect;
+                const islandRightX = this.width * 0.92 - islandRightWidth;
+                const islandRightY = this.height * 0.54;
+                drawLabel('islandRight (Island Right.svg)', islandRightX, islandRightY - 6);
+            }
+        }
+
+        // Wave layer debug info with color-coded surface lines
+        const waveDebugColors = {
+            0: { color: '#FFD700', desc: 'BACK', lineWidth: 2, dash: [6, 6] },
+            1: { color: '#FF6B35', desc: 'MID WAVE', lineWidth: 5, dash: [20, 10] },
+            2: { color: '#00FFFF', desc: 'FRONT OCEAN (Zeeb rides)', lineWidth: 3, dash: [6, 3] },
+            3: { color: '#FF44FF', desc: 'BOTTOM STRIP', lineWidth: 2, dash: [6, 6] }
+        };
+        let prevLabelY = -Infinity;
+        for (let i = 0; i < this.waves.length; i++) {
+            const wave = this.waves[i];
+            const image = this.images[`wave${i + 1}`];
+            const metrics = this.getWaveMetrics(image, wave);
+            const dbg = waveDebugColors[i] || { color: '#FFF', desc: '', lineWidth: 2, dash: [8, 4] };
+            const name = wave.name || `wave${i + 1}`;
+            const asset = wave.asset || `wave${i + 1}.svg`;
+            const label = `[${i}] ${dbg.desc} — ${name} (${asset}) | speed:${wave.speed}px/s`;
+            let labelY = metrics.waveY + metrics.waveHeight * 0.12;
+
+            // Push label down if it overlaps the previous one
+            if (labelY - prevLabelY < 18) {
+                labelY = prevLabelY + 18;
+            }
+
+            if (this.visibleWaveLayers.includes(i)) {
+                // Draw colored surface line across the wave top
+                ctx.save();
+                ctx.strokeStyle = dbg.color;
+                ctx.lineWidth = dbg.lineWidth;
+                ctx.setLineDash(dbg.dash);
+                ctx.beginPath();
+                ctx.moveTo(0, metrics.waveY);
+                ctx.lineTo(this.width, metrics.waveY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+
+                // Draw short tick from the line down to the label
+                ctx.save();
+                ctx.strokeStyle = dbg.color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(labelX - 10, metrics.waveY);
+                ctx.lineTo(labelX - 10, labelY - 8);
+                ctx.stroke();
+                ctx.restore();
+
+                // Draw colored dot next to label
+                ctx.save();
+                ctx.fillStyle = dbg.color;
+                ctx.beginPath();
+                ctx.arc(labelX - 10, labelY - 4, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                drawLabel(label, labelX, labelY);
+                prevLabelY = labelY;
+            }
+        }
+
+        const drawDangerLabel = (wave, baseName) => {
+            if (!wave || !wave.active) {
+                return;
+            }
+            const img = wave.img || this.images.dangerWave2;
+            const waveHeight = this.height * 0.24 * (wave.sizeMultiplier || 1) * (wave.heightScale || 1);
+            let waveWidth = waveHeight;
+            if (img.complete && img.naturalWidth > 0) {
+                const aspect = img.naturalWidth / img.naturalHeight;
+                waveWidth = waveHeight * aspect;
+            }
+            const waveY = this.getDangerWaveTopY();
+            const waveX = wave.x - waveWidth * 0.3;
+            const imgName = wave.imgName || 'GraceWave?.png';
+            drawLabel(`${baseName} (${imgName})`, waveX + 8, waveY + 18);
+        };
+
+        drawDangerLabel(this.dangerWave, 'dangerWave');
+        if (this.showDangerWaveExtra) {
+            drawDangerLabel(this.dangerWaveExtra, 'dangerWaveExtra');
+        }
+
+        if (this.fish.active) {
+            const fishAsset = this.fish.state === 'dead'
+                ? (this.fish.entrySide === 'right' ? 'dead_fish_right.svg' : 'dead_fish.svg')
+                : (this.fish.entrySide === 'right' ? 'alive_fish_right.svg' : 'alive_fish_left.svg');
+            drawLabel(`fish (${fishAsset})`, this.fish.x + 12, this.fish.y - 12);
+        }
+
+        if (this.crashAnimation.active && this.crashTimer > 0) {
+            drawLabel('player (red.png)', this.crashAnimation.zeebX + 12, this.crashAnimation.zeebY - 12);
+        } else {
+            drawLabel('player (red.png)', this.player.x + 12, this.player.y - 12);
+        }
+
+        ctx.restore();
+    }
+    
+    // Golden wave drawing function removed
+
+    drawDebugDangerWaveBoxes(ctx) {
+        const drawBox = (wave, label) => {
+            if (!wave || !wave.active) {
+                return;
+            }
+
+            // Match collision calculation from updateDangerWaveInstance
+            const img = wave.img || this.images.dangerWave2;
+            const waveHeight = this.height * 0.24 * (wave.sizeMultiplier || 1) * (wave.heightScale || 1);
+            let waveWidth = waveHeight;
+            if (img.complete && img.naturalWidth > 0) {
+                const aspect = img.naturalWidth / img.naturalHeight;
+                waveWidth = waveHeight * aspect;
+            }
+            const spriteLeft = wave.x - waveWidth * 0.3;
+            const dangerousPortionRatio = 0.4;
+            const dangerLeft = spriteLeft;
+            const dangerRight = spriteLeft + waveWidth * dangerousPortionRatio;
+            const waveTop = this.getDangerWaveTopY();
+            const dangerTop = waveTop + 30;
+            const dangerBottom = this.height;
+            const boxWidth = dangerRight - dangerLeft;
+            const boxHeight = dangerBottom - dangerTop;
+
+            if (boxWidth <= 0 || boxHeight <= 0) {
+                return;
+            }
+
+            const clearanceHeight = waveTop + 20;
+
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 64, 64, 0.18)';
+            ctx.strokeStyle = 'rgba(255, 64, 64, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.fillRect(dangerLeft, dangerTop, boxWidth, boxHeight);
+            ctx.strokeRect(dangerLeft, dangerTop, boxWidth, boxHeight);
+
+            // Wave top line
+            ctx.strokeStyle = 'rgba(120, 200, 255, 0.95)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(dangerLeft, waveTop);
+            ctx.lineTo(dangerRight, waveTop);
+            ctx.stroke();
+
+            // Clearance line (safe jump threshold)
+            ctx.strokeStyle = 'rgba(120, 255, 140, 0.95)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(dangerLeft, clearanceHeight);
+            ctx.lineTo(dangerRight, clearanceHeight);
+            ctx.stroke();
+
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            const textX = Math.min(this.width - 10, Math.max(10, dangerLeft + 6));
+            const textY = Math.min(this.height - 6, Math.max(14, dangerTop + 14));
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.lineWidth = 3;
+            ctx.strokeText(label, textX, textY);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.fillText(label, textX, textY);
+
+            const lineY = textY + 14;
+            const stats = [
+                `dangerX: ${dangerLeft.toFixed(0)}..${dangerRight.toFixed(0)}`,
+                `waveTop: ${waveTop.toFixed(0)} | clearance: ${clearanceHeight.toFixed(0)}`,
+                `dangerTop: ${dangerTop.toFixed(0)} | waveW: ${wave.width.toFixed(0)}`,
+                `heightScale: ${(wave.heightScale || 1).toFixed(2)}`
+            ];
+            for (let i = 0; i < stats.length; i++) {
+                const y = lineY + i * 14;
+                ctx.strokeText(stats[i], textX, y);
+                ctx.fillText(stats[i], textX, y);
+            }
+            ctx.restore();
+        };
+
+        drawBox(this.dangerWave, 'wipeout box: dangerWave');
+        if (this.showDangerWaveExtra) {
+            drawBox(this.dangerWaveExtra, 'wipeout box: dangerWaveExtra');
+        }
+    }
+    
+    drawDebugRuler(ctx) {
+        // Draw a vertical ruler on the left side of the screen
+        // Assumes 96 DPI (standard screen) - 1 inch = 96 pixels
+        const pixelsPerInch = 96;
+        const rulerX = 5; // Position from left edge
+        const rulerWidth = 30;
+        const quarterInchPx = pixelsPerInch / 4;
+        
+        ctx.save();
+        
+        // Semi-transparent background for ruler
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(0, 0, rulerWidth + 95, this.height);
+        
+        // Draw ruler markings
+        ctx.strokeStyle = 'white';
+        ctx.fillStyle = 'white';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        
+        let quarterStep = 0;
+        let y = this.height;
+        
+        while (y >= 0) {
+            const quarterInch = quarterStep % 4;
+            const inchCount = Math.floor(quarterStep / 4);
+            
+            if (quarterInch === 0) {
+                // Full inch mark - longest line
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(rulerX, y);
+                ctx.lineTo(rulerX + rulerWidth, y);
+                ctx.stroke();
+                
+                // Label with inch number
+                ctx.fillText(`${inchCount}"`, rulerX + rulerWidth + 3, y + 4);
+            } else if (quarterInch === 2) {
+                // Half inch mark - medium line
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(rulerX + 5, y);
+                ctx.lineTo(rulerX + rulerWidth - 5, y);
+                ctx.stroke();
+                
+                // Label with fraction
+                ctx.font = '8px monospace';
+                ctx.fillText(`${inchCount} ½`, rulerX + rulerWidth + 3, y + 3);
+                ctx.font = '10px monospace';
+            } else {
+                // Quarter inch marks - short lines
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(rulerX + 10, y);
+                ctx.lineTo(rulerX + rulerWidth - 10, y);
+                ctx.stroke();
+                
+                // Label quarter inches
+                ctx.font = '7px monospace';
+                const fractionLabel = quarterInch === 1 ? '¼' : '¾';
+                ctx.fillText(`${inchCount} ${fractionLabel}`, rulerX + rulerWidth + 3, y + 3);
+                ctx.font = '10px monospace';
+            }
+            
+            quarterStep++;
+            y = this.height - (quarterStep * quarterInchPx);
+        }
+        
+        // Draw percentage markers on the right side of ruler area
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+        ctx.font = '9px monospace';
+        for (let pct = 0; pct <= 100; pct += 10) {
+            const pctY = this.height - (this.height * (pct / 100));
+            ctx.fillText(`${pct}%`, rulerX + rulerWidth + 25, pctY + 3);
+            
+            // Small yellow tick
+            ctx.strokeStyle = 'yellow';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(rulerX + rulerWidth + 22, pctY);
+            ctx.lineTo(rulerX + rulerWidth + 24, pctY);
+            ctx.stroke();
+        }
+
+        // Draw pixel number bar (0 at top, increases downward)
+        const numberBarX = rulerX + rulerWidth + 55;
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.9)';
+        ctx.font = '9px monospace';
+        for (let y = 0; y <= this.height; y += 10) {
+            const isMajor = y % 100 === 0;
+            const isMid = y % 50 === 0;
+            const tickLen = isMajor ? 10 : (isMid ? 7 : 4);
+            ctx.lineWidth = isMajor ? 1.5 : 1;
+            ctx.beginPath();
+            ctx.moveTo(numberBarX, y);
+            ctx.lineTo(numberBarX + tickLen, y);
+            ctx.stroke();
+
+            if (isMid) {
+                ctx.fillText(`${y}`, numberBarX + tickLen + 2, y + 3);
+            }
+        }
+        
+        ctx.restore();
+    }
+    
+    animate() {
+        const currentTime = performance.now();
+        const deltaTime = currentTime - this.lastTime;
+
+        if (this.isLoaded) {
+            // Dawn light on the water — the wave system warms with the sunrise
+            this.gerstnerWaves.sunrise = this.sunriseT();
+            if (this.state === 'title') {
+                this.updateTitle(deltaTime);
+                this.drawTitle();
+            } else if (this.state === 'transition') {
+                this.updateTitle(deltaTime);
+                this.transitionTimer += deltaTime / 1000;
+                if (this.transitionTimer >= this.transitionDuration) {
+                    this.finishTransition();
+                }
+                this.drawTransition();
+            } else if (this.state === 'wipeout') {
+                // Keep ocean alive during wipeout
+                this.updateWipeout(deltaTime);
+                this.draw();
+                this.drawWipeoutOverlay(this.ctx);
+            } else if (this.state === 'paused') {
+                // Freeze game — HTML overlay handles the pause UI
+                this.lastTime = currentTime;
+                this.draw();
+            } else if (this.state === 'confirm-quit') {
+                // Freeze game, draw paused frame with dialog
+                this.lastTime = currentTime;
+                this.draw();
+                this.drawConfirmQuit();
+            } else if (this.state === 'victory') {
+                this.updateWipeout(deltaTime); // keep ocean alive
+                this.draw();
+                this.drawVictoryOverlay(this.ctx);
+            } else {
+                this.update(deltaTime);
+                this.draw();
+            }
+        } else {
+            // Show loading message on sky-colored background
+            const loadGrad = this.ctx.createLinearGradient(0, 0, 0, this.height);
+            loadGrad.addColorStop(0, '#0a1628');
+            loadGrad.addColorStop(1, '#0d1f3a');
+            this.ctx.fillStyle = loadGrad;
+            this.ctx.fillRect(0, 0, this.width, this.height);
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = "24px 'Lilita One', Arial";
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Loading ocean assets...', this.width / 2, this.height / 2);
+            this.ctx.textAlign = 'left';
+        }
+
+        this.lastTime = currentTime;
+        requestAnimationFrame(() => this.animate());
+    }
+}
+
+// Start the animation when page loads
+window.addEventListener('DOMContentLoaded', () => {
+    const ocean = new OceanAnimation();
+    console.log('Ocean animation initialized');
+
+    // Pause/resume all audio when tab/app is hidden (especially mobile Safari)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            ocean.music.pause();
+            ocean.titleMusic.pause();
+            ocean.wavesAmbient.pause();
+        } else {
+            if (ocean.musicStarted) ocean.music.play().catch(() => {});
+            if (ocean.titleMusicStarted) ocean.titleMusic.play().catch(() => {});
+            if (ocean.wavesAmbientStarted) ocean.wavesAmbient.play().catch(() => {});
+        }
+    });
+    window.addEventListener('pagehide', () => {
+        ocean.music.pause();
+        ocean.titleMusic.pause();
+        ocean.wavesAmbient.pause();
+    });
+});
