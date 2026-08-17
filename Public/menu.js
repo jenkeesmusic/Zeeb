@@ -87,7 +87,7 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-// Happy Summer picture lightbox
+// Seasonal wall-poster lightbox (currently Back to School)
 const openSummerBtn = document.getElementById('openSummer');
 const summerOverlay = document.getElementById('summerOverlay');
 const closeSummerBtn = document.getElementById('closeSummer');
