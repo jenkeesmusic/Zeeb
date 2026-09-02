@@ -26,5 +26,8 @@ Desktop.ini
 # Allow The Zeeb Show episodes
 !Public/zeeb-show/*.mp4
 
+# Allow the Underwater homepage teaser clip
+!Public/Underwater/preview.mp4
+
 # Aperant data directory
 .auto-claude/

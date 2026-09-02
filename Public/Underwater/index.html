@@ -1,0 +1,1318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zeeb Underwater</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b4f6c; }
+  /* Explicit width and height on the canvas matter: the renderer is told not to
+     touch the canvas style, so without these a 2x screen shows a magnified
+     top-left quadrant. Same trap the waterfall lab hit. */
+  #stage { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+
+  #hud {
+    position: fixed; left: 0; right: 0; top: 0; padding: 18px 24px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none; z-index: 5;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    color: #F4FBFF; text-shadow: 0 2px 10px rgba(0, 20, 40, 0.8);
+  }
+  #depth { font-size: 30px; font-weight: 800; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+  #depth small { display: block; font-size: 17px; font-weight: 600; opacity: 0.8; letter-spacing: 0.08em; text-transform: uppercase; }
+  #perf { font-size: 16px; opacity: 0.6; font-variant-numeric: tabular-nums; text-align: right; }
+  #right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  #right .row { display: flex; gap: 10px; pointer-events: auto; }
+  #right button {
+    font: inherit; font-size: 21px; font-weight: 700; color: #F4FBFF;
+    background: rgba(2, 30, 48, 0.72); border: 2px solid rgba(180, 230, 255, 0.55);
+    border-radius: 12px; padding: 10px 18px; cursor: pointer; touch-action: manipulation;
+    text-shadow: none;
+  }
+  #right button:active { background: rgba(2, 30, 48, 0.95); }
+  #now { font-size: 18px; font-weight: 600; opacity: 0.85; text-align: right; }
+
+  #hint {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    background: rgba(2, 30, 48, 0.72); color: #F4FBFF;
+    border: 2px solid rgba(180, 230, 255, 0.45); border-radius: 16px;
+    padding: 14px 22px; font-size: 21px; font-weight: 600; line-height: 1.4;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    pointer-events: none; z-index: 5; text-align: center; max-width: 92vw;
+    transition: opacity 0.8s ease;
+  }
+  #hint.gone { opacity: 0; }
+  /* ?preview hides the chrome so the homepage teaser shows only the ocean. */
+  body.preview #hud, body.preview #hint { display: none; }
+  #hint b { color: #FFD166; }
+
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #0b4f6c; color: #F4FBFF; z-index: 20;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 28px; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div id="loading">Diving in...</div>
+
+<div id="hud">
+  <div id="depth"><small>Depth</small>0 ft</div>
+  <div id="right">
+    <div class="row">
+      <button id="musicBtn" type="button">Music: On</button>
+      <button id="nextBtn" type="button">Next song</button>
+    </div>
+    <div id="now">Music starts when you swim</div>
+    <div id="perf"></div>
+  </div>
+</div>
+<div id="hint">
+  <b>Arrow keys</b> or <b>WASD</b> to swim. <b>Space</b> rises, <b>Shift</b> dives. <b>M</b> for music.<br>
+  On a touch screen, drag to steer. Swim through the stone rings.
+</div>
+
+<script>
+  // Any startup crash goes onto the loading overlay: on a phone or iPad there
+  // is no console to read.
+  window.addEventListener('error', (e) => {
+    const el = document.getElementById('loading');
+    if (el) { el.style.display = 'flex'; el.style.fontSize = '18px'; el.textContent = 'Error: ' + e.message; }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const el = document.getElementById('loading');
+    if (el) { el.style.display = 'flex'; el.style.fontSize = '18px'; el.textContent = 'Error: ' + (e.reason && e.reason.message || e.reason); }
+  });
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.min.js",
+    "three/addons/": "./vendor/addons/"
+  }
+}
+</script>
+
+<script type="module">
+/*
+ * Zeeb Underwater, v0.1: a free-swim ocean for Zeeb built on three.js.
+ *
+ * There is no goal yet. The whole point of this version is that steering
+ * Zeeb through the water feels good and the ocean is worth swimming around
+ * in: a kelp forest that sways, coral gardens, fish schools that scatter
+ * when he gets close, jellyfish that pulse and glow, light shafts from the
+ * surface, caustics dancing on the sand, a treasure chest, and a couple of
+ * stone rings to swim through. Everything except Zeeb himself is built in
+ * code at startup, so the folder ships one model and no textures.
+ *
+ * World units are feet. The sea floor sits about 60 ft down, the surface is
+ * at 0, and Zeeb is about a foot long, which makes him a very small duck in
+ * a very big sea. The depth readout on screen is simply minus his y.
+ */
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { MeshoptDecoder } from './vendor/meshopt_decoder.module.js';
+
+/* ----------------------------------------------------------------- layout */
+
+const SURFACE_Y = 0;
+const FLOOR_Y = -60;          // Mean sea floor height; the real floor undulates.
+const WORLD_R = 210;          // Soft horizontal boundary. Beyond it, a gentle push back.
+const SPAWN = new THREE.Vector3(0, -14, 0);
+
+// A seeded random generator so the ocean is laid out the same way on every
+// visit. Once a child knows where the treasure chest is, it should stay put.
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rand = mulberry32(20260902);
+const rrange = (a, b) => a + rand() * (b - a);
+
+// The sea floor is a sum of a few waves plus two dunes. Everything that sits
+// on the floor asks this function where the sand is, so it is the one truth.
+function floorY(x, z) {
+  let y = FLOOR_Y;
+  y += 3.0 * Math.sin(x * 0.05) * Math.cos(z * 0.045);
+  y += 2.0 * Math.sin(x * 0.13 + 1.0) + 1.5 * Math.cos(z * 0.11 + 2.0);
+  y += 4.0 * Math.sin((x + z) * 0.02);
+  y += 12.0 * Math.exp(-((x - 90) ** 2 + (z + 70) ** 2) / 2200);   // a tall dune
+  y += 8.0 * Math.exp(-((x + 110) ** 2 + (z - 40) ** 2) / 3000);    // a lower one
+  return y;
+}
+
+/* --------------------------------------------------------------- renderer */
+
+const canvas = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+// The fog color and density change with depth every frame; these are just
+// the starting values.
+scene.fog = new THREE.FogExp2(0x0b4f6c, 0.012);
+scene.background = new THREE.Color(0x0b4f6c);
+
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
+
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ----------------------------------------------------------------- lights */
+
+const hemi = new THREE.HemisphereLight(0x9fdcff, 0x0a2a3a, 1.5);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xcdf3ff, 1.6);
+sun.position.set(20, 60, 10);
+scene.add(sun);
+
+/* -------------------------------------------------------- canvas textures */
+
+function canvasTexture(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// A kelp blade: tapered, with a scalloped edge and a lighter midrib.
+const kelpTex = canvasTexture(64, 256, (g, w, h) => {
+  g.clearRect(0, 0, w, h);
+  g.beginPath();
+  g.moveTo(w / 2, h);
+  for (let i = 0; i <= 20; i++) {
+    const y = h - (i / 20) * h;
+    const half = (w * 0.42) * (1 - (i / 20) * 0.55) * (0.8 + 0.2 * Math.sin(i * 1.9));
+    g.lineTo(w / 2 + half, y);
+  }
+  for (let i = 20; i >= 0; i--) {
+    const y = h - (i / 20) * h;
+    const half = (w * 0.42) * (1 - (i / 20) * 0.55) * (0.8 + 0.2 * Math.sin(i * 1.9 + 1.3));
+    g.lineTo(w / 2 - half, y);
+  }
+  g.closePath();
+  const grad = g.createLinearGradient(0, h, 0, 0);
+  grad.addColorStop(0, '#2c5a1e');
+  grad.addColorStop(0.6, '#4f8a2a');
+  grad.addColorStop(1, '#8dc24a');
+  g.fillStyle = grad;
+  g.fill();
+  g.strokeStyle = 'rgba(200,240,150,0.5)';
+  g.lineWidth = 3;
+  g.beginPath(); g.moveTo(w / 2, h); g.lineTo(w / 2, 6); g.stroke();
+});
+
+// A light shaft: bright at the top, gone by the bottom, soft at the sides.
+const shaftTex = canvasTexture(64, 256, (g, w, h) => {
+  g.clearRect(0, 0, w, h);
+  const v = g.createLinearGradient(0, 0, 0, h);
+  v.addColorStop(0, 'rgba(255,255,255,0.9)');
+  v.addColorStop(0.5, 'rgba(255,255,255,0.35)');
+  v.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = v;
+  g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'destination-in';
+  const s = g.createLinearGradient(0, 0, w, 0);
+  s.addColorStop(0, 'rgba(0,0,0,0)');
+  s.addColorStop(0.5, 'rgba(0,0,0,1)');
+  s.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = s;
+  g.fillRect(0, 0, w, h);
+});
+
+/* -------------------------------------------------- shared shader pieces */
+
+// Every custom material below takes the scene fog through three's own
+// chunks, so the whole ocean fades into the same blue the built-in
+// materials use.
+const fogUniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog]);
+const timeUniform = { value: 0 };
+
+/* -------------------------------------------------------------- sea floor */
+
+// The sand is one big displaced plane with a custom shader: soft top-down
+// lighting, a vertex-color tint, and animated caustics that fade with depth.
+{
+  const SIZE = 620, SEG = 140;
+  const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const col = new Float32Array(pos.count * 3);
+  // Grace's call: the sand matches her Zeeb Islands beaches. Sampled from
+  // Islands/img/Level2/2-sand.png, the beach averages #f0d781 with #f0d080
+  // as the dominant fill, so the ridges sit just above that and the dips a
+  // shade deeper, still clearly yellow.
+  // Final call: the color of the level-one islands. Island Left.svg fills its
+  // sand with #f9c775 and highlights the edges with #fcd8a6, so the ridges
+  // take the highlight and the dips sit a touch under the main fill.
+  const sandLight = new THREE.Color(0xfcd8a6), sandDark = new THREE.Color(0xf2bb66);
+  const tmp = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const y = floorY(x, z);
+    pos.setY(i, y);
+    // Darker in the dips, lighter on the ridges, plus a little speckle.
+    const k = THREE.MathUtils.clamp((y - FLOOR_Y + 6) / 18, 0, 1);
+    tmp.copy(sandDark).lerp(sandLight, k * 0.85 + rand() * 0.15);
+    col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]),
+    vertexColors: true,
+    fog: true,
+    vertexShader: `
+      #include <fog_pars_vertex>
+      varying vec3 vColor;
+      varying vec3 vNormalW;
+      varying vec3 vWorld;
+      void main() {
+        vColor = color;
+        vNormalW = normalize(mat3(modelMatrix) * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorld = wp.xyz;
+        vec4 mvPosition = viewMatrix * wp;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `
+      #include <fog_pars_fragment>
+      uniform float uTime;
+      varying vec3 vColor;
+      varying vec3 vNormalW;
+      varying vec3 vWorld;
+      // Overlapping sine fields whose zero crossings form a wandering net of
+      // bright lines: the classic cheap caustic.
+      float caustic(vec2 p, float t) {
+        vec2 q = p * 0.35;
+        float v = 0.0;
+        v += sin(q.x * 1.0 + t * 0.8 + sin(q.y * 1.3 + t * 0.5) * 1.2);
+        v += sin(q.y * 1.1 - t * 0.6 + sin(q.x * 0.9 - t * 0.4) * 1.2);
+        v += sin((q.x + q.y) * 0.8 + t * 0.35);
+        return pow(max(0.0, 1.0 - abs(v) * 0.55), 4.0);
+      }
+      // Cheap value noise for the sand grain and the ripple warp.
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+                   mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
+      void main() {
+        vec3 n = normalize(vNormalW);
+        float diff = 0.62 + 0.38 * max(0.0, dot(n, normalize(vec3(0.3, 1.0, 0.15))));
+        vec3 base = vColor * diff;
+        // Sand texture, all in the fragment: coarse grain, fine grain, a
+        // speckle of individual bright grains, and wind-style ripples whose
+        // direction wanders with a low-frequency noise so they never read as
+        // straight stripes.
+        vec2 p = vWorld.xz;
+        float grain = vnoise(p * 4.0) * 0.5 + vnoise(p * 17.0) * 0.35 + hash(floor(p * 45.0)) * 0.15;
+        float warp = vnoise(p * 0.08) * 6.0;
+        float ripple = sin(p.x * 1.6 + p.y * 0.5 + warp + vnoise(p * 0.6) * 2.0);
+        float relief = 1.0 + (grain - 0.5) * 0.28 + ripple * 0.09;
+        base *= relief;
+        // Broad mottling: patches of coarser, darker sand and a faint olive
+        // tint where algae films the bottom. This is what keeps a real sea
+        // floor from looking like one flat color.
+        float mottle = vnoise(p * 0.045) * 0.6 + vnoise(p * 0.12) * 0.4; // "patch" is reserved in GLSL
+        // Kept warm so the mottling reads as damp sand, not algae, and the
+        // beach stays Grace's yellow.
+        base *= mix(vec3(1.0), vec3(0.92, 0.9, 0.74), smoothstep(0.35, 0.75, mottle) * 0.3);
+        // Deep water swallows red first, so the sand cools a little with
+        // depth, but only a little: yellow was the request.
+        float depth = clamp(-vWorld.y / 80.0, 0.0, 1.0);
+        base *= mix(vec3(1.0), vec3(0.72, 0.85, 0.9), depth * 0.3);
+        // Warm sunlight caustics rather than cyan ones, so they brighten the
+        // sand toward Grace's yellow instead of pushing it green.
+        float c = caustic(vWorld.xz, uTime) * (1.0 - depth * 0.55);
+        base += c * vec3(0.95, 0.9, 0.7) * 0.85;
+        gl_FragColor = vec4(base, 1.0);
+        #include <fog_fragment>
+      }`
+  });
+  mat.uniforms.uTime = timeUniform;
+  const floor = new THREE.Mesh(geo, mat);
+  scene.add(floor);
+}
+
+/* ------------------------------------------------------------ the surface */
+
+// Seen from below, the surface is a bright rippling ceiling. Its vertices
+// heave with a few slow waves and its brightness follows the wave slope, so
+// it glitters as Zeeb moves under it.
+let surfaceMat;
+{
+  const geo = new THREE.PlaneGeometry(700, 700, 80, 80);
+  geo.rotateX(Math.PI / 2); // Face down toward the swimmer.
+  surfaceMat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]),
+    fog: true,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    vertexShader: `
+      #include <fog_pars_vertex>
+      uniform float uTime;
+      varying float vGlint;
+      varying vec3 vWorld;
+      void main() {
+        vec3 p = position;
+        float t = uTime;
+        float h = 0.0;
+        h += sin(p.x * 0.08 + t * 0.9) * 0.8;
+        h += sin(p.z * 0.11 - t * 0.7) * 0.6;
+        h += sin((p.x + p.z) * 0.05 + t * 0.5) * 0.9;
+        h += sin((p.x - p.z * 0.6) * 0.17 + t * 1.3) * 0.25;
+        p.y += h;
+        // Slope of the same waves, used as a fake normal for the glitter.
+        float sx = cos(p.x * 0.08 + t * 0.9) * 0.064 + cos((p.x + p.z) * 0.05 + t * 0.5) * 0.045;
+        float sz = cos(p.z * 0.11 - t * 0.7) * 0.066 + cos((p.x + p.z) * 0.05 + t * 0.5) * 0.045;
+        vec3 n = normalize(vec3(-sx, 1.0, -sz));
+        vGlint = pow(max(0.0, dot(n, normalize(vec3(0.2, 1.0, 0.1)))), 24.0);
+        vec4 wp = modelMatrix * vec4(p, 1.0);
+        vWorld = wp.xyz;
+        vec4 mvPosition = viewMatrix * wp;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `
+      #include <fog_pars_fragment>
+      varying float vGlint;
+      varying vec3 vWorld;
+      void main() {
+        vec3 col = mix(vec3(0.35, 0.8, 0.95), vec3(1.0), vGlint);
+        gl_FragColor = vec4(col, 0.75 + vGlint * 0.25);
+        #include <fog_fragment>
+      }`
+  });
+  surfaceMat.uniforms.uTime = timeUniform;
+  const surface = new THREE.Mesh(geo, surfaceMat);
+  surface.position.y = SURFACE_Y;
+  scene.add(surface);
+}
+
+/* ---------------------------------------------------------- light shafts */
+
+// Crossed additive planes hanging from the surface. They sway and breathe a
+// little so the light looks alive rather than painted on.
+const shafts = [];
+{
+  const mat = new THREE.MeshBasicMaterial({
+    map: shaftTex, transparent: true, blending: THREE.AdditiveBlending,
+    depthWrite: false, side: THREE.DoubleSide, opacity: 0.35, color: 0xbfefff
+  });
+  for (let i = 0; i < 26; i++) {
+    const g = new THREE.Group();
+    const w = rrange(4, 12), h = rrange(40, 70);
+    for (const yaw of [0, Math.PI / 2]) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+      m.rotation.y = yaw;
+      g.add(m);
+    }
+    const a = rand() * Math.PI * 2, r = rrange(10, 190);
+    g.position.set(Math.cos(a) * r, SURFACE_Y - h / 2 + 1, Math.sin(a) * r);
+    g.rotation.y = rand() * Math.PI;
+    g.rotation.z = rrange(-0.12, 0.12);
+    g.userData.phase = rand() * Math.PI * 2;
+    g.userData.baseX = g.position.x;
+    scene.add(g);
+    shafts.push(g);
+  }
+}
+
+/* ------------------------------------------------------------ kelp forest */
+
+// Kelp is one InstancedMesh of textured blades with a vertex-shader sway.
+// The sway grows with height squared, so the base stays rooted and the tips
+// whip around. Each blade has its own phase so the forest never moves in
+// lockstep.
+{
+  const BLADE_H = 1; // Unit height; the instance matrix scales it.
+  const geo = new THREE.PlaneGeometry(1, BLADE_H, 1, 12);
+  geo.translate(0, BLADE_H / 2, 0);
+
+  const COUNT = 900;
+  const mesh = new THREE.InstancedMesh(geo, null, COUNT);
+  const phases = new Float32Array(COUNT);
+  const dummy = new THREE.Object3D();
+  // Six kelp beds, each a loose ring of blades around a center.
+  const beds = [];
+  for (let b = 0; b < 6; b++) {
+    const a = rand() * Math.PI * 2, r = rrange(35, 170);
+    beds.push([Math.cos(a) * r, Math.sin(a) * r, rrange(14, 26)]);
+  }
+  for (let i = 0; i < COUNT; i++) {
+    const [bx, bz, br] = beds[i % beds.length];
+    const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * br;
+    const x = bx + Math.cos(a) * r, z = bz + Math.sin(a) * r;
+    const h = rrange(10, 26), w = rrange(1.6, 2.6);
+    dummy.position.set(x, floorY(x, z) - 0.3, z);
+    dummy.rotation.set(0, rand() * Math.PI * 2, 0);
+    dummy.scale.set(w, h, 1);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    phases[i] = rand() * Math.PI * 2;
+  }
+  geo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phases, 1));
+
+  mesh.material = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uMap: { value: null } }]),
+    fog: true,
+    side: THREE.DoubleSide,
+    vertexShader: `
+      #include <fog_pars_vertex>
+      uniform float uTime;
+      attribute float aPhase;
+      varying vec2 vUv;
+      varying float vHeight;
+      void main() {
+        vUv = uv;
+        vHeight = position.y; // 0 at the root, 1 at the tip
+        vec3 p = position;
+        float k = p.y * p.y;
+        p.x += sin(uTime * 1.1 + aPhase) * 0.25 * k;
+        p.z += cos(uTime * 0.8 + aPhase * 1.7) * 0.18 * k;
+        // Taper the blade toward the tip.
+        p.x *= 1.0 - 0.45 * p.y;
+        vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
+        vec4 mvPosition = viewMatrix * wp;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `
+      #include <fog_pars_fragment>
+      uniform sampler2D uMap;
+      varying vec2 vUv;
+      varying float vHeight;
+      void main() {
+        vec4 tex = texture2D(uMap, vUv);
+        if (tex.a < 0.5) discard;
+        vec3 col = tex.rgb * (0.55 + 0.45 * vHeight);
+        gl_FragColor = vec4(col, 1.0);
+        #include <fog_fragment>
+      }`
+  });
+  mesh.material.uniforms.uTime = timeUniform;
+  mesh.material.uniforms.uMap.value = kelpTex;
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+}
+
+/* -------------------------------------------------- coral, rocks, and rings */
+
+// Helper that stamps one color across a geometry so many differently tinted
+// pieces can merge into a single draw call.
+function tint(geo, hex, jitter = 0) {
+  const c = new THREE.Color(hex);
+  if (jitter) c.offsetHSL((rand() - 0.5) * jitter, 0, (rand() - 0.5) * jitter);
+  const n = geo.attributes.position.count;
+  const arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+  geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  return geo;
+}
+
+// A little library of coral shapes. Each returns non-indexed geometry
+// positioned relative to the sand under it.
+function brainCoral(x, y, z) {
+  const g = new THREE.SphereGeometry(rrange(1.2, 3.2), 12, 9).toNonIndexed();
+  g.scale(1, rrange(0.55, 0.8), 1);
+  g.translate(x, y, z);
+  return tint(g, [0xe86aa6, 0xc44fd1, 0xf29ac0][Math.floor(rand() * 3)], 0.06);
+}
+function branchCoral(x, y, z) {
+  const parts = [];
+  const n = 4 + Math.floor(rand() * 5);
+  for (let i = 0; i < n; i++) {
+    const h = rrange(2, 6);
+    const g = new THREE.CylinderGeometry(0.08, rrange(0.22, 0.4), h, 6, 1).toNonIndexed();
+    g.translate(0, h / 2, 0);
+    g.rotateX(rrange(-0.7, 0.7));
+    g.rotateZ(rrange(-0.7, 0.7));
+    g.translate(x, y - 0.3, z);
+    parts.push(tint(g, [0xff7a3d, 0xff5c5c, 0xffb347][Math.floor(rand() * 3)], 0.05));
+  }
+  return mergeGeometries(parts);
+}
+function tubeSponge(x, y, z) {
+  const parts = [];
+  const n = 3 + Math.floor(rand() * 4);
+  for (let i = 0; i < n; i++) {
+    const h = rrange(1.5, 5);
+    const g = new THREE.CylinderGeometry(rrange(0.3, 0.55), rrange(0.35, 0.6), h, 8, 1, true).toNonIndexed();
+    g.translate(x + rrange(-1.2, 1.2), y + h / 2 - 0.3, z + rrange(-1.2, 1.2));
+    parts.push(tint(g, [0xf4d35e, 0xd8f05a, 0xf7a072][Math.floor(rand() * 3)], 0.05));
+  }
+  return mergeGeometries(parts);
+}
+function fanCoral(x, y, z) {
+  const g = new THREE.CircleGeometry(rrange(1.5, 3), 14, 0, Math.PI).toNonIndexed();
+  g.rotateY(rand() * Math.PI);
+  g.translate(x, y - 0.2, z);
+  return tint(g, [0xb14bff, 0xff4bb3, 0x7f5bff][Math.floor(rand() * 3)], 0.05);
+}
+function rock(x, y, z, s) {
+  const g = new THREE.DodecahedronGeometry(s, 1); // Polyhedra are already non-indexed.
+  g.scale(rrange(0.8, 1.4), rrange(0.5, 0.9), rrange(0.8, 1.4));
+  g.rotateY(rand() * Math.PI);
+  g.translate(x, y - s * 0.25, z);
+  return tint(g, [0x5f7a83, 0x6d8a7a, 0x7a8a99][Math.floor(rand() * 3)], 0.05);
+}
+
+const coralParts = [];
+const rockParts = [];
+// Coral gardens: clumps of mixed shapes around random centers, never in the
+// spawn clearing.
+for (let c = 0; c < 34; c++) {
+  let cx, cz;
+  do { const a = rand() * Math.PI * 2, r = rrange(18, 195); cx = Math.cos(a) * r; cz = Math.sin(a) * r; }
+  while (Math.hypot(cx, cz) < 18);
+  const n = 4 + Math.floor(rand() * 8);
+  for (let i = 0; i < n; i++) {
+    const x = cx + rrange(-7, 7), z = cz + rrange(-7, 7);
+    const y = floorY(x, z);
+    const pick = rand();
+    if (pick < 0.3) coralParts.push(brainCoral(x, y, z));
+    else if (pick < 0.55) coralParts.push(branchCoral(x, y, z));
+    else if (pick < 0.8) coralParts.push(tubeSponge(x, y, z));
+    else coralParts.push(fanCoral(x, y, z));
+  }
+  for (let i = 0; i < 2 + Math.floor(rand() * 3); i++) {
+    const x = cx + rrange(-9, 9), z = cz + rrange(-9, 9);
+    rockParts.push(rock(x, floorY(x, z), z, rrange(1.5, 4)));
+  }
+}
+// Loose boulders everywhere else.
+for (let i = 0; i < 60; i++) {
+  const a = rand() * Math.PI * 2, r = rrange(14, 205);
+  const x = Math.cos(a) * r, z = Math.sin(a) * r;
+  rockParts.push(rock(x, floorY(x, z), z, rrange(1, 5)));
+}
+// Coral gets a self-glow of its own color. Under the blue-green light the pinks
+// and oranges otherwise go grey, and real reef coral is the one thing down
+// there that should pop.
+const coralMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+coralMat.onBeforeCompile = (shader) => {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <emissivemap_fragment>',
+    '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * 0.45;'
+  );
+};
+scene.add(new THREE.Mesh(mergeGeometries(coralParts), coralMat));
+scene.add(new THREE.Mesh(mergeGeometries(rockParts), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })));
+
+// Stone rings to swim through. Each stands on the sand, half its tube buried,
+// and marks its spot with a soft glow so it can be found from a distance.
+const rings = [];
+{
+  const spots = [[0, -40], [-55, 30], [70, 55], [-30, -95], [120, -20]];
+  const mat = new THREE.MeshLambertMaterial({ color: 0x8aa0aa });
+  for (const [x, z] of spots) {
+    const R = rrange(5, 7);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(R, 1.1, 10, 28), mat);
+    ring.position.set(x, floorY(x, z) + R - 0.6, z);
+    ring.rotation.y = rand() * Math.PI;
+    scene.add(ring);
+    const glow = new THREE.PointLight(0x7fe3ff, 12, R * 4, 1.6);
+    glow.position.copy(ring.position);
+    scene.add(glow);
+    rings.push({ mesh: ring, R, glow, hit: 0 });
+  }
+}
+
+/* --------------------------------------------------------- treasure chest */
+
+// A wooden chest with an open lid and a heap of glowing gold, tucked against
+// the tall dune.
+{
+  const chest = new THREE.Group();
+  const wood = new THREE.MeshLambertMaterial({ color: 0x7a4a26 });
+  const band = new THREE.MeshLambertMaterial({ color: 0xc9a227 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4, 2.2, 2.6), wood);
+  body.position.y = 1.1;
+  chest.add(body);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 4, 12, 1, false, 0, Math.PI), wood);
+  lid.rotation.z = Math.PI / 2;
+  lid.rotation.y = Math.PI;
+  lid.position.set(0, 2.2, -1.3);
+  lid.rotation.x = -1.2;
+  chest.add(lid);
+  for (const zOff of [-0.9, 0.9]) {
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.3, 2.7), band);
+    strap.position.set(zOff * 1.6, 1.1, 0);
+    chest.add(strap);
+  }
+  const goldMat = new THREE.MeshLambertMaterial({ color: 0xffd23f, emissive: 0xffa500, emissiveIntensity: 0.6 });
+  const coinGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.08, 10);
+  for (let i = 0; i < 90; i++) {
+    const coin = new THREE.Mesh(coinGeo, goldMat);
+    const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * 1.6;
+    coin.position.set(Math.cos(a) * r, 2.2 + rand() * 0.8 * (1 - r / 1.8), Math.sin(a) * r * 0.6);
+    coin.rotation.set(rand() * 0.6, rand() * Math.PI, rand() * 0.6);
+    chest.add(coin);
+  }
+  const lamp = new THREE.PointLight(0xffc14d, 40, 22, 1.5);
+  lamp.position.set(0, 3.2, 0);
+  chest.add(lamp);
+  const cx = 62, cz = -52;
+  chest.position.set(cx, floorY(cx, cz) - 0.2, cz);
+  chest.rotation.y = -0.6;
+  scene.add(chest);
+}
+
+/* ------------------------------------------------------------ fish schools */
+
+// Each school follows its own looping path; each fish keeps a home offset
+// inside the school and wiggles along. When Zeeb gets close, fish are shoved
+// away from him and then ease back home, which reads as the school parting
+// around him.
+// The fish is Grace's: her grey Zeeb Islands fish, modelled in Blender
+// (../../blender/fish_build.py) and exported as fish.glb with the nose on +z.
+// Its several parts (body, eyes, gill and face marks) are merged into one
+// geometry with the material colors baked in as vertex colors, so each school
+// is a single InstancedMesh. If the model fails to load, a cone stand-in
+// keeps the schools swimming.
+const coneFishGeo = (() => {
+  const body = new THREE.ConeGeometry(0.45, 1.6, 8).toNonIndexed();
+  body.rotateX(Math.PI / 2);          // Point along +z.
+  body.scale(0.6, 1, 1);
+  const tail = new THREE.ConeGeometry(0.45, 0.8, 3).toNonIndexed();
+  tail.rotateX(-Math.PI / 2);
+  tail.scale(0.12, 1, 1);
+  tail.translate(0, 0, -1.0);
+  const g = mergeGeometries([body, tail]);
+  return tint(g, 0x808080);
+})();
+const schools = [];
+const fishDummy = new THREE.Object3D();
+
+function buildSchools(fishGeo, sizeRange) {
+  const tmp = new THREE.Color();
+  for (let s = 0; s < 7; s++) {
+    const n = 30 + Math.floor(rand() * 30);
+    const mesh = new THREE.InstancedMesh(fishGeo, new THREE.MeshLambertMaterial({ vertexColors: true }), n);
+    const fish = [];
+    for (let i = 0; i < n; i++) {
+      // Grace's fish are grey, and stay grey: only a little light-and-dark
+      // variation so a school does not look like one fish copied.
+      tmp.setScalar(rrange(0.8, 1.15));
+      mesh.setColorAt(i, tmp);
+      fish.push({
+        home: new THREE.Vector3(rrange(-6, 6), rrange(-2.5, 2.5), rrange(-6, 6)),
+        off: new THREE.Vector3(),
+        phase: rand() * Math.PI * 2,
+        size: rrange(sizeRange[0], sizeRange[1])
+      });
+    }
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    const a = rand() * Math.PI * 2, r = rrange(20, 150);
+    schools.push({
+      mesh, fish,
+      center: new THREE.Vector3(Math.cos(a) * r, rrange(-48, -8), Math.sin(a) * r),
+      radius: rrange(18, 45),
+      speed: rrange(0.06, 0.14) * (rand() < 0.5 ? 1 : -1),
+      phase: rand() * Math.PI * 2,
+      bob: rrange(3, 8),
+      pos: new THREE.Vector3(), prev: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, 1)
+    });
+  }
+}
+
+// Flatten a loaded glTF scene into one vertex-colored geometry.
+function bakeSceneToGeometry(root) {
+  root.updateMatrixWorld(true);
+  const parts = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    let g = o.geometry.clone();
+    if (g.index) g = g.toNonIndexed();
+    g.applyMatrix4(o.matrixWorld);
+    // Only position, normal and color survive the merge; every part must
+    // carry the same attribute set or mergeGeometries refuses.
+    for (const name of Object.keys(g.attributes)) {
+      if (name !== 'position' && name !== 'normal') g.deleteAttribute(name);
+    }
+    if (!g.attributes.normal) g.computeVertexNormals();
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    parts.push(tint(g, mats[0].color ? mats[0].color.getHex() : 0x808080));
+  });
+  return mergeGeometries(parts);
+}
+
+const fishLoader = new GLTFLoader();
+fishLoader.load('./fish.glb', (gltf) => {
+  const geo = bakeSceneToGeometry(gltf.scene);
+  // The model is about 2.8 ft nose to tail; these sizes keep the fish
+  // clearly smaller than Zeeb.
+  buildSchools(geo, [0.45, 0.8]);
+}, undefined, (err) => {
+  console.error('fish.glb failed to load, using the cone stand-in', err);
+  buildSchools(coneFishGeo, [0.7, 1.3]);
+});
+
+/* -------------------------------------------------------------- jellyfish */
+
+// Translucent glowing domes that pulse, with hanging tentacle lines. They
+// drift slowly upward and wander, and wrap back to the deep when they reach
+// the surface.
+const jellies = [];
+{
+  const domeGeo = new THREE.SphereGeometry(1, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  const eyeGeo = new THREE.SphereGeometry(0.2, 14, 10);
+  const pupilGeo = new THREE.SphereGeometry(0.1, 10, 8);
+  const eyeWhite = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x333333 });
+  const pupilBlack = new THREE.MeshBasicMaterial({ color: 0x111111 });
+  for (let i = 0; i < 12; i++) {
+    const g = new THREE.Group();
+    const hue = rand() < 0.5 ? 0xff7ac8 : 0x9be7ff;
+    const mat = new THREE.MeshPhongMaterial({
+      color: hue, emissive: hue, emissiveIntensity: 0.5, transparent: true, opacity: 0.55,
+      shininess: 80, side: THREE.DoubleSide, depthWrite: false
+    });
+    const dome = new THREE.Mesh(domeGeo, mat);
+    g.add(dome);
+    // Eyeballs, at Grace's request: two big cartoon eyes on the front of the
+    // bell. They are children of the dome so they squash and stretch with
+    // every pulse instead of floating loose.
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(eyeGeo, eyeWhite);
+      eye.position.set(side * 0.34, 0.42, 0.80);
+      dome.add(eye);
+      const pupil = new THREE.Mesh(pupilGeo, pupilBlack);
+      pupil.position.set(side * 0.02, 0.02, 0.15);
+      eye.add(pupil);
+    }
+    g.rotation.y = rand() * Math.PI * 2; // Each one looks its own way.
+    // Tentacles: a handful of drooping polylines.
+    const pts = [];
+    for (let t = 0; t < 7; t++) {
+      const a = (t / 7) * Math.PI * 2;
+      let x = Math.cos(a) * 0.6, z = Math.sin(a) * 0.6, y = 0;
+      for (let s = 0; s < 6; s++) {
+        pts.push(x, y, z);
+        y -= rrange(0.4, 0.7); x += rrange(-0.15, 0.15); z += rrange(-0.15, 0.15);
+        pts.push(x, y, z);
+      }
+    }
+    const lgeo = new THREE.BufferGeometry();
+    lgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
+    g.add(new THREE.LineSegments(lgeo, new THREE.LineBasicMaterial({ color: hue, transparent: true, opacity: 0.6 })));
+    const light = new THREE.PointLight(hue, 6, 12, 1.8);
+    g.add(light);
+    const a = rand() * Math.PI * 2, r = rrange(10, 160);
+    g.position.set(Math.cos(a) * r, rrange(-50, -10), Math.sin(a) * r);
+    const sc = rrange(1.2, 2.6);
+    g.scale.setScalar(sc);
+    scene.add(g);
+    jellies.push({ g, dome, phase: rand() * Math.PI * 2, drift: rrange(0.2, 0.5), wander: rand() * Math.PI * 2 });
+  }
+}
+
+/* ---------------------------------------------------------------- bubbles */
+
+// One bubble system for the ambient ocean and one for Zeeb's trail. Both are
+// point clouds with a shader that draws a ring and a highlight, so they read
+// as bubbles rather than dots.
+function bubbleMaterial(color) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uColor: { value: new THREE.Color(color) } }]),
+    fog: true, transparent: true, depthWrite: false,
+    vertexShader: `
+      #include <fog_pars_vertex>
+      attribute float aSize;
+      attribute float aAlpha;
+      varying float vAlpha;
+      void main() {
+        vAlpha = aAlpha;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * (520.0 / max(1.0, -mvPosition.z));
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `
+      #include <fog_pars_fragment>
+      uniform vec3 uColor;
+      varying float vAlpha;
+      void main() {
+        vec2 p = gl_PointCoord - 0.5;
+        float d = length(p);
+        if (d > 0.5) discard;
+        float ring = smoothstep(0.30, 0.42, d) * (1.0 - smoothstep(0.44, 0.5, d));
+        float hi = 1.0 - smoothstep(0.0, 0.12, length(p - vec2(-0.14, -0.14)));
+        float a = (ring * 0.9 + hi * 0.9 + 0.08) * vAlpha;
+        gl_FragColor = vec4(uColor, a);
+        #include <fog_fragment>
+      }`
+  });
+  return m;
+}
+
+const AMBIENT_N = 500;
+const ambGeo = new THREE.BufferGeometry();
+const ambPos = new Float32Array(AMBIENT_N * 3);
+const ambSize = new Float32Array(AMBIENT_N);
+const ambAlpha = new Float32Array(AMBIENT_N);
+const ambSpeed = new Float32Array(AMBIENT_N);
+for (let i = 0; i < AMBIENT_N; i++) {
+  const a = rand() * Math.PI * 2, r = rrange(0, 200);
+  ambPos[i * 3] = Math.cos(a) * r; ambPos[i * 3 + 1] = rrange(FLOOR_Y, SURFACE_Y); ambPos[i * 3 + 2] = Math.sin(a) * r;
+  ambSize[i] = rrange(0.08, 0.3);
+  ambAlpha[i] = rrange(0.35, 0.8);
+  ambSpeed[i] = rrange(0.6, 1.6);
+}
+ambGeo.setAttribute('position', new THREE.BufferAttribute(ambPos, 3));
+ambGeo.setAttribute('aSize', new THREE.BufferAttribute(ambSize, 1));
+ambGeo.setAttribute('aAlpha', new THREE.BufferAttribute(ambAlpha, 1));
+const ambient = new THREE.Points(ambGeo, bubbleMaterial(0xd8f6ff));
+ambient.frustumCulled = false;
+scene.add(ambient);
+
+const TRAIL_N = 120;
+const trailGeo = new THREE.BufferGeometry();
+const trailPos = new Float32Array(TRAIL_N * 3);
+const trailSize = new Float32Array(TRAIL_N);
+const trailAlpha = new Float32Array(TRAIL_N);
+const trailLife = new Float32Array(TRAIL_N); // seconds remaining; 0 = free slot
+trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+trailGeo.setAttribute('aSize', new THREE.BufferAttribute(trailSize, 1));
+trailGeo.setAttribute('aAlpha', new THREE.BufferAttribute(trailAlpha, 1));
+const trail = new THREE.Points(trailGeo, bubbleMaterial(0xffffff));
+trail.frustumCulled = false;
+scene.add(trail);
+let trailNext = 0;
+function spawnBubble(p, size) {
+  const i = trailNext; trailNext = (trailNext + 1) % TRAIL_N;
+  trailPos[i * 3] = p.x + (Math.random() - 0.5) * 0.15;
+  trailPos[i * 3 + 1] = p.y;
+  trailPos[i * 3 + 2] = p.z + (Math.random() - 0.5) * 0.15;
+  trailSize[i] = size;
+  trailAlpha[i] = 0.9;
+  trailLife[i] = 3.5;
+}
+
+/* ------------------------------------------------------------------- Zeeb */
+
+// Three nested groups: duck owns position and heading (yaw), duckTilt owns
+// pitch and bank, duckInner owns the model scale and the swim wobble. Keeping
+// them apart means the bank never fights the wobble for the same rotation.
+const duck = new THREE.Group();
+const duckTilt = new THREE.Group();
+const duckInner = new THREE.Group();
+duck.add(duckTilt); duckTilt.add(duckInner);
+duck.position.copy(SPAWN);
+scene.add(duck);
+const ZEEB_SCALE = 1.0; // Was 0.66; Ben asked for a bigger Zeeb.
+duckInner.scale.setScalar(ZEEB_SCALE);
+
+// A small warm light rides with Zeeb so he stays readable in the deep.
+const headlamp = new THREE.PointLight(0xffe2b8, 14, 9, 1.5);
+headlamp.position.set(0.6, 1.6, 1.4);
+duck.add(headlamp);
+
+const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder);
+loader.load('./zeeb.glb', (gltf) => {
+  const model = gltf.scene;
+  model.position.y = -0.09; // Feet on the group origin, same as the waterfall lab.
+  // Zeeb's belly sits a little below the swim line so the heading looks level.
+  model.position.y -= 0.35;
+  duckInner.add(model);
+  document.getElementById('loading').style.display = 'none';
+}, undefined, (err) => {
+  // Without the model the ocean still runs, with a stand-in yellow duck.
+  console.error('Zeeb GLB failed to load', err);
+  const mat = new THREE.MeshLambertMaterial({ color: 0xF2E9B0 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 14), mat);
+  body.scale.set(1, 0.85, 1.2); body.position.y = 0.2;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 12), mat);
+  head.position.set(0, 0.85, 0.35);
+  duckInner.add(body, head);
+  document.getElementById('loading').style.display = 'none';
+});
+
+/* ------------------------------------------------------------------ music */
+
+// Beach music: Grace's Zeeb Islands tracks, played straight from the Islands
+// game folder. The audio runs through a lowpass filter whose cutoff follows
+// Zeeb's depth, so a song is muffled down in the deep and opens up bright as
+// he rises toward the surface. Browsers refuse to play sound before a user
+// gesture, so playback starts on the first key press or touch.
+const PLAYLIST = [
+  ['The Drums Of Tiki', '../Islands/Audio/The Drums Of Tiki.m4a'],
+  ['Coconut Island', '../Islands/Audio/level3_coconut_island.m4a'],
+  ['Little Island of Zeeb', '../Islands/Audio/Little Island of Zeeb.m4a'],
+  ['Pick Your Surfboard', '../Islands/Audio/Zeeb Islands - Pick Your Surfboard.m4a'],
+  ['Zeeb Islands', '../Islands/Audio/Zeeb Islands level 1.m4a']
+];
+const music = { on: true, started: false, index: 0, failures: 0, ctx: null, filter: null, el: null };
+const musicBtn = document.getElementById('musicBtn');
+const nextBtn = document.getElementById('nextBtn');
+const nowEl = document.getElementById('now');
+
+function musicSetup() {
+  if (music.ctx) return;
+  const el = new Audio();
+  el.preload = 'auto';
+  el.addEventListener('ended', () => musicPlay(music.index + 1));
+  el.addEventListener('error', () => {
+    // Skip a track that will not load, but give up after one full lap so a
+    // broken folder cannot spin forever.
+    if (++music.failures < PLAYLIST.length) musicPlay(music.index + 1);
+    else nowEl.textContent = 'Music files not found';
+  });
+  el.addEventListener('playing', () => { music.failures = 0; });
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaElementSource(el);
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 4000;
+  filter.Q.value = 0.7;
+  const gain = ctx.createGain();
+  gain.gain.value = 0.7;
+  src.connect(filter).connect(gain).connect(ctx.destination);
+  Object.assign(music, { ctx, filter, el });
+}
+function musicPlay(i) {
+  music.index = ((i % PLAYLIST.length) + PLAYLIST.length) % PLAYLIST.length;
+  const [title, url] = PLAYLIST[music.index];
+  music.el.src = url;
+  music.el.play().catch(() => {});
+  nowEl.textContent = `${title}, by Grace`;
+}
+function musicStart() {
+  if (music.started || !music.on) return;
+  musicSetup();
+  music.ctx.resume();
+  music.started = true;
+  musicPlay(music.index);
+}
+function musicToggle() {
+  music.on = !music.on;
+  musicBtn.textContent = music.on ? 'Music: On' : 'Music: Off';
+  if (music.on) {
+    if (!music.started) musicStart(); else music.el.play().catch(() => {});
+  } else if (music.el) {
+    music.el.pause();
+  }
+  nowEl.style.opacity = music.on ? '' : '0.45';
+}
+musicBtn.addEventListener('click', musicToggle);
+nextBtn.addEventListener('click', () => {
+  if (!music.on) musicToggle();
+  if (!music.started) musicStart(); else musicPlay(music.index + 1);
+});
+// Buttons must not also count as a swim gesture on the canvas beneath them.
+for (const b of [musicBtn, nextBtn]) b.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+/* --------------------------------------------------------------- controls */
+
+const keys = new Set();
+const hint = document.getElementById('hint');
+if (new URLSearchParams(location.search).has('preview')) document.body.classList.add('preview');
+let hintShown = true;
+function dismissHint() {
+  if (hintShown) { hintShown = false; hint.classList.add('gone'); }
+  musicStart();
+}
+window.addEventListener('keydown', (e) => {
+  keys.add(e.code);
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+  dismissHint();
+  if (e.code === 'KeyM' && !e.repeat) musicToggle();
+});
+window.addEventListener('keyup', (e) => keys.delete(e.code));
+window.addEventListener('blur', () => keys.clear());
+
+// Touch and mouse: drag from wherever the finger lands. Sideways drag turns,
+// vertical drag climbs or dives, and holding at all swims forward.
+const touch = { active: false, x0: 0, y0: 0, dx: 0, dy: 0 };
+canvas.addEventListener('pointerdown', (e) => {
+  touch.active = true; touch.x0 = e.clientX; touch.y0 = e.clientY; touch.dx = 0; touch.dy = 0;
+  canvas.setPointerCapture(e.pointerId);
+  dismissHint();
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!touch.active) return;
+  touch.dx = (e.clientX - touch.x0) / 140;
+  touch.dy = (e.clientY - touch.y0) / 140;
+});
+const endTouch = () => { touch.active = false; touch.dx = 0; touch.dy = 0; };
+canvas.addEventListener('pointerup', endTouch);
+canvas.addEventListener('pointercancel', endTouch);
+
+function readInput() {
+  let thrust = 0, turn = 0, rise = 0;
+  if (keys.has('ArrowUp') || keys.has('KeyW')) thrust += 1;
+  if (keys.has('ArrowDown') || keys.has('KeyS')) thrust -= 0.6;
+  if (keys.has('ArrowLeft') || keys.has('KeyA')) turn += 1;
+  if (keys.has('ArrowRight') || keys.has('KeyD')) turn -= 1;
+  if (keys.has('Space') || keys.has('KeyE')) rise += 1;
+  if (keys.has('ShiftLeft') || keys.has('ShiftRight') || keys.has('KeyQ')) rise -= 1;
+  if (touch.active) {
+    thrust = Math.max(thrust, 1);
+    turn -= THREE.MathUtils.clamp(touch.dx, -1, 1);
+    rise -= THREE.MathUtils.clamp(touch.dy, -1, 1);
+  }
+  return { thrust, turn: THREE.MathUtils.clamp(turn, -1, 1), rise: THREE.MathUtils.clamp(rise, -1, 1) };
+}
+
+/* --------------------------------------------------------- swim physics */
+
+// Zeeb is a little submarine: thrust along his heading, drag proportional to
+// speed, a separate vertical thrust, and a yaw rate that eases in. Numbers
+// are in feet and seconds.
+const swim = {
+  vel: new THREE.Vector3(),
+  yaw: 0, yawRate: 0,
+  pitch: 0, bank: 0,
+  speed: 0
+};
+const MAX_SPEED = 14, THRUST = 22, DRAG = 1.6, TURN_RATE = 2.2, RISE = 12;
+const fwd = new THREE.Vector3();
+const camPos = new THREE.Vector3(SPAWN.x, SPAWN.y + 3, SPAWN.z + 9);
+const camLook = new THREE.Vector3().copy(SPAWN);
+const tmpV = new THREE.Vector3();
+const billPos = new THREE.Vector3();
+
+/* ---------------------------------------------------------------- the HUD */
+
+const depthEl = document.getElementById('depth');
+const perfEl = document.getElementById('perf');
+let lastDepthShown = -1;
+
+/* ------------------------------------------------------------ render loop */
+
+let lastNow = performance.now();
+let elapsed = 0;
+let frames = 0, fpsTimer = 0;
+const shallow = new THREE.Color(0x1d8fb0), deep = new THREE.Color(0x031e2e);
+const fogNow = new THREE.Color();
+
+function animate() {
+  const now = performance.now();
+  const dt = Math.min((now - lastNow) / 1000, 0.05);
+  lastNow = now;
+  elapsed += dt;
+  const t = elapsed;
+  timeUniform.value = t;
+
+  /* --- Zeeb --- */
+  const inp = readInput();
+
+  // Yaw eases toward the stick so turns start and stop softly.
+  swim.yawRate += (inp.turn * TURN_RATE - swim.yawRate) * Math.min(1, dt * 6);
+  swim.yaw += swim.yawRate * dt;
+  fwd.set(Math.sin(swim.yaw), 0, Math.cos(swim.yaw));
+
+  swim.vel.addScaledVector(fwd, inp.thrust * THRUST * dt);
+  swim.vel.y += inp.rise * RISE * dt;
+  // Drag: quadratic-ish so top speed settles rather than creeping.
+  const sp = swim.vel.length();
+  if (sp > 0) {
+    const drag = DRAG + sp * 0.12;
+    swim.vel.multiplyScalar(Math.max(0, 1 - drag * dt));
+    if (sp > MAX_SPEED) swim.vel.multiplyScalar(MAX_SPEED / sp);
+  }
+  // A faint current keeps him drifting even at rest, like real water.
+  swim.vel.x += Math.sin(t * 0.3) * 0.05 * dt;
+
+  duck.position.addScaledVector(swim.vel, dt);
+
+  // Stay under the surface, above the sand, and inside the world.
+  const sand = floorY(duck.position.x, duck.position.z) + 1.4;
+  if (duck.position.y < sand) { duck.position.y = sand; if (swim.vel.y < 0) swim.vel.y *= -0.2; }
+  if (duck.position.y > SURFACE_Y - 1.2) { duck.position.y = SURFACE_Y - 1.2; if (swim.vel.y > 0) swim.vel.y = 0; }
+  const hr = Math.hypot(duck.position.x, duck.position.z);
+  if (hr > WORLD_R) {
+    tmpV.set(-duck.position.x, 0, -duck.position.z).normalize();
+    swim.vel.addScaledVector(tmpV, (hr - WORLD_R) * 2 * dt);
+  }
+
+  swim.speed = swim.vel.length();
+  const speedFrac = swim.speed / MAX_SPEED;
+
+  // Posture: nose follows vertical motion, body banks into turns, and a swim
+  // wobble that scales with speed.
+  const pitchTarget = THREE.MathUtils.clamp(-swim.vel.y * 0.06, -0.6, 0.6) - inp.rise * 0.15;
+  swim.pitch += (pitchTarget - swim.pitch) * Math.min(1, dt * 5);
+  const bankTarget = -swim.yawRate * 0.28 * (0.4 + speedFrac);
+  swim.bank += (bankTarget - swim.bank) * Math.min(1, dt * 5);
+  duck.rotation.y = swim.yaw;
+  duckTilt.rotation.x = swim.pitch;
+  duckTilt.rotation.z = swim.bank;
+  duckInner.rotation.z = Math.sin(t * 9) * 0.06 * speedFrac;
+  duckInner.rotation.y = Math.sin(t * 9 + 1) * 0.05 * speedFrac;
+  duckInner.position.y = Math.sin(t * 2.2) * 0.05;
+
+  // Bubbles from the bill while he swims, plus a slow breath at rest.
+  billPos.copy(duck.position).addScaledVector(fwd, 1.3).add(tmpV.set(0, 0.65, 0));
+  if (speedFrac > 0.15 && Math.random() < speedFrac * 0.6) spawnBubble(billPos, rrange(0.08, 0.2));
+  else if (Math.random() < 0.02) spawnBubble(billPos, 0.18);
+
+  // Trail bubbles rise, wobble, and fade.
+  for (let i = 0; i < TRAIL_N; i++) {
+    if (trailLife[i] <= 0) { trailAlpha[i] = 0; continue; }
+    trailLife[i] -= dt;
+    trailPos[i * 3 + 1] += (1.4 + trailSize[i] * 2) * dt;
+    trailPos[i * 3] += Math.sin(t * 5 + i) * 0.15 * dt;
+    trailSize[i] += 0.05 * dt;
+    trailAlpha[i] = Math.min(0.9, trailLife[i] * 0.5);
+    if (trailPos[i * 3 + 1] > SURFACE_Y - 0.5) trailLife[i] = 0;
+  }
+  trailGeo.attributes.position.needsUpdate = true;
+  trailGeo.attributes.aSize.needsUpdate = true;
+  trailGeo.attributes.aAlpha.needsUpdate = true;
+
+  // Ambient bubbles rise and wrap to the floor.
+  for (let i = 0; i < AMBIENT_N; i++) {
+    ambPos[i * 3 + 1] += ambSpeed[i] * dt;
+    ambPos[i * 3] += Math.sin(t * 0.8 + i) * 0.2 * dt;
+    if (ambPos[i * 3 + 1] > SURFACE_Y - 0.5) ambPos[i * 3 + 1] = FLOOR_Y + 2;
+  }
+  ambGeo.attributes.position.needsUpdate = true;
+
+  /* --- rings: a soft pulse when Zeeb passes through the hoop --- */
+  for (const r of rings) {
+    r.hit = Math.max(0, r.hit - dt);
+    const m = r.mesh;
+    tmpV.copy(duck.position).sub(m.position);
+    // Distance from the ring plane and from its axis, in the ring's frame.
+    const local = m.worldToLocal(tmpV.clone().add(m.position));
+    if (Math.abs(local.z) < 1.2 && Math.hypot(local.x, local.y) < r.R - 0.8 && r.hit === 0) {
+      r.hit = 1.2;
+      for (let k = 0; k < 14; k++) spawnBubble(duck.position, rrange(0.1, 0.3));
+    }
+    r.glow.intensity = 12 + r.hit * 60;
+    m.material.emissive = m.material.emissive || new THREE.Color();
+  }
+
+  /* --- fish --- */
+  for (const s of schools) {
+    const ph = t * s.speed + s.phase;
+    s.prev.copy(s.pos);
+    s.pos.set(
+      s.center.x + Math.cos(ph) * s.radius,
+      s.center.y + Math.sin(ph * 2) * s.bob,
+      s.center.z + Math.sin(ph) * s.radius * 0.7
+    );
+    if (s.prev.lengthSq() > 0) {
+      tmpV.subVectors(s.pos, s.prev);
+      if (tmpV.lengthSq() > 1e-8) s.dir.lerp(tmpV.normalize(), 0.2).normalize();
+    }
+    for (let i = 0; i < s.fish.length; i++) {
+      const f = s.fish[i];
+      // World position of this fish: school center plus its home offset plus
+      // its flee offset, with a little bob.
+      fishDummy.position.copy(s.pos).add(f.home).add(f.off);
+      fishDummy.position.y += Math.sin(t * 2 + f.phase) * 0.3;
+      // Flee from Zeeb.
+      tmpV.subVectors(fishDummy.position, duck.position);
+      const d = tmpV.length();
+      if (d < 7) {
+        tmpV.normalize().multiplyScalar((7 - d) * 6 * dt);
+        f.off.add(tmpV);
+      }
+      f.off.multiplyScalar(Math.max(0, 1 - 0.8 * dt)); // ease home
+      fishDummy.lookAt(tmpV.copy(fishDummy.position).add(s.dir));
+      fishDummy.rotation.y += Math.sin(t * 6 + f.phase) * 0.12; // tail wiggle
+      fishDummy.scale.setScalar(f.size);
+      fishDummy.updateMatrix();
+      s.mesh.setMatrixAt(i, fishDummy.matrix);
+    }
+    s.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /* --- jellyfish --- */
+  for (const j of jellies) {
+    const pulse = Math.sin(t * 1.6 + j.phase);
+    j.dome.scale.set(1 - pulse * 0.12, 1 + pulse * 0.28, 1 - pulse * 0.12);
+    j.g.position.y += j.drift * dt * (0.6 + Math.max(0, pulse));
+    j.wander += (Math.random() - 0.5) * dt * 0.4;
+    j.g.position.x += Math.cos(j.wander) * 0.35 * dt;
+    j.g.position.z += Math.sin(j.wander) * 0.35 * dt;
+    j.g.rotation.z = Math.sin(t * 0.5 + j.phase) * 0.15;
+    if (j.g.position.y > SURFACE_Y - 3) j.g.position.y = FLOOR_Y + 6;
+  }
+
+  /* --- light shafts --- */
+  for (const s of shafts) {
+    s.position.x = s.userData.baseX + Math.sin(t * 0.15 + s.userData.phase) * 2;
+    s.rotation.z = Math.sin(t * 0.1 + s.userData.phase) * 0.1;
+  }
+
+  /* --- water color by depth --- */
+  const depthFrac = THREE.MathUtils.clamp(-duck.position.y / 60, 0, 1);
+  fogNow.copy(shallow).lerp(deep, depthFrac);
+  scene.fog.color.copy(fogNow);
+  scene.background.copy(fogNow);
+  // Thinned a little from 0.009 so the sand keeps its yellow at mid distance.
+  scene.fog.density = 0.0072 + depthFrac * 0.008;
+  hemi.intensity = 1.6 - depthFrac * 0.7;
+  sun.intensity = 1.7 - depthFrac * 0.9;
+
+  /* --- music muffles with depth: 16 kHz open at the surface, 600 Hz deep --- */
+  if (music.filter) {
+    const cutoff = 600 * Math.pow(16000 / 600, 1 - depthFrac);
+    music.filter.frequency.setTargetAtTime(cutoff, music.ctx.currentTime, 0.15);
+  }
+
+  /* --- camera: a lagging chase, above and behind --- */
+  tmpV.copy(duck.position).addScaledVector(fwd, -9);
+  tmpV.y += 3.2 - swim.pitch * 1.5;
+  camPos.lerp(tmpV, 1 - Math.exp(-dt * 2.8));
+  tmpV.copy(duck.position).addScaledVector(fwd, 3).addScaledVector(swim.vel, 0.15);
+  camLook.lerp(tmpV, 1 - Math.exp(-dt * 5));
+  // The camera never goes into the sand or through the surface either.
+  camPos.y = Math.max(camPos.y, floorY(camPos.x, camPos.z) + 1.5);
+  camPos.y = Math.min(camPos.y, SURFACE_Y - 0.8);
+  camera.position.copy(camPos);
+  camera.lookAt(camLook);
+  camera.rotation.z += swim.bank * 0.25;
+
+  renderer.render(scene, camera);
+
+  /* --- HUD --- */
+  const depthFt = Math.max(0, Math.round(-duck.position.y));
+  if (depthFt !== lastDepthShown) {
+    lastDepthShown = depthFt;
+    depthEl.innerHTML = `<small>Depth</small>${depthFt} ft`;
+  }
+  frames++; fpsTimer += dt;
+  if (fpsTimer >= 0.5) {
+    const info = renderer.info.render;
+    perfEl.textContent = `${Math.round(frames / fpsTimer)} fps · ${info.calls} draws`;
+    frames = 0; fpsTimer = 0;
+  }
+
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// Debug handle for the console or a driving script.
+window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, music };
+</script>
+</body>
+</html>

@@ -140,7 +140,7 @@ body {
 .cabinet-row {
   display: grid;
   gap: 24px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   align-items: end;
 }
 
@@ -171,6 +171,7 @@ body {
 .cabinet:nth-child(1) { animation-delay: 0.15s; }
 .cabinet:nth-child(2) { animation-delay: 0.3s; transform: translateY(45px); }
 .cabinet:nth-child(3) { animation-delay: 0.45s; }
+.cabinet:nth-child(4) { animation-delay: 0.6s; transform: translateY(45px); }
 
 .cabinet:hover {
   transform: translateY(-6px);
@@ -287,6 +288,24 @@ body {
   width: auto;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6)) saturate(1.05);
   animation: crtHover 4s ease-in-out infinite alternate;
+}
+
+/* A live clip filling the whole screen, under the scanlines and tint so it
+   still reads as a CRT. Used by the Zeeb Underwater cabinet. */
+.crt-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* Over live video the label needs its own shade to stay readable. */
+.cab-ocean .crt-label {
+  bottom: 0;
+  padding: 18px 0 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75));
 }
 
 .crt-label {
@@ -963,11 +982,9 @@ body {
   .cabinet-row {
     grid-template-columns: 1fr 1fr;
   }
-  .cab-show {
-    grid-column: 1 / -1;
-    max-width: 520px;
-    margin: 0 auto;
-  }
+  /* Four cabinets make an even two-by-two here, so the show cabinet no
+     longer needs to span the row on its own. */
+  .cabinet:nth-child(4) { transform: none; }
   /* Single column: the screen comes first, episodes queue up under it */
   .dialog-body {
     display: flex;
@@ -1026,11 +1043,8 @@ body {
     grid-template-columns: 1fr;
     gap: 26px;
   }
-  .cab-show {
-    grid-column: auto;
-    max-width: none;
-  }
   .cabinet:nth-child(2) { transform: translateY(30px); }
+  .cabinet:nth-child(4) { transform: translateY(30px); }
 
   /* Compact card layout: title stays on top with the screen art and the
      play button side by side beneath it, so the game name and its button
