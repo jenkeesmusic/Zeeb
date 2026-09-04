@@ -17,16 +17,30 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* No grey flash boxes over the arcade buttons on iOS / Android taps */
+a, button { -webkit-tap-highlight-color: transparent; }
+
 body {
   min-height: 100vh;
   font-family: "Spline Sans", "Trebuchet MS", sans-serif;
   color: var(--ink);
+  background: var(--hall-1);
+  overflow-x: hidden;
+}
+
+/* The hall glow lives on a fixed layer rather than background-attachment:
+   fixed, which iOS Safari ignores and Android Chrome repaints on every
+   scroll frame. Sits under the floor grid and the scene. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(1200px 700px at 50% -10%, rgba(108, 32, 178, 0.55), transparent 70%),
     radial-gradient(900px 500px at 50% 110%, rgba(255, 45, 117, 0.22), transparent 70%),
     linear-gradient(180deg, var(--hall-1), var(--hall-2) 40%, var(--hall-3));
-  background-attachment: fixed;
-  overflow-x: hidden;
 }
 
 .hall-floor {
@@ -151,7 +165,9 @@ body {
   gap: 0;
   user-select: none;
   -webkit-user-select: none;
-  cursor: default;
+  /* The whole cabinet is a tap target (menu.js forwards to its button) */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   border-radius: 28px 28px 8px 8px;
   background:
     linear-gradient(180deg, var(--cabinet-edge) 0%, var(--cabinet-body) 18%, var(--cabinet-body) 82%, var(--cabinet-deep) 100%);
@@ -547,6 +563,7 @@ body {
   display: block;
   max-width: 100%;
   max-height: calc(100vh - 190px);
+  max-height: calc(100dvh - 190px);
   width: auto;
   height: auto;
   object-fit: contain;
@@ -594,11 +611,16 @@ body {
   .poster-label { font-size: 15px; letter-spacing: 0.12em; }
   .poster-hint { font-size: 11px; letter-spacing: 0.1em; }
   .lightbox { gap: 10px; max-width: 100%; }
-  .lightbox-img { max-height: calc(100vh - 160px); }
+  .lightbox-img {
+    max-height: calc(100vh - 200px);
+    max-height: calc(100dvh - 200px);
+  }
   .lightbox-cap { font-size: 17px; }
+  /* Sit fully above the picture so the X never covers Grace's drawing;
+     the portrait phone has the headroom for it */
   .lightbox-close {
-    top: -10px;
-    right: -6px;
+    top: -56px;
+    right: 0;
     width: 44px;
     height: 44px;
     font-size: 24px;
@@ -703,6 +725,7 @@ body {
 .dialog {
   width: min(960px, 100%);
   max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
   background: linear-gradient(180deg, #1a0f2b 0%, #0c0618 100%);
   border-radius: 18px;
   border: 2px solid #000;
@@ -884,6 +907,10 @@ body {
 /* Beta dialog */
 
 .beta-dialog {
+  /* The Play Beta arcade button paints its face from --neon; without these
+     the gradient is invalid and only the dark rim renders. Islands teal. */
+  --neon: #6ee7d2;
+  --neon-deep: #2aa890;
   width: min(420px, 100%);
   text-align: center;
   gap: 18px;
@@ -1006,16 +1033,19 @@ body {
 /* ─── Mobile ─── */
 
 @media (max-width: 640px) {
+  /* 40px tall keeps it a real thumb target; the scene's top padding below
+     clears it so the ticker never runs underneath the pill */
   .mute-btn {
     top: 12px;
     right: 12px;
+    min-height: 40px;
     padding: 8px 12px;
     font-size: 11px;
   }
   .mute-btn .mute-icon { font-size: 14px; }
 
   .scene {
-    padding: 28px 16px 44px;
+    padding: 58px 16px 44px;
     gap: 26px;
   }
   .sign {
@@ -1033,9 +1063,11 @@ body {
     font-size: 13px;
     letter-spacing: 0.28em;
   }
+  /* Scales with the viewport so all three INSERT COINs fit on a 360 or
+     375 wide phone instead of clipping mid-word */
   .ticker {
-    font-size: 13px;
-    letter-spacing: 0.12em;
+    font-size: clamp(11px, 3.3vw, 13px);
+    letter-spacing: 0.1em;
     white-space: nowrap;
     overflow: hidden;
   }
@@ -1092,6 +1124,68 @@ body {
   .cabinet:hover { transform: translateY(0); }
   .arcade-btn:hover .btn-top { transform: translateY(0); }
   .arcade-btn:active .btn-top { transform: translateY(5px); }
+}
+
+/* ─── Phone turned sideways ───
+   A landscape phone is wide but only ~390px tall. At the tablet sizes the
+   hero alone is taller than that, so nobody sees a game without scrolling.
+   Shrink the sign, line the cabinets up in one row like the desktop hall,
+   and put the episode picker back beside the video so it fits on screen. */
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .scene {
+    padding: 14px 20px 40px;
+    gap: 22px;
+  }
+  .hall-marquee {
+    padding: 4px 0 14px;
+    gap: 6px;
+  }
+  .ticker { font-size: 14px; letter-spacing: 0.18em; }
+  .sign { font-size: clamp(30px, 5.2vw, 48px); }
+  .subtitle { font-size: 12px; letter-spacing: 0.26em; }
+  .cabinet-row { gap: 14px; }
+  .cab-top { padding: 10px 12px 10px; gap: 8px; }
+  .cab-marquee { padding: 8px 8px; }
+  .cab-marquee span { font-size: 14px; }
+  .crt { margin: 12px 12px 0; }
+  .cab-panel { margin-top: 12px; padding: 12px 12px 16px; gap: 10px; }
+  .arcade-btn { height: 52px; font-size: 15px; }
+  .arcade-btn .btn-top { padding: 0 16px; }
+  .credit { font-size: 16px; }
+
+  .overlay { padding: 12px; }
+  .dialog {
+    padding: 14px 18px;
+    gap: 12px;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .dialog-header { align-items: center; padding-bottom: 10px; }
+  .dialog-header h2 { font-size: 20px; margin-top: 0; }
+  .eyebrow { display: none; }
+  .dialog-close { width: 40px; height: 40px; font-size: 22px; }
+  .dialog-body {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) 1.6fr;
+    gap: 14px;
+  }
+  .player { order: 0; }
+  .player video {
+    max-height: calc(100vh - 150px);
+    max-height: calc(100dvh - 150px);
+  }
+  .episode { padding: 10px 12px; }
+  .beta-dialog { gap: 12px; }
+  .beta-icon { font-size: 40px; }
+}
+
+@media (orientation: landscape) and (max-height: 520px) and (min-width: 780px) {
+  .cabinet-row { grid-template-columns: repeat(4, 1fr); }
+  /* Four across leaves ~190px per cabinet: the screen caption wraps and
+     clips, and "Zeeb Underwater" breaks onto two lines at 14px */
+  .crt-label { display: none; }
+  .cab-marquee span { font-size: 13px; letter-spacing: 0.02em; }
 }
 
 /* ─── Reduced motion ─── */

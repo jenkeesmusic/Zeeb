@@ -127,6 +127,18 @@ if (openSummerBtn && summerOverlay && closeSummerBtn) {
   });
 }
 
+// The whole cabinet is a tap target. Kids tap the picture, not the small
+// button, so a tap anywhere on a cabinet presses that cabinet's button.
+// The button's own handler (navigate, beta dialog, show dialog) then runs.
+document.querySelectorAll('.cabinet').forEach((cabinet) => {
+  const btn = cabinet.querySelector('.arcade-btn');
+  if (!btn) return;
+  cabinet.addEventListener('click', (event) => {
+    if (event.target.closest('.arcade-btn')) return;
+    btn.click();
+  });
+});
+
 const menuMusic = document.getElementById('menuMusic');
 const muteBtn = document.getElementById('muteBtn');
 const MUTE_KEY = 'gbg-muted';
