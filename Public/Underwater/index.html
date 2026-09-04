@@ -67,7 +67,7 @@
       <button id="musicBtn" type="button">Music: On</button>
       <button id="nextBtn" type="button">Next song</button>
     </div>
-    <div id="now">Music starts when you swim</div>
+    <div id="now">Tap the water to start the music</div>
     <div id="perf"></div>
   </div>
 </div>
@@ -959,7 +959,9 @@ loader.load('./zeeb.glb', (gltf) => {
 // game folder. The audio runs through a lowpass filter whose cutoff follows
 // Zeeb's depth, so a song is muffled down in the deep and opens up bright as
 // he rises toward the surface. Browsers refuse to play sound before a user
-// gesture, so playback starts on the first key press or touch.
+// gesture, and a finger pressing down is not one yet (only the lift is), so
+// playback starts on the first key press, mouse press, or finger lift, and
+// every attempt is verified before the game believes music is playing.
 const PLAYLIST = [
   ['The Drums Of Tiki', '../Islands/Audio/The Drums Of Tiki.m4a'],
   ['Coconut Island', '../Islands/Audio/level3_coconut_island.m4a'],
@@ -967,65 +969,223 @@ const PLAYLIST = [
   ['Pick Your Surfboard', '../Islands/Audio/Zeeb Islands - Pick Your Surfboard.m4a'],
   ['Zeeb Islands', '../Islands/Audio/Zeeb Islands level 1.m4a']
 ];
-const music = { on: true, started: false, index: 0, failures: 0, ctx: null, filter: null, el: null };
+const music = {
+  on: true,          // what the player asked for (Music button, M key)
+  started: false,    // verified: play() went through and the graph is running
+  starting: false,   // an attempt is in flight; extra taps are absorbed
+  everPlayed: false, // wording only: "start" versus "resume"
+  direct: false,     // play the element straight, no Web Audio graph (see musicStart)
+  refusals: 0, index: 0, failures: 0, ctx: null, filter: null, el: null
+};
 const musicBtn = document.getElementById('musicBtn');
 const nextBtn = document.getElementById('nextBtn');
 const nowEl = document.getElementById('now');
+const sleep = (ms, value) => new Promise((resolve) => setTimeout(() => resolve(value), ms));
+// The graph is the part a browser can refuse to run; with no graph the
+// element sounds on its own.
+const graphRunning = () => !music.ctx || music.ctx.state === 'running';
 
-function musicSetup() {
-  if (music.ctx) return;
+function makeElement() {
   const el = new Audio();
   el.preload = 'auto';
-  el.addEventListener('ended', () => musicPlay(music.index + 1));
+  // Listeners ignore an element that musicDropGraph() has retired. Moving to
+  // the next track only plays it while music is on; off, it just remembers
+  // where to pick up.
+  const advance = () => {
+    if (music.on) musicPlay(music.index + 1);
+    else music.index = (music.index + 1) % PLAYLIST.length;
+  };
+  el.addEventListener('ended', () => { if (music.el === el) advance(); });
   el.addEventListener('error', () => {
+    if (music.el !== el) return;
     // Skip a track that will not load, but give up after one full lap so a
     // broken folder cannot spin forever.
-    if (++music.failures < PLAYLIST.length) musicPlay(music.index + 1);
+    if (++music.failures < PLAYLIST.length) advance();
     else nowEl.textContent = 'Music files not found';
   });
-  el.addEventListener('playing', () => { music.failures = 0; });
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const src = ctx.createMediaElementSource(el);
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = 4000;
-  filter.Q.value = 0.7;
-  const gain = ctx.createGain();
-  gain.gain.value = 0.7;
-  src.connect(filter).connect(gain).connect(ctx.destination);
-  Object.assign(music, { ctx, filter, el });
+  // Ground truth: the element is sounding into a running graph (or straight),
+  // however long the file took to arrive.
+  el.addEventListener('playing', () => {
+    if (music.el !== el) return;
+    music.failures = 0;
+    if (music.on && graphRunning()) { music.started = true; music.everPlayed = true; music.refusals = 0; }
+    musicLabel();
+  });
+  // Paused from outside the page (lock-screen controls, another app taking
+  // the sound, a call): say so. Not for the pause that precedes ended.
+  el.addEventListener('pause', () => { if (music.el === el && !el.ended && music.on && !document.hidden) musicLabel(); });
+  return el;
 }
+function musicSetup() {
+  if (music.el) return;
+  music.el = makeElement();
+  if (music.direct) return;
+  // iPhone ringer switch: Web Audio alone sits on the "ambient" audio
+  // session, which the switch silences, while a playing media element moves
+  // the page to "playback", which it does not. The track element should do
+  // that on its own; since iOS 17 the page can also ask for it outright.
+  if (navigator.audioSession) { try { navigator.audioSession.type = 'playback'; } catch (_) {} }
+  // Depth lowpass. Built inside the player's gesture so the browser lets it
+  // run. A browser without Web Audio just plays the element straight.
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaElementSource(music.el);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 4000;
+    filter.Q.value = 0.7;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.7;
+    src.connect(filter).connect(gain).connect(ctx.destination);
+    ctx.addEventListener('statechange', musicLabel);
+    Object.assign(music, { ctx, filter });
+  } catch (_) {
+    music.direct = true;
+  }
+}
+// Web Audio would not run here even after real gestures. Retire the graph and
+// the element wired into it (once connected, an element only sounds through
+// the graph) and continue the song on a plain element: no depth muffle, but
+// music.
+function musicDropGraph() {
+  const old = music.el;
+  const t = old ? old.currentTime : 0;
+  music.el = null;
+  if (old) { old.pause(); old.removeAttribute('src'); old.load(); }
+  if (music.ctx) music.ctx.close().catch(() => {});
+  music.ctx = null; music.filter = null; music.direct = true;
+  music.el = makeElement();
+  music.el.src = PLAYLIST[music.index][1];
+  try { music.el.currentTime = t; } catch (_) {}
+}
+// Names the song only while it is really sounding: element playing and the
+// graph it feeds running. Otherwise it asks for a tap.
+function musicLabel() {
+  if (!music.on) { nowEl.textContent = 'Music off'; return; }
+  const audible = music.el && !music.el.paused && graphRunning();
+  nowEl.textContent = audible
+    ? `${PLAYLIST[music.index][0]}, by Grace`
+    : (music.everPlayed ? 'Tap to resume the music' : 'Tap the water to start the music');
+}
+// Every play() promise is caught and turned into a result: the
+// unhandledrejection handler above would paint a refused play() over the game.
+const playResult = (p) => p.then(() => null, (e) => (e && e.name) || 'Error');
 function musicPlay(i) {
   music.index = ((i % PLAYLIST.length) + PLAYLIST.length) % PLAYLIST.length;
-  const [title, url] = PLAYLIST[music.index];
-  music.el.src = url;
-  music.el.play().catch(() => {});
-  nowEl.textContent = `${title}, by Grace`;
+  music.el.src = PLAYLIST[music.index][1];
+  return playResult(music.el.play());
 }
-function musicStart() {
-  if (music.started || !music.on) return;
-  musicSetup();
-  music.ctx.resume();
-  music.started = true;
-  musicPlay(music.index);
+// First start, every retry after a refused start, and the way back from
+// Music: Off. Call it only from an event that grants user activation: a
+// click, a key press (not Escape), a finger or pen lifting (pointerup,
+// touchend), or a mouse press. Everything the browser gates on the gesture
+// (creating the context, resume(), play()) runs synchronously before the
+// first await so the gesture still counts. started becomes true only once
+// play() went through and the graph reports running; otherwise it stays
+// false, the element is paused so it never runs silently into a stopped
+// graph, and the next gesture simply tries again.
+// Music is going when a verified start happened and nothing has undone it
+// since: a pause from outside the page, or a graph that stopped.
+const musicHealthy = () => music.started && music.el && !music.el.paused && graphRunning();
+async function musicStart(track) {
+  if (music.starting || !music.on) return;
+  if (track === undefined && musicHealthy()) return;
+  music.started = false;
+  music.starting = true;
+  try {
+    musicSetup();
+    if (music.direct && music.ctx) musicDropGraph();
+    const { ctx, el } = music;
+    // resume() can stay pending forever when refused, so it is never awaited
+    // unbounded; ctx.state below is what decides.
+    const resumed = ctx ? Promise.race([ctx.resume().catch(() => {}), sleep(1500)]) : Promise.resolve();
+    // No track asked for and one already loaded: continue it (a retry, or
+    // back from Off) instead of restarting it from the top.
+    const played = (track === undefined && el.src)
+      ? playResult(el.play())
+      : musicPlay(track === undefined ? music.index : track);
+    const err = await Promise.race([played, sleep(10000, 'Timeout')]);
+    await resumed;
+    if (music.el !== el) return;
+    if (err === 'NotAllowedError') { el.pause(); musicLabel(); return; }
+    // A slow connection is not a refusal: leave it loading and let the
+    // element's own playing event finish the job.
+    if (err === 'Timeout') { nowEl.textContent = 'Loading the music...'; return; }
+    if (ctx) {
+      // The graph must be running with its clock moving: iOS can report a
+      // running context whose clock has stopped after a return from the
+      // background, and that is a stopped graph too.
+      const t0 = ctx.currentTime;
+      await sleep(250);
+      if (music.el !== el) return;
+      if (ctx.state !== 'running' || ctx.currentTime === t0) {
+        // play() went through, so the gesture was real, yet the graph will
+        // not run. Twice in a row means this browser is not going to run Web
+        // Audio for us: the next tap plays the element straight instead.
+        el.pause();
+        if (++music.refusals >= 2) music.direct = true;
+        musicLabel();
+        return;
+      }
+    }
+    // Any other play() failure is a file that would not load; the element's
+    // error listener is already skipping ahead.
+    music.started = true;
+    music.everPlayed = true;
+    music.refusals = 0;
+    musicLabel();
+  } finally {
+    music.starting = false;
+  }
 }
 function musicToggle() {
+  // Until music is really going, "Music: On" and the M key mean "start it":
+  // a tap on a silent phone must produce music, never switch it off.
+  if (music.on && !musicHealthy()) { musicStart(); return; }
   music.on = !music.on;
   musicBtn.textContent = music.on ? 'Music: On' : 'Music: Off';
-  if (music.on) {
-    if (!music.started) musicStart(); else music.el.play().catch(() => {});
-  } else if (music.el) {
-    music.el.pause();
-  }
   nowEl.style.opacity = music.on ? '' : '0.45';
+  if (!music.on) { if (music.el) music.el.pause(); musicLabel(); return; }
+  // Back on: the graph may have been suspended or interrupted while off, so
+  // go through the same gesture-backed, verified start, keeping the track.
+  music.started = false;
+  musicStart();
 }
 musicBtn.addEventListener('click', musicToggle);
 nextBtn.addEventListener('click', () => {
-  if (!music.on) musicToggle();
-  if (!music.started) musicStart(); else musicPlay(music.index + 1);
+  if (!music.on) { music.on = true; musicBtn.textContent = 'Music: On'; nowEl.style.opacity = ''; }
+  if (music.starting) return;
+  // Already sounding: just skip. Otherwise go through the verified start,
+  // which also rescues a graph that was suspended meanwhile.
+  if (musicHealthy()) { musicPlay(music.index + 1); return; }
+  music.started = false;
+  musicStart(music.el && music.el.src ? music.index + 1 : music.index);
 });
 // Buttons must not also count as a swim gesture on the canvas beneath them.
 for (const b of [musicBtn, nextBtn]) b.addEventListener('pointerdown', (e) => e.stopPropagation());
+// Away and back: another tab, the lock screen, a phone call. iOS parks the
+// context in "interrupted" and pauses the element, and neither returns by
+// itself. This runs without a gesture, so the browser may refuse: then the
+// label asks for a tap and started is cleared so the next gesture retries.
+function musicWake() {
+  if (!music.on || !music.started || !music.el) return;
+  const { ctx, el } = music;
+  if (document.hidden) { el.pause(); return; }
+  if (ctx) ctx.resume().catch(() => {});
+  el.play().catch(() => {});
+  const t0 = ctx ? ctx.currentTime : 0;
+  sleep(1500).then(() => {
+    if (document.hidden || !music.on || !music.started || music.el !== el) return;
+    if (!graphRunning() || el.paused || (ctx && ctx.currentTime === t0)) {
+      el.pause();
+      music.started = false;
+      musicLabel();
+    }
+  });
+}
+document.addEventListener('visibilitychange', musicWake);
+window.addEventListener('focus', musicWake);
+window.addEventListener('pageshow', musicWake);
 
 /* --------------------------------------------------------------- controls */
 
@@ -1035,12 +1195,13 @@ if (new URLSearchParams(location.search).has('preview')) document.body.classList
 let hintShown = true;
 function dismissHint() {
   if (hintShown) { hintShown = false; hint.classList.add('gone'); }
-  musicStart();
 }
 window.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   dismissHint();
+  // A key press grants user activation, except Escape.
+  if (e.key !== 'Escape') musicStart();
   if (e.code === 'KeyM' && !e.repeat) musicToggle();
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -1053,15 +1214,26 @@ canvas.addEventListener('pointerdown', (e) => {
   touch.active = true; touch.x0 = e.clientX; touch.y0 = e.clientY; touch.dx = 0; touch.dy = 0;
   canvas.setPointerCapture(e.pointerId);
   dismissHint();
+  // A mouse press is a user gesture, so desktop music starts on the press.
+  // A finger or pen press is not one yet (the browser cannot tell a tap from
+  // a scroll until it ends); those start on the lift, in endTouch.
+  if (e.pointerType === 'mouse') musicStart();
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!touch.active) return;
   touch.dx = (e.clientX - touch.x0) / 140;
   touch.dy = (e.clientY - touch.y0) / 140;
 });
-const endTouch = () => { touch.active = false; touch.dx = 0; touch.dy = 0; };
+const endTouch = (e) => {
+  touch.active = false; touch.dx = 0; touch.dy = 0;
+  // Lifting a finger or pen is the first moment the browser counts as a
+  // gesture. pointercancel is not one.
+  if (e.type === 'pointerup') musicStart();
+};
 canvas.addEventListener('pointerup', endTouch);
 canvas.addEventListener('pointercancel', endTouch);
+// Safety net for a browser that does not deliver pointerup to the canvas.
+canvas.addEventListener('touchend', () => musicStart(), { passive: true });
 
 function readInput() {
   let thrust = 0, turn = 0, rise = 0;
@@ -1274,7 +1446,7 @@ function animate() {
   sun.intensity = 1.7 - depthFrac * 0.9;
 
   /* --- music muffles with depth: 16 kHz open at the surface, 600 Hz deep --- */
-  if (music.filter) {
+  if (music.filter && music.ctx && music.ctx.state === 'running') {
     const cutoff = 600 * Math.pow(16000 / 600, 1 - depthFrac);
     music.filter.frequency.setTargetAtTime(cutoff, music.ctx.currentTime, 0.15);
   }
@@ -1303,7 +1475,13 @@ function animate() {
   frames++; fpsTimer += dt;
   if (fpsTimer >= 0.5) {
     const info = renderer.info.render;
-    perfEl.textContent = `${Math.round(frames / fpsTimer)} fps · ${info.calls} draws`;
+    // The music state rides along so a phone, with no console, still shows
+    // why it is quiet.
+    const audio = !music.el ? 'idle'
+      : music.el.paused ? 'paused'
+      : !graphRunning() ? music.ctx.state
+      : music.ctx ? 'playing' : 'playing, plain';
+    perfEl.textContent = `${Math.round(frames / fpsTimer)} fps · ${info.calls} draws · music ${audio}`;
     frames = 0; fpsTimer = 0;
   }
 
