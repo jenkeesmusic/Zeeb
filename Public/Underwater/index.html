@@ -54,6 +54,7 @@
     font-size: 28px; font-weight: 700;
   }
 </style>
+<link rel="stylesheet" href="./rally.css">
 </head>
 <body>
 <canvas id="stage"></canvas>
@@ -100,15 +101,9 @@
 
 <script type="module">
 /*
- * Zeeb Underwater, v0.1: a free-swim ocean for Zeeb built on three.js.
- *
- * There is no goal yet. The whole point of this version is that steering
- * Zeeb through the water feels good and the ocean is worth swimming around
- * in: a kelp forest that sways, coral gardens, fish schools that scatter
- * when he gets close, jellyfish that pulse and glow, light shafts from the
- * surface, caustics dancing on the sand, a treasure chest, and a couple of
- * stone rings to swim through. Everything except Zeeb himself is built in
- * code at startup, so the folder ships one model and no textures.
+ * Zeeb Underwater: free swimming and the Reef Rally. Grace's Zeeb and fish
+ * models swim through a procedural reef. reef-rally.js owns the game and
+ * reef-world.js adds course landmarks around the original ocean.
  *
  * World units are feet. The sea floor sits about 60 ft down, the surface is
  * at 0, and Zeeb is about a foot long, which makes him a very small duck in
@@ -118,13 +113,20 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshoptDecoder } from './vendor/meshopt_decoder.module.js';
+import { createRally } from './reef-rally.js';
+import { createReef } from './reef-world.js';
+import { COURSE, COURSE_SCALE } from './reef-course.js';
+import { createScooter, createPilotCamera } from './zeeb-scooter.js';
+import { CRUISE_SPEED, stepScooter, stepPointer, MOUSE_DRAG_X, MOUSE_DRAG_Y } from './scooter-handling.js';
+import { makeKelpGeometry, causticGLSL } from './reef-garden.js';
+import { wreckFloor, inWreckFootprint } from './wreck-layout.js';
 
 /* ----------------------------------------------------------------- layout */
 
 const SURFACE_Y = 0;
 const FLOOR_Y = -60;          // Mean sea floor height; the real floor undulates.
-const WORLD_R = 210;          // Soft horizontal boundary. Beyond it, a gentle push back.
-const SPAWN = new THREE.Vector3(0, -14, 0);
+const WORLD_R = 250 * COURSE_SCALE; // Recovery space outside the wider rally.
+const SPAWN = new THREE.Vector3(0, -36, 0);
 
 // A seeded random generator so the ocean is laid out the same way on every
 // visit. Once a child knows where the treasure chest is, it should stay put.
@@ -138,9 +140,10 @@ function mulberry32(seed) {
 }
 const rand = mulberry32(20260902);
 const rrange = (a, b) => a + rand() * (b - a);
+const sandRoute=[SPAWN.toArray(),...COURSE];
 
-// The sea floor is a sum of a few waves plus two dunes. Everything that sits
-// on the floor asks this function where the sand is, so it is the one truth.
+// The sea floor blends waves and dunes with a shallower shelf along the rally.
+// Terrain, scenery placement, and swimming limits share this height function.
 function floorY(x, z) {
   let y = FLOOR_Y;
   y += 3.0 * Math.sin(x * 0.05) * Math.cos(z * 0.045);
@@ -148,22 +151,49 @@ function floorY(x, z) {
   y += 4.0 * Math.sin((x + z) * 0.02);
   y += 12.0 * Math.exp(-((x - 90) ** 2 + (z + 70) ** 2) / 2200);   // a tall dune
   y += 8.0 * Math.exp(-((x + 110) ** 2 + (z - 40) ** 2) / 3000);    // a lower one
-  return y;
+  // A shallow garden shelf follows the rally, keeping the sand and small
+  // plants visible beneath Zeeb instead of turning the reef into tall cliffs.
+  let nearest=Infinity, shelfY=y;
+  for(let i=1;i<sandRoute.length;i++) {
+    const a=sandRoute[i-1],b=sandRoute[i],dx=b[0]-a[0],dz=b[2]-a[2];
+    const t=THREE.MathUtils.clamp(((x-a[0])*dx+(z-a[2])*dz)/(dx*dx+dz*dz),0,1);
+    const d=Math.hypot(x-a[0]-dx*t,z-a[2]-dz*t);
+    if(d<nearest){nearest=d;shelfY=THREE.MathUtils.lerp(a[1],b[1],t)-11;}
+  }
+  y=THREE.MathUtils.lerp(y,shelfY+.35*Math.sin(x*.22)*Math.cos(z*.19),1-THREE.MathUtils.smoothstep(nearest,28,72));
+  return wreckFloor(x,z,y,nearest);
 }
 
 /* --------------------------------------------------------------- renderer */
 
 const canvas = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.VSMShadowMap;
+renderer.shadowMap.autoUpdate = false;
 
 const scene = new THREE.Scene();
 // The fog color and density change with depth every frame; these are just
 // the starting values.
 scene.fog = new THREE.FogExp2(0x0b4f6c, 0.012);
 scene.background = new THREE.Color(0x0b4f6c);
+// A soft light dome gives the sculpted plants broad highlights and water-colored
+// reflections. It is baked once, so it adds no draw calls during the game.
+{
+  const lightDome=new THREE.Scene();
+  const domeMaterial=new THREE.ShaderMaterial({side:THREE.BackSide,
+    vertexShader:'varying vec3 direction; void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:'varying vec3 direction; void main(){vec3 d=normalize(direction);vec3 color=mix(vec3(.14,.19,.2),vec3(.7,.95,.91),smoothstep(-.6,.7,d.y));float glow=pow(max(0.,dot(d,normalize(vec3(-.4,.8,.25)))),18.);gl_FragColor=vec4(color+vec3(2.2,1.9,1.5)*glow,1.);}'});
+  const domeGeo=new THREE.SphereGeometry(1,32,16);lightDome.add(new THREE.Mesh(domeGeo,domeMaterial));
+  const pmrem=new THREE.PMREMGenerator(renderer);const reflection=pmrem.fromScene(lightDome,.03);
+  scene.environment=reflection.texture;scene.environmentIntensity=.45;
+  domeGeo.dispose();domeMaterial.dispose();pmrem.dispose();
+}
 
-const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400 * COURSE_SCALE);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -176,10 +206,17 @@ resize();
 
 /* ----------------------------------------------------------------- lights */
 
-const hemi = new THREE.HemisphereLight(0x9fdcff, 0x0a2a3a, 1.5);
+const hemi = new THREE.HemisphereLight(0xe3fff4, 0xaaa0a6, .8);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xcdf3ff, 1.6);
+const sun = new THREE.DirectionalLight(0xffeed1, 3.1);
 sun.position.set(20, 60, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -62, right: 62, top: 62, bottom: -62, near: .5, far: 190 });
+sun.shadow.bias = -.0006; sun.shadow.normalBias = .16;
+sun.shadow.radius = 4; sun.shadow.blurSamples = 8;
+const shadowAnchor = new THREE.Vector3(Infinity, Infinity, Infinity);
+scene.add(sun.target);
 scene.add(sun);
 
 /* -------------------------------------------------------- canvas textures */
@@ -193,32 +230,6 @@ function canvasTexture(w, h, draw) {
   return t;
 }
 
-// A kelp blade: tapered, with a scalloped edge and a lighter midrib.
-const kelpTex = canvasTexture(64, 256, (g, w, h) => {
-  g.clearRect(0, 0, w, h);
-  g.beginPath();
-  g.moveTo(w / 2, h);
-  for (let i = 0; i <= 20; i++) {
-    const y = h - (i / 20) * h;
-    const half = (w * 0.42) * (1 - (i / 20) * 0.55) * (0.8 + 0.2 * Math.sin(i * 1.9));
-    g.lineTo(w / 2 + half, y);
-  }
-  for (let i = 20; i >= 0; i--) {
-    const y = h - (i / 20) * h;
-    const half = (w * 0.42) * (1 - (i / 20) * 0.55) * (0.8 + 0.2 * Math.sin(i * 1.9 + 1.3));
-    g.lineTo(w / 2 - half, y);
-  }
-  g.closePath();
-  const grad = g.createLinearGradient(0, h, 0, 0);
-  grad.addColorStop(0, '#2c5a1e');
-  grad.addColorStop(0.6, '#4f8a2a');
-  grad.addColorStop(1, '#8dc24a');
-  g.fillStyle = grad;
-  g.fill();
-  g.strokeStyle = 'rgba(200,240,150,0.5)';
-  g.lineWidth = 3;
-  g.beginPath(); g.moveTo(w / 2, h); g.lineTo(w / 2, 6); g.stroke();
-});
 
 // A light shaft: bright at the top, gone by the bottom, soft at the sides.
 const shaftTex = canvasTexture(64, 256, (g, w, h) => {
@@ -248,10 +259,10 @@ const timeUniform = { value: 0 };
 
 /* -------------------------------------------------------------- sea floor */
 
-// The sand is one big displaced plane with a custom shader: soft top-down
-// lighting, a vertex-color tint, and animated caustics that fade with depth.
+// Displaced sand receives soft shadows, a warm vertex-color tint, and
+// animated caustics through a standard lit material.
 {
-  const SIZE = 620, SEG = 140;
+  const SIZE = 620 * COURSE_SCALE, SEG = Math.ceil(220 * COURSE_SCALE);
   const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -269,91 +280,30 @@ const timeUniform = { value: 0 };
     const x = pos.getX(i), z = pos.getZ(i);
     const y = floorY(x, z);
     pos.setY(i, y);
-    // Darker in the dips, lighter on the ridges, plus a little speckle.
-    const k = THREE.MathUtils.clamp((y - FLOOR_Y + 6) / 18, 0, 1);
+    // Broad warm variations with a little speckle.
+    const k = .45+.25*Math.sin(x*.12)*Math.cos(z*.09);
     tmp.copy(sandDark).lerp(sandLight, k * 0.85 + rand() * 0.15);
     col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeVertexNormals();
 
-  const mat = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]),
-    vertexColors: true,
-    fog: true,
-    vertexShader: `
-      #include <fog_pars_vertex>
-      varying vec3 vColor;
-      varying vec3 vNormalW;
-      varying vec3 vWorld;
-      void main() {
-        vColor = color;
-        vNormalW = normalize(mat3(modelMatrix) * normal);
-        vec4 wp = modelMatrix * vec4(position, 1.0);
-        vWorld = wp.xyz;
-        vec4 mvPosition = viewMatrix * wp;
-        gl_Position = projectionMatrix * mvPosition;
-        #include <fog_vertex>
-      }`,
-    fragmentShader: `
-      #include <fog_pars_fragment>
-      uniform float uTime;
-      varying vec3 vColor;
-      varying vec3 vNormalW;
-      varying vec3 vWorld;
-      // Overlapping sine fields whose zero crossings form a wandering net of
-      // bright lines: the classic cheap caustic.
-      float caustic(vec2 p, float t) {
-        vec2 q = p * 0.35;
-        float v = 0.0;
-        v += sin(q.x * 1.0 + t * 0.8 + sin(q.y * 1.3 + t * 0.5) * 1.2);
-        v += sin(q.y * 1.1 - t * 0.6 + sin(q.x * 0.9 - t * 0.4) * 1.2);
-        v += sin((q.x + q.y) * 0.8 + t * 0.35);
-        return pow(max(0.0, 1.0 - abs(v) * 0.55), 4.0);
-      }
-      // Cheap value noise for the sand grain and the ripple warp.
-      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float vnoise(vec2 p) {
-        vec2 i = floor(p), f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-                   mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-      }
-      void main() {
-        vec3 n = normalize(vNormalW);
-        float diff = 0.62 + 0.38 * max(0.0, dot(n, normalize(vec3(0.3, 1.0, 0.15))));
-        vec3 base = vColor * diff;
-        // Sand texture, all in the fragment: coarse grain, fine grain, a
-        // speckle of individual bright grains, and wind-style ripples whose
-        // direction wanders with a low-frequency noise so they never read as
-        // straight stripes.
-        vec2 p = vWorld.xz;
-        float grain = vnoise(p * 4.0) * 0.5 + vnoise(p * 17.0) * 0.35 + hash(floor(p * 45.0)) * 0.15;
-        float warp = vnoise(p * 0.08) * 6.0;
-        float ripple = sin(p.x * 1.6 + p.y * 0.5 + warp + vnoise(p * 0.6) * 2.0);
-        float relief = 1.0 + (grain - 0.5) * 0.28 + ripple * 0.09;
-        base *= relief;
-        // Broad mottling: patches of coarser, darker sand and a faint olive
-        // tint where algae films the bottom. This is what keeps a real sea
-        // floor from looking like one flat color.
-        float mottle = vnoise(p * 0.045) * 0.6 + vnoise(p * 0.12) * 0.4; // "patch" is reserved in GLSL
-        // Kept warm so the mottling reads as damp sand, not algae, and the
-        // beach stays Grace's yellow.
-        base *= mix(vec3(1.0), vec3(0.92, 0.9, 0.74), smoothstep(0.35, 0.75, mottle) * 0.3);
-        // Deep water swallows red first, so the sand cools a little with
-        // depth, but only a little: yellow was the request.
-        float depth = clamp(-vWorld.y / 80.0, 0.0, 1.0);
-        base *= mix(vec3(1.0), vec3(0.72, 0.85, 0.9), depth * 0.3);
-        // Warm sunlight caustics rather than cyan ones, so they brighten the
-        // sand toward Grace's yellow instead of pushing it green.
-        float c = caustic(vWorld.xz, uTime) * (1.0 - depth * 0.55);
-        base += c * vec3(0.95, 0.9, 0.7) * 0.85;
-        gl_FragColor = vec4(base, 1.0);
-        #include <fog_fragment>
-      }`
-  });
-  mat.uniforms.uTime = timeUniform;
-  const floor = new THREE.Mesh(geo, mat);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .94, metalness: 0,
+    emissive: 0xe6bd72, emissiveIntensity: .09 });
+  mat.onBeforeCompile = shader => {
+    shader.uniforms.reefTime = timeUniform;
+    shader.vertexShader = 'varying vec3 sandWorld;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n sandWorld=(modelMatrix*vec4(transformed,1.)).xyz;');
+    shader.fragmentShader = 'varying vec3 sandWorld;\nuniform float reefTime;\n' + causticGLSL + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      float ripple=sin(sandWorld.x*1.7+sandWorld.z*.45+sin(sandWorld.z*.32)*1.3);
+      float grain=sin(sandWorld.x*21.3)*sin(sandWorld.z*24.7)*.018;
+      diffuseColor.rgb *= .92+ripple*.035+grain;
+      diffuseColor.rgb += reefCaustic(sandWorld.xz,reefTime)*vec3(.23,.20,.12);
+    `);
+  };
+  mat.customProgramCacheKey = () => 'storybook-sand';
+  const floor = new THREE.Mesh(geo, mat); floor.receiveShadow = true;
   scene.add(floor);
 }
 
@@ -364,7 +314,7 @@ const timeUniform = { value: 0 };
 // it glitters as Zeeb moves under it.
 let surfaceMat;
 {
-  const geo = new THREE.PlaneGeometry(700, 700, 80, 80);
+  const geo = new THREE.PlaneGeometry(1600, 1600, 120, 120);
   geo.rotateX(Math.PI / 2); // Face down toward the swimmer.
   surfaceMat = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]),
@@ -399,16 +349,22 @@ let surfaceMat;
       }`,
     fragmentShader: `
       #include <fog_pars_fragment>
+      ${causticGLSL}
+      uniform float uTime;
       varying float vGlint;
       varying vec3 vWorld;
       void main() {
-        vec3 col = mix(vec3(0.35, 0.8, 0.95), vec3(1.0), vGlint);
+        float lace=reefCaustic(vWorld.xz*.6,uTime);
+        vec3 col = vec3(.19,.64,.69)+vec3(.24,.29,.25)*lace+vGlint*.07;
         gl_FragColor = vec4(col, 0.75 + vGlint * 0.25);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
         #include <fog_fragment>
       }`
   });
   surfaceMat.uniforms.uTime = timeUniform;
   const surface = new THREE.Mesh(geo, surfaceMat);
+  surface.renderOrder = -10;
   surface.position.y = SURFACE_Y;
   scene.add(surface);
 }
@@ -421,7 +377,7 @@ const shafts = [];
 {
   const mat = new THREE.MeshBasicMaterial({
     map: shaftTex, transparent: true, blending: THREE.AdditiveBlending,
-    depthWrite: false, side: THREE.DoubleSide, opacity: 0.35, color: 0xbfefff
+    depthWrite: false, side: THREE.DoubleSide, opacity: 0.035, color: 0xbfefff
   });
   for (let i = 0; i < 26; i++) {
     const g = new THREE.Group();
@@ -444,16 +400,14 @@ const shafts = [];
 
 /* ------------------------------------------------------------ kelp forest */
 
-// Kelp is one InstancedMesh of textured blades with a vertex-shader sway.
+// Kelp is one InstancedMesh of curved blades with a vertex-shader sway.
 // The sway grows with height squared, so the base stays rooted and the tips
 // whip around. Each blade has its own phase so the forest never moves in
 // lockstep.
 {
-  const BLADE_H = 1; // Unit height; the instance matrix scales it.
-  const geo = new THREE.PlaneGeometry(1, BLADE_H, 1, 12);
-  geo.translate(0, BLADE_H / 2, 0);
+  const geo = makeKelpGeometry();
 
-  const COUNT = 900;
+  const COUNT = 170;
   const mesh = new THREE.InstancedMesh(geo, null, COUNT);
   const phases = new Float32Array(COUNT);
   const dummy = new THREE.Object3D();
@@ -467,7 +421,15 @@ const shafts = [];
     const [bx, bz, br] = beds[i % beds.length];
     const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * br;
     const x = bx + Math.cos(a) * r, z = bz + Math.sin(a) * r;
-    const h = rrange(10, 26), w = rrange(1.6, 2.6);
+    const route = [SPAWN.toArray(), ...COURSE];
+    const onCourse = route.some((p, j) => {
+      if (!j) return false;
+      const a=route[j-1], dx=p[0]-a[0], dz=p[2]-a[2];
+      const t=THREE.MathUtils.clamp(((x-a[0])*dx+(z-a[2])*dz)/(dx*dx+dz*dz),0,1);
+      return Math.hypot(x-a[0]-dx*t,z-a[2]-dz*t)<13;
+    });
+    const clear = onCourse || inWreckFootprint(x,z,6);
+    const h = clear ? .02 : rrange(7, 12), w = clear ? .02 : rrange(2.5, 4);
     dummy.position.set(x, floorY(x, z) - 0.3, z);
     dummy.rotation.set(0, rand() * Math.PI * 2, 0);
     dummy.scale.set(w, h, 1);
@@ -477,53 +439,25 @@ const shafts = [];
   }
   geo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phases, 1));
 
-  mesh.material = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uMap: { value: null } }]),
-    fog: true,
-    side: THREE.DoubleSide,
-    vertexShader: `
-      #include <fog_pars_vertex>
-      uniform float uTime;
-      attribute float aPhase;
-      varying vec2 vUv;
-      varying float vHeight;
-      void main() {
-        vUv = uv;
-        vHeight = position.y; // 0 at the root, 1 at the tip
-        vec3 p = position;
-        float k = p.y * p.y;
-        p.x += sin(uTime * 1.1 + aPhase) * 0.25 * k;
-        p.z += cos(uTime * 0.8 + aPhase * 1.7) * 0.18 * k;
-        // Taper the blade toward the tip.
-        p.x *= 1.0 - 0.45 * p.y;
-        vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
-        vec4 mvPosition = viewMatrix * wp;
-        gl_Position = projectionMatrix * mvPosition;
-        #include <fog_vertex>
-      }`,
-    fragmentShader: `
-      #include <fog_pars_fragment>
-      uniform sampler2D uMap;
-      varying vec2 vUv;
-      varying float vHeight;
-      void main() {
-        vec4 tex = texture2D(uMap, vUv);
-        if (tex.a < 0.5) discard;
-        vec3 col = tex.rgb * (0.55 + 0.45 * vHeight);
-        gl_FragColor = vec4(col, 1.0);
-        #include <fog_fragment>
-      }`
-  });
-  mesh.material.uniforms.uTime = timeUniform;
-  mesh.material.uniforms.uMap.value = kelpTex;
+  const colors=new Float32Array(geo.attributes.position.count*3);
+  const low=new THREE.Color(0x287c79),high=new THREE.Color(0x9bc67d),color=new THREE.Color();
+  for(let i=0;i<geo.attributes.position.count;i++) {
+    color.copy(low).lerp(high,geo.attributes.uv.getY(i));colors.set([color.r,color.g,color.b],i*3);
+  }
+  geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  mesh.material = new THREE.MeshStandardMaterial({vertexColors:true,roughness:.56,side:THREE.DoubleSide});
+  mesh.material.onBeforeCompile=shader=>{
+    shader.uniforms.kelpTime=timeUniform;
+    shader.vertexShader='uniform float kelpTime;\nattribute float aPhase;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n transformed.x+=sin(kelpTime*1.1+aPhase)*uv.y*uv.y*.22; transformed.z+=cos(kelpTime*.8+aPhase)*uv.y*uv.y*.16;');
+  };
+  mesh.name='Outer kelp beds';
   mesh.frustumCulled = false;
   scene.add(mesh);
 }
 
-/* -------------------------------------------------- coral, rocks, and rings */
-
-// Helper that stamps one color across a geometry so many differently tinted
-// pieces can merge into a single draw call.
+// Preserve the source mesh colors when batching Grace's fish.
 function tint(geo, hex, jitter = 0) {
   const c = new THREE.Color(hex);
   if (jitter) c.offsetHSL((rand() - 0.5) * jitter, 0, (rand() - 0.5) * jitter);
@@ -534,94 +468,7 @@ function tint(geo, hex, jitter = 0) {
   return geo;
 }
 
-// A little library of coral shapes. Each returns non-indexed geometry
-// positioned relative to the sand under it.
-function brainCoral(x, y, z) {
-  const g = new THREE.SphereGeometry(rrange(1.2, 3.2), 12, 9).toNonIndexed();
-  g.scale(1, rrange(0.55, 0.8), 1);
-  g.translate(x, y, z);
-  return tint(g, [0xe86aa6, 0xc44fd1, 0xf29ac0][Math.floor(rand() * 3)], 0.06);
-}
-function branchCoral(x, y, z) {
-  const parts = [];
-  const n = 4 + Math.floor(rand() * 5);
-  for (let i = 0; i < n; i++) {
-    const h = rrange(2, 6);
-    const g = new THREE.CylinderGeometry(0.08, rrange(0.22, 0.4), h, 6, 1).toNonIndexed();
-    g.translate(0, h / 2, 0);
-    g.rotateX(rrange(-0.7, 0.7));
-    g.rotateZ(rrange(-0.7, 0.7));
-    g.translate(x, y - 0.3, z);
-    parts.push(tint(g, [0xff7a3d, 0xff5c5c, 0xffb347][Math.floor(rand() * 3)], 0.05));
-  }
-  return mergeGeometries(parts);
-}
-function tubeSponge(x, y, z) {
-  const parts = [];
-  const n = 3 + Math.floor(rand() * 4);
-  for (let i = 0; i < n; i++) {
-    const h = rrange(1.5, 5);
-    const g = new THREE.CylinderGeometry(rrange(0.3, 0.55), rrange(0.35, 0.6), h, 8, 1, true).toNonIndexed();
-    g.translate(x + rrange(-1.2, 1.2), y + h / 2 - 0.3, z + rrange(-1.2, 1.2));
-    parts.push(tint(g, [0xf4d35e, 0xd8f05a, 0xf7a072][Math.floor(rand() * 3)], 0.05));
-  }
-  return mergeGeometries(parts);
-}
-function fanCoral(x, y, z) {
-  const g = new THREE.CircleGeometry(rrange(1.5, 3), 14, 0, Math.PI).toNonIndexed();
-  g.rotateY(rand() * Math.PI);
-  g.translate(x, y - 0.2, z);
-  return tint(g, [0xb14bff, 0xff4bb3, 0x7f5bff][Math.floor(rand() * 3)], 0.05);
-}
-function rock(x, y, z, s) {
-  const g = new THREE.DodecahedronGeometry(s, 1); // Polyhedra are already non-indexed.
-  g.scale(rrange(0.8, 1.4), rrange(0.5, 0.9), rrange(0.8, 1.4));
-  g.rotateY(rand() * Math.PI);
-  g.translate(x, y - s * 0.25, z);
-  return tint(g, [0x5f7a83, 0x6d8a7a, 0x7a8a99][Math.floor(rand() * 3)], 0.05);
-}
-
-const coralParts = [];
-const rockParts = [];
-// Coral gardens: clumps of mixed shapes around random centers, never in the
-// spawn clearing.
-for (let c = 0; c < 34; c++) {
-  let cx, cz;
-  do { const a = rand() * Math.PI * 2, r = rrange(18, 195); cx = Math.cos(a) * r; cz = Math.sin(a) * r; }
-  while (Math.hypot(cx, cz) < 18);
-  const n = 4 + Math.floor(rand() * 8);
-  for (let i = 0; i < n; i++) {
-    const x = cx + rrange(-7, 7), z = cz + rrange(-7, 7);
-    const y = floorY(x, z);
-    const pick = rand();
-    if (pick < 0.3) coralParts.push(brainCoral(x, y, z));
-    else if (pick < 0.55) coralParts.push(branchCoral(x, y, z));
-    else if (pick < 0.8) coralParts.push(tubeSponge(x, y, z));
-    else coralParts.push(fanCoral(x, y, z));
-  }
-  for (let i = 0; i < 2 + Math.floor(rand() * 3); i++) {
-    const x = cx + rrange(-9, 9), z = cz + rrange(-9, 9);
-    rockParts.push(rock(x, floorY(x, z), z, rrange(1.5, 4)));
-  }
-}
-// Loose boulders everywhere else.
-for (let i = 0; i < 60; i++) {
-  const a = rand() * Math.PI * 2, r = rrange(14, 205);
-  const x = Math.cos(a) * r, z = Math.sin(a) * r;
-  rockParts.push(rock(x, floorY(x, z), z, rrange(1, 5)));
-}
-// Coral gets a self-glow of its own color. Under the blue-green light the pinks
-// and oranges otherwise go grey, and real reef coral is the one thing down
-// there that should pop.
-const coralMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-coralMat.onBeforeCompile = (shader) => {
-  shader.fragmentShader = shader.fragmentShader.replace(
-    '#include <emissivemap_fragment>',
-    '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * 0.45;'
-  );
-};
-scene.add(new THREE.Mesh(mergeGeometries(coralParts), coralMat));
-scene.add(new THREE.Mesh(mergeGeometries(rockParts), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })));
+/* ------------------------------------------------------- exploration rings */
 
 // Stone rings to swim through. Each stands on the sand, half its tube buried,
 // and marks its spot with a soft glow so it can be found from a distance.
@@ -630,8 +477,9 @@ const rings = [];
   const spots = [[0, -40], [-55, 30], [70, 55], [-30, -95], [120, -20]];
   const mat = new THREE.MeshLambertMaterial({ color: 0x8aa0aa });
   for (const [x, z] of spots) {
+    if(inWreckFootprint(x,z,8))continue;
     const R = rrange(5, 7);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(R, 1.1, 10, 28), mat);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(R + .35, 1.45, 16, 48), mat);
     ring.position.set(x, floorY(x, z) + R - 0.6, z);
     ring.rotation.y = rand() * Math.PI;
     scene.add(ring);
@@ -640,46 +488,6 @@ const rings = [];
     scene.add(glow);
     rings.push({ mesh: ring, R, glow, hit: 0 });
   }
-}
-
-/* --------------------------------------------------------- treasure chest */
-
-// A wooden chest with an open lid and a heap of glowing gold, tucked against
-// the tall dune.
-{
-  const chest = new THREE.Group();
-  const wood = new THREE.MeshLambertMaterial({ color: 0x7a4a26 });
-  const band = new THREE.MeshLambertMaterial({ color: 0xc9a227 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(4, 2.2, 2.6), wood);
-  body.position.y = 1.1;
-  chest.add(body);
-  const lid = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 4, 12, 1, false, 0, Math.PI), wood);
-  lid.rotation.z = Math.PI / 2;
-  lid.rotation.y = Math.PI;
-  lid.position.set(0, 2.2, -1.3);
-  lid.rotation.x = -1.2;
-  chest.add(lid);
-  for (const zOff of [-0.9, 0.9]) {
-    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.3, 2.7), band);
-    strap.position.set(zOff * 1.6, 1.1, 0);
-    chest.add(strap);
-  }
-  const goldMat = new THREE.MeshLambertMaterial({ color: 0xffd23f, emissive: 0xffa500, emissiveIntensity: 0.6 });
-  const coinGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.08, 10);
-  for (let i = 0; i < 90; i++) {
-    const coin = new THREE.Mesh(coinGeo, goldMat);
-    const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * 1.6;
-    coin.position.set(Math.cos(a) * r, 2.2 + rand() * 0.8 * (1 - r / 1.8), Math.sin(a) * r * 0.6);
-    coin.rotation.set(rand() * 0.6, rand() * Math.PI, rand() * 0.6);
-    chest.add(coin);
-  }
-  const lamp = new THREE.PointLight(0xffc14d, 40, 22, 1.5);
-  lamp.position.set(0, 3.2, 0);
-  chest.add(lamp);
-  const cx = 62, cz = -52;
-  chest.position.set(cx, floorY(cx, cz) - 0.2, cz);
-  chest.rotation.y = -0.6;
-  scene.add(chest);
 }
 
 /* ------------------------------------------------------------ fish schools */
@@ -739,6 +547,9 @@ function buildSchools(fishGeo, sizeRange) {
       pos: new THREE.Vector3(), prev: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, 1)
     });
   }
+  // Two of Grace's schools live beside the rally, close enough to meet.
+  schools[0].center.set(-4 * COURSE_SCALE, -37, 52 * COURSE_SCALE); schools[0].radius = 13; schools[0].bob = 2;
+  schools[1].center.set(137 * COURSE_SCALE, -30, 93 * COURSE_SCALE); schools[1].radius = 17; schools[1].bob = 3;
 }
 
 // Flatten a loaded glTF scene into one vertex-colored geometry.
@@ -831,6 +642,12 @@ const jellies = [];
   }
 }
 
+// These three stay in the grove instead of drifting away from their landmark.
+[[174, -30, 88], [135, -24, 47], [143, -33, 103]].forEach((p, i) => {
+  const j = jellies[i]; j.home = new THREE.Vector3(p[0] * COURSE_SCALE, p[1], p[2] * COURSE_SCALE); j.g.position.copy(j.home);
+  j.g.scale.setScalar(1.65 + i * .2);
+});
+
 /* ---------------------------------------------------------------- bubbles */
 
 // One bubble system for the ambient ocean and one for Zeeb's trail. Both are
@@ -864,6 +681,8 @@ function bubbleMaterial(color) {
         float hi = 1.0 - smoothstep(0.0, 0.12, length(p - vec2(-0.14, -0.14)));
         float a = (ring * 0.9 + hi * 0.9 + 0.08) * vAlpha;
         gl_FragColor = vec4(uColor, a);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
         #include <fog_fragment>
       }`
   });
@@ -916,16 +735,20 @@ function spawnBubble(p, size) {
 /* ------------------------------------------------------------------- Zeeb */
 
 // Three nested groups: duck owns position and heading (yaw), duckTilt owns
-// pitch and bank, duckInner owns the model scale and the swim wobble. Keeping
-// them apart means the bank never fights the wobble for the same rotation.
+// pitch and bank for the scooter, duckInner owns the seated pilot's scale,
+// swivel, and gentle movement. The pilot can look back without steering the craft.
 const duck = new THREE.Group();
 const duckTilt = new THREE.Group();
 const duckInner = new THREE.Group();
 duck.add(duckTilt); duckTilt.add(duckInner);
 duck.position.copy(SPAWN);
 scene.add(duck);
-const ZEEB_SCALE = 1.0; // Was 0.66; Ben asked for a bigger Zeeb.
+const ZEEB_SCALE = 1.12;
 duckInner.scale.setScalar(ZEEB_SCALE);
+const scooter = createScooter(duckTilt);
+const pilotCamera = createPilotCamera();
+const PILOT_SEAT_Y = .38;
+duckInner.position.y = PILOT_SEAT_Y;
 
 // A small warm light rides with Zeeb so he stays readable in the deep.
 const headlamp = new THREE.PointLight(0xffe2b8, 14, 9, 1.5);
@@ -937,7 +760,7 @@ loader.setMeshoptDecoder(MeshoptDecoder);
 loader.load('./zeeb.glb', (gltf) => {
   const model = gltf.scene;
   model.position.y = -0.09; // Feet on the group origin, same as the waterfall lab.
-  // Zeeb's belly sits a little below the swim line so the heading looks level.
+  // The original model offset is lifted into the cockpit by duckInner.
   model.position.y -= 0.35;
   duckInner.add(model);
   document.getElementById('loading').style.display = 'none';
@@ -1192,11 +1015,13 @@ window.addEventListener('pageshow', musicWake);
 const keys = new Set();
 const hint = document.getElementById('hint');
 if (new URLSearchParams(location.search).has('preview')) document.body.classList.add('preview');
+if (new URLSearchParams(location.search).has('debug')) document.body.classList.add('debug');
 let hintShown = true;
 function dismissHint() {
   if (hintShown) { hintShown = false; hint.classList.add('gone'); }
 }
 window.addEventListener('keydown', (e) => {
+  if (e.target.closest?.('button, input, textarea, a') && ['Space', 'Enter'].includes(e.code)) return;
   keys.add(e.code);
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   dismissHint();
@@ -1209,8 +1034,14 @@ window.addEventListener('blur', () => keys.clear());
 
 // Touch and mouse: drag from wherever the finger lands. Sideways drag turns,
 // vertical drag climbs or dives, and holding at all swims forward.
-const touch = { active: false, x0: 0, y0: 0, dx: 0, dy: 0 };
+const touch = { active: false, pointerId: null, pointerType: 'touch', x0: 0, y0: 0, dx: 0, dy: 0, turn: 0, rise: 0 };
 canvas.addEventListener('pointerdown', (e) => {
+  if (rally.state.mode === 'paused' || rally.state.mode === 'welcome' || rally.state.mode === 'finished') return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (touch.active) return;
+  touch.pointerId = e.pointerId;
+  touch.pointerType = e.pointerType || 'mouse';
+  touch.turn = touch.rise = 0;
   touch.active = true; touch.x0 = e.clientX; touch.y0 = e.clientY; touch.dx = 0; touch.dy = 0;
   canvas.setPointerCapture(e.pointerId);
   dismissHint();
@@ -1218,24 +1049,37 @@ canvas.addEventListener('pointerdown', (e) => {
   // A finger or pen press is not one yet (the browser cannot tell a tap from
   // a scroll until it ends); those start on the lift, in endTouch.
   if (e.pointerType === 'mouse') musicStart();
+  const pad = document.getElementById('steerPad');
+  pad.hidden = false; pad.style.left = e.clientX + 'px'; pad.style.top = e.clientY + 'px';
+  document.getElementById('steerKnob').style.transform = 'translate(0, 0)';
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (!touch.active) return;
-  touch.dx = (e.clientX - touch.x0) / 140;
-  touch.dy = (e.clientY - touch.y0) / 140;
+  if (!touch.active || e.pointerId !== touch.pointerId) return;
+  if (e.pointerType === 'mouse' && e.buttons === 0) { endTouch(e); return; }
+  const mouse = touch.pointerType === 'mouse';
+  touch.dx = (e.clientX - touch.x0) / (mouse ? MOUSE_DRAG_X : 64);
+  touch.dy = (e.clientY - touch.y0) / (mouse ? MOUSE_DRAG_Y : 90);
 });
 const endTouch = (e) => {
+  if (e.pointerId !== undefined && e.pointerId !== touch.pointerId) return;
   touch.active = false; touch.dx = 0; touch.dy = 0;
+  touch.turn = touch.rise = 0;
+  touch.pointerId = null;
+  document.getElementById('steerPad').hidden = true;
   // Lifting a finger or pen is the first moment the browser counts as a
   // gesture. pointercancel is not one.
   if (e.type === 'pointerup') musicStart();
 };
 canvas.addEventListener('pointerup', endTouch);
 canvas.addEventListener('pointercancel', endTouch);
+canvas.addEventListener('lostpointercapture', endTouch);
+window.addEventListener('blur', () => endTouch({}));
+document.addEventListener('visibilitychange', () => { if (document.hidden) { keys.clear(); endTouch({}); } });
 // Safety net for a browser that does not deliver pointerup to the canvas.
 canvas.addEventListener('touchend', () => musicStart(), { passive: true });
 
-function readInput() {
+function readInput(dt) {
+  const pointer = stepPointer(touch, dt);
   let thrust = 0, turn = 0, rise = 0;
   if (keys.has('ArrowUp') || keys.has('KeyW')) thrust += 1;
   if (keys.has('ArrowDown') || keys.has('KeyS')) thrust -= 0.6;
@@ -1245,29 +1089,54 @@ function readInput() {
   if (keys.has('ShiftLeft') || keys.has('ShiftRight') || keys.has('KeyQ')) rise -= 1;
   if (touch.active) {
     thrust = Math.max(thrust, 1);
-    turn -= THREE.MathUtils.clamp(touch.dx, -1, 1);
-    rise -= THREE.MathUtils.clamp(touch.dy, -1, 1);
+    turn -= pointer.turn;
+    rise -= pointer.rise;
+    document.getElementById('steerKnob').style.transform = `translate(${pointer.turn * 32}px, ${pointer.rise * 32}px)`;
   }
   return { thrust, turn: THREE.MathUtils.clamp(turn, -1, 1), rise: THREE.MathUtils.clamp(rise, -1, 1) };
 }
 
 /* --------------------------------------------------------- swim physics */
 
-// Zeeb is a little submarine: thrust along his heading, drag proportional to
-// speed, a separate vertical thrust, and a yaw rate that eases in. Numbers
-// are in feet and seconds.
+// The scooter responds quickly and grips through corners. Its separate
+// depth control and the rally's approach assistance keep hoop runs forgiving.
 const swim = {
   vel: new THREE.Vector3(),
   yaw: 0, yawRate: 0,
   pitch: 0, bank: 0,
   speed: 0
 };
-const MAX_SPEED = 14, THRUST = 22, DRAG = 1.6, TURN_RATE = 2.2, RISE = 12;
+const MAX_SPEED = CRUISE_SPEED;
 const fwd = new THREE.Vector3();
-const camPos = new THREE.Vector3(SPAWN.x, SPAWN.y + 3, SPAWN.z + 9);
+const camPos = new THREE.Vector3(SPAWN.x, SPAWN.y + 3.5, SPAWN.z - 11);
 const camLook = new THREE.Vector3().copy(SPAWN);
 const tmpV = new THREE.Vector3();
 const billPos = new THREE.Vector3();
+
+const rally = createRally({ scene, camera, duck, swim, camPos, camLook, spawnBubble, musicStart, music,
+  clearInput: () => { keys.clear(); endTouch({}); } });
+const reef = createReef({ scene, floorY, timeUniform, spawnBubble, duck, rally, onDiscover: rally.announce, reducedMotion: rally.reducedMotion });
+const swimPrevious = new THREE.Vector3(), cameraOrigin = new THREE.Vector3();
+// Follow reduced motion by default, but let the player explicitly choose the
+// playful face-reveal camera independently of screen shake and boost zoom.
+let playfulCamera = !rally.reducedMotion;
+try {
+  const savedCamera = localStorage.getItem('zeeb-reef-camera');
+  if (savedCamera === 'playful' || savedCamera === 'steady') playfulCamera = savedCamera === 'playful';
+} catch {}
+const cameraBtn = document.createElement('button');
+cameraBtn.id = 'cameraBtn'; cameraBtn.type = 'button'; cameraBtn.style.pointerEvents = 'auto';
+cameraBtn.title = 'Playful briefly shows Zeeb’s face during turns. Steady keeps the chase view.';
+function labelCamera() {
+  cameraBtn.textContent = 'Camera: ' + (playfulCamera ? 'Playful' : 'Steady');
+  cameraBtn.setAttribute('aria-pressed', String(playfulCamera));
+}
+cameraBtn.addEventListener('click', () => {
+  playfulCamera = !playfulCamera; pilotCamera.state.phase = 0; pilotCamera.state.cooldown = 0;
+  try { localStorage.setItem('zeeb-reef-camera', playfulCamera ? 'playful' : 'steady'); } catch {}
+  labelCamera();
+});
+document.getElementById('right').append(cameraBtn); labelCamera();
 
 /* ---------------------------------------------------------------- the HUD */
 
@@ -1280,38 +1149,27 @@ let lastDepthShown = -1;
 let lastNow = performance.now();
 let elapsed = 0;
 let frames = 0, fpsTimer = 0;
-const shallow = new THREE.Color(0x1d8fb0), deep = new THREE.Color(0x031e2e);
+const shallow = new THREE.Color(0x65e7e5), deep = new THREE.Color(0x26b0cc);
 const fogNow = new THREE.Color();
 
 function animate() {
   const now = performance.now();
-  const dt = Math.min((now - lastNow) / 1000, 0.05);
+  const dt = rally.state.mode === 'paused' ? 0 : Math.min((now - lastNow) / 1000, 0.05);
   lastNow = now;
   elapsed += dt;
   const t = elapsed;
   timeUniform.value = t;
 
   /* --- Zeeb --- */
-  const inp = readInput();
+  const inp = rally.beforeStep(readInput(dt), dt);
+  const boosting = rally.state.boost > 0;
 
-  // Yaw eases toward the stick so turns start and stop softly.
-  swim.yawRate += (inp.turn * TURN_RATE - swim.yawRate) * Math.min(1, dt * 6);
-  swim.yaw += swim.yawRate * dt;
+  stepScooter(swim, inp, boosting, dt);
   fwd.set(Math.sin(swim.yaw), 0, Math.cos(swim.yaw));
 
-  swim.vel.addScaledVector(fwd, inp.thrust * THRUST * dt);
-  swim.vel.y += inp.rise * RISE * dt;
-  // Drag: quadratic-ish so top speed settles rather than creeping.
-  const sp = swim.vel.length();
-  if (sp > 0) {
-    const drag = DRAG + sp * 0.12;
-    swim.vel.multiplyScalar(Math.max(0, 1 - drag * dt));
-    if (sp > MAX_SPEED) swim.vel.multiplyScalar(MAX_SPEED / sp);
-  }
-  // A faint current keeps him drifting even at rest, like real water.
-  swim.vel.x += Math.sin(t * 0.3) * 0.05 * dt;
-
+  swimPrevious.copy(duck.position);
   duck.position.addScaledVector(swim.vel, dt);
+  if(dt>0)reef.wreck.resolveMovement(swimPrevious,duck.position,swim.vel);
 
   // Stay under the surface, above the sand, and inside the world.
   const sand = floorY(duck.position.x, duck.position.z) + 1.4;
@@ -1326,22 +1184,32 @@ function animate() {
   swim.speed = swim.vel.length();
   const speedFrac = swim.speed / MAX_SPEED;
 
-  // Posture: nose follows vertical motion, body banks into turns, and a swim
-  // wobble that scales with speed.
+  // The scooter banks into turns. Zeeb remains seated and can swivel toward
+  // the camera independently of the craft's heading.
   const pitchTarget = THREE.MathUtils.clamp(-swim.vel.y * 0.06, -0.6, 0.6) - inp.rise * 0.15;
   swim.pitch += (pitchTarget - swim.pitch) * Math.min(1, dt * 5);
-  const bankTarget = -swim.yawRate * 0.28 * (0.4 + speedFrac);
-  swim.bank += (bankTarget - swim.bank) * Math.min(1, dt * 5);
+  const bankTarget = THREE.MathUtils.clamp(-swim.yawRate * .22 * (.4 + speedFrac), -.58, .58);
+  swim.bank += (bankTarget - swim.bank) * (1 - Math.exp(-dt * 12));
   duck.rotation.y = swim.yaw;
   duckTilt.rotation.x = swim.pitch;
-  duckTilt.rotation.z = swim.bank;
-  duckInner.rotation.z = Math.sin(t * 9) * 0.06 * speedFrac;
-  duckInner.rotation.y = Math.sin(t * 9 + 1) * 0.05 * speedFrac;
-  duckInner.position.y = Math.sin(t * 2.2) * 0.05;
+  duckTilt.rotation.z = swim.bank * .72;
+  const targetRing = rally.rings[rally.state.next];
+  const portrait = camera.aspect < .85;
+  const insideWreck = reef.wreck.near(duck.position);
+  const pilotView = pilotCamera.update(dt, { mode: rally.state.mode, yawRate: swim.yawRate,
+    turn: inp.turn, speed: swim.speed, targetDistance: rally.state.mode === 'racing' && targetRing
+      ? duck.position.distanceTo(targetRing.position) : Infinity,
+    portrait, reducedMotion: !playfulCamera || insideWreck });
+  duckInner.rotation.z = Math.sin(t * 7) * .018 * speedFrac;
+  duckInner.rotation.y = pilotView.pilotYaw + Math.sin(t * 6) * .018 * speedFrac;
+  duckInner.position.y = PILOT_SEAT_Y + Math.sin(t * 2.2) * .025;
+  rally.afterStep(dt, t);
+  reef.update(dt, t);
+  scooter.update(dt, swim.speed, boosting, spawnBubble);
 
-  // Bubbles from the bill while he swims, plus a slow breath at rest.
+  // A few little breath bubbles; the main wake now comes from the propeller.
   billPos.copy(duck.position).addScaledVector(fwd, 1.3).add(tmpV.set(0, 0.65, 0));
-  if (speedFrac > 0.15 && Math.random() < speedFrac * 0.6) spawnBubble(billPos, rrange(0.08, 0.2));
+  if (speedFrac > 0.15 && Math.random() < speedFrac * 0.1) spawnBubble(billPos, rrange(0.08, 0.14));
   else if (Math.random() < 0.02) spawnBubble(billPos, 0.18);
 
   // Trail bubbles rise, wobble, and fade.
@@ -1421,6 +1289,14 @@ function animate() {
   for (const j of jellies) {
     const pulse = Math.sin(t * 1.6 + j.phase);
     j.dome.scale.set(1 - pulse * 0.12, 1 + pulse * 0.28, 1 - pulse * 0.12);
+    if (j.home) {
+      j.g.position.copy(j.home);
+      j.g.position.y += Math.sin(t * .55 + j.phase) * 1.2;
+      j.g.position.x += Math.sin(t * .2 + j.phase) * 1.4;
+      j.g.rotation.y = Math.atan2(duck.position.x - j.g.position.x, duck.position.z - j.g.position.z);
+      j.g.rotation.z = Math.sin(t * .5 + j.phase) * .08;
+      continue;
+    }
     j.g.position.y += j.drift * dt * (0.6 + Math.max(0, pulse));
     j.wander += (Math.random() - 0.5) * dt * 0.4;
     j.g.position.x += Math.cos(j.wander) * 0.35 * dt;
@@ -1440,10 +1316,18 @@ function animate() {
   fogNow.copy(shallow).lerp(deep, depthFrac);
   scene.fog.color.copy(fogNow);
   scene.background.copy(fogNow);
-  // Thinned a little from 0.009 so the sand keeps its yellow at mid distance.
-  scene.fog.density = 0.0072 + depthFrac * 0.008;
-  hemi.intensity = 1.6 - depthFrac * 0.7;
-  sun.intensity = 1.7 - depthFrac * 0.9;
+  // Clear aqua distance keeps the sculpted reef readable between hoops.
+  scene.fog.density = 0.0035 + depthFrac * 0.003;
+  hemi.intensity = .8;
+  sun.intensity = 3.1;
+  if (duck.position.distanceToSquared(shadowAnchor) > 36) {
+    shadowAnchor.copy(duck.position);
+    sun.target.position.copy(shadowAnchor);
+    sun.position.copy(shadowAnchor).add(tmpV.set(-34, 65, 24));
+    renderer.shadowMap.needsUpdate = true;
+  }
+
+  if (reef.treasure.state.opened && reef.treasure.state.time < 3) renderer.shadowMap.needsUpdate = true;
 
   /* --- music muffles with depth: 16 kHz open at the surface, 600 Hz deep --- */
   if (music.filter && music.ctx && music.ctx.state === 'running') {
@@ -1451,18 +1335,39 @@ function animate() {
     music.filter.frequency.setTargetAtTime(cutoff, music.ctx.currentTime, 0.15);
   }
 
-  /* --- camera: a lagging chase, above and behind --- */
-  tmpV.copy(duck.position).addScaledVector(fwd, -9);
-  tmpV.y += 3.2 - swim.pitch * 1.5;
-  camPos.lerp(tmpV, 1 - Math.exp(-dt * 2.8));
-  tmpV.copy(duck.position).addScaledVector(fwd, 3).addScaledVector(swim.vel, 0.15);
-  camLook.lerp(tmpV, 1 - Math.exp(-dt * 5));
+  /* --- camera: close chase, brief turn glances, and a front-facing welcome --- */
+  fwd.set(Math.sin(swim.yaw), 0, Math.cos(swim.yaw));
+  const showPilot = pilotView.presentation;
+  const orbitYaw = swim.yaw + pilotView.orbit + showPilot * 2.55;
+  const chaseDistance = insideWreck ? 6.8 : boosting && !rally.reducedMotion ? 8.6 : 7.8;
+  const cameraDistance = THREE.MathUtils.lerp(chaseDistance, portrait ? 6.7 : 5.8, showPilot);
+  tmpV.set(-Math.sin(orbitYaw) * cameraDistance, 0, -Math.cos(orbitYaw) * cameraDistance).add(duck.position);
+  tmpV.y += THREE.MathUtils.lerp(2.6 - swim.pitch, 1.9, showPilot);
+  if (rally.state.mode === 'finished') {
+    const frame=reef.treasure.frame(duck.position,portrait);
+    const amount=rally.reducedMotion ? 1 : 1-Math.exp(-dt*2.4);
+    camPos.lerp(frame.eye,amount);camLook.lerp(frame.look,amount);
+  } else {
+    // Carry the camera with the craft, then ease its orbit. Without this,
+    // translation lag adds several feet during a boost and makes Zeeb tiny.
+    camPos.addScaledVector(swim.vel, dt * (1 - showPilot));
+    camPos.lerp(tmpV, 1 - Math.exp(-dt * (showPilot > .5 ? 4 : 7.5)));
+    tmpV.copy(duck.position).addScaledVector(fwd, 2.2 * (1 - showPilot)).addScaledVector(swim.vel, .1 * (1 - showPilot));
+    tmpV.y += .5;
+    camLook.lerp(tmpV, 1 - Math.exp(-dt * 9));
+  }
   // The camera never goes into the sand or through the surface either.
   camPos.y = Math.max(camPos.y, floorY(camPos.x, camPos.z) + 1.5);
   camPos.y = Math.min(camPos.y, SURFACE_Y - 0.8);
+  if(dt>0)reef.wreck.clipCamera(cameraOrigin.copy(duck.position).add(new THREE.Vector3(0,.7,0)),camPos);
   camera.position.copy(camPos);
   camera.lookAt(camLook);
-  camera.rotation.z += swim.bank * 0.25;
+  if (!rally.reducedMotion) camera.rotation.z += swim.bank * .08 * (1 - pilotView.amount);
+  const targetFov = rally.state.mode === 'finished' ? (portrait ? 58 : 52) : insideWreck ? 68 : THREE.MathUtils.lerp(boosting && !rally.reducedMotion ? 65 : 60, 52, showPilot);
+  if (Math.abs(camera.fov - targetFov) > .01) {
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix();
+  }
+  rally.updateGuide();
 
   renderer.render(scene, camera);
 
@@ -1490,7 +1395,20 @@ function animate() {
 requestAnimationFrame(animate);
 
 // Debug handle for the console or a driving script.
-window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, music };
+window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, music, rally, reef, touch, scooter, pilotCamera,
+  // Fixed views let artwork iterations be compared at the same camera and time.
+  reviewView({ position, yaw = 0, eye, target, hoop = 0, fov = 60 }) {
+    keys.clear(); endTouch({});
+    rally.state.mode = 'paused'; rally.state.pausedMode = 'explore'; rally.state.next = hoop;
+    rally.state.boost = 0; rally.refreshRings();
+    document.body.classList.add('preview');
+    duck.position.set(...position); swim.vel.set(0, 0, 0);
+    swim.yaw = yaw; swim.yawRate = swim.pitch = swim.bank = swim.speed = 0;
+    Object.assign(pilotCamera.state, { phase: 0, amount: 0, orbit: 0, pilotYaw: 0, presentation: 0 });
+    elapsed = 12; timeUniform.value = elapsed;
+    camPos.set(...eye); camLook.set(...target); camera.fov = fov; camera.updateProjectionMatrix();
+  }
+};
 </script>
 </body>
 </html>

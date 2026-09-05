@@ -1,0 +1,95 @@
+:root { color-scheme: dark; font-family: 'Trebuchet MS', 'Segoe UI', sans-serif; color: #f3fcfa; }
+button { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible { outline: 3px solid #ffe08a; outline-offset: 4px; }
+[hidden] { display: none !important; }
+#hud { padding: max(18px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) 12px max(22px, env(safe-area-inset-left)); font-family: inherit; }
+#depth { position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); right: 24px; font-size: 21px; }
+#depth small { display: inline; text-transform: none; font-size: 13px; letter-spacing: 0; margin-right: 7px; }
+#right { margin-left: auto; gap: 7px; }
+#right .row { gap: 6px; }
+#right button { font-size: 13px; padding: 9px 12px; min-height: 42px; border: 1px solid #b4eeef45; border-radius: 24px; background: #063b4ed9; }
+#now { font-size: 11px; max-width: 235px; }
+#perf { display: none; font-size: 11px; }
+body.debug #perf { display: block; }
+#hint { bottom: 22px; font-size: 13px; border: 0; padding: 8px 15px; border-radius: 30px; max-width: 48vw; }
+#rallyHud { position: fixed; top: max(20px, env(safe-area-inset-top)); left: max(24px, env(safe-area-inset-left)); z-index: 6; pointer-events: none; text-shadow: 0 2px 8px #002c48; }
+#rallyHud .brand { font-weight: 800; font-size: 17px; }
+#raceStats { margin-top: 12px; min-width: 185px; }
+#zone { font-size: 12px; color: #b3eee7; margin-bottom: 4px; }
+.score-line { display: flex; align-items: baseline; gap: 16px; }
+#hoopCount { font-size: 32px; font-weight: 900; }
+#hoopCount small { font-size: 15px; font-weight: 600; color: #c5e8e6; }
+#raceTime { font-size: 18px; font-variant-numeric: tabular-nums; }
+#score { margin-top: 6px; font-size: 12px; color: #ffe08a; }
+#progress { display: flex; gap: 4px; margin-top: 9px; }
+#progress i { width: 12px; height: 5px; border-radius: 4px; background: #e5fff83b; }
+#progress i.done { background: #ffe08a; box-shadow: 0 0 8px #ffe08a70; }
+#progress i.current { background: #e6fff6; }
+#menu { position: fixed; z-index: 8; left: max(30px, env(safe-area-inset-left)); bottom: max(80px, calc(env(safe-area-inset-bottom) + 65px)); width: min(365px, calc(100vw - 60px)); box-sizing: border-box; padding: 26px; border: 1px solid #c4ffef55; border-radius: 8px 32px 32px 32px; background: #063847eb; box-shadow: 0 16px 60px #002a4640; }
+#menu h1 { font-size: clamp(32px, 4vw, 46px); letter-spacing: -1.8px; line-height: 1.02; margin: 5px 0 14px; color: #ffe08a; }
+#menu p { font-size: 15px; line-height: 1.55; margin: 12px 0 20px; color: #e3f6f1; }
+#menu .signature { color: #97d9d0; font-size: 12px; margin-bottom: 9px; }
+.menu-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.menu-actions button { font: inherit; font-size: 14px; font-weight: 800; min-height: 45px; padding: 12px 18px; border: 1px solid #fff5; border-radius: 24px; cursor: pointer; background: transparent; color: #f3fcfa; }
+.menu-actions button.primary { color: #163f4b; background: #ffe08a; border-color: #ffe08a; }
+.menu-actions button:hover { filter: brightness(1.13); }
+#menuHelp { font-size: 11px; line-height: 1.6; color: #a2d6d2; margin-top: 16px; }
+#rallyControls { position: fixed; z-index: 7; bottom: max(20px, env(safe-area-inset-bottom)); left: max(22px, env(safe-area-inset-left)); display: flex; gap: 8px; align-items: center; }
+#rallyControls button { font: inherit; font-weight: 800; min-height: 44px; cursor: pointer; touch-action: manipulation; }
+#boostBtn { position: relative; isolation: isolate; overflow: hidden; background: #073746ed; color: #ffedb8; padding: 12px 24px; border: 2px solid #ffe08a; border-radius: 28px; }
+#boostFill { position: absolute; z-index: -1; left: 0; bottom: 0; top: 0; width: 100%; background: #d5ad442e; transform-origin: left; }
+#boostBtn:disabled { border-color: #c9e9e670; color: #c9e9e6; cursor: default; }
+#rescueBtn, #playBtn { background: #073746d9; border: 1px solid #a1d5d966; color: #e6f9f1; padding: 10px 15px; border-radius: 24px; font-size: 12px; }
+#toast { position: fixed; pointer-events: none; z-index: 7; top: 26%; width: 100%; text-align: center; opacity: 0; transform: translateY(8px); transition: opacity .15s, transform .15s; color: #ffe08a; font-size: clamp(22px, 4vw, 38px); font-weight: 900; text-shadow: 0 3px 14px #073949; }
+#toast.show { opacity: 1; transform: translateY(0); }
+#target { position: fixed; z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 7px; padding: 7px 11px; border-radius: 22px; color: #fff3bf; background: #073d4aca; font-size: 12px; font-weight: 800; white-space: nowrap; }
+#targetArrow { display: inline-block; font-size: 20px; }
+#countdown { position: fixed; z-index: 7; top: 33%; width: 100%; text-align: center; pointer-events: none; font-size: 100px; font-weight: 900; color: #ffe08a; text-shadow: 0 4px 25px #003447; }
+#steerPad { position: fixed; z-index: 4; pointer-events: none; width: 108px; height: 108px; margin: -54px; border: 2px solid #d3fff950; border-radius: 50%; background: #07445633; }
+#steerKnob { position: absolute; left: 34px; top: 34px; width: 40px; height: 40px; background: #dbfff866; border: 1px solid #f3fffc99; border-radius: 50%; }
+body.preview #rallyHud, body.preview #menu, body.preview #rallyControls, body.preview #target, body.preview #toast, body.preview #countdown { display: none !important; }
+#wreckStats { margin-top: 15px; }
+#wreckRoom { color: #c6eee0; font-size: 13px; margin-bottom: 5px; }
+.wreck-score { display:flex; align-items:center; gap:8px; }
+.wreck-score i { width:18px; height:18px; border:3px solid #ffe59b; border-radius:50%; background:#c59839; box-shadow:0 0 12px #ffd36e55; }
+.wreck-score strong { color:#ffe08a; font-size:26px; font-variant-numeric:tabular-nums; }
+.wreck-score span, #wreckClue { font-size:12px; color:#d8efe2; }
+#wreckClue { margin-top:6px; max-width:260px; line-height:1.5; }
+#wreckBtn { border-color:#b6e5d2; background:#446e6266; }
+#wreckReturn, #wreckAgain { background:#073746e8; border:1px solid #a1d5d966; color:#e6f9f1; padding:10px 15px; border-radius:24px; font-size:12px; }
+#wreckAgain { position:absolute; bottom:54px; left:0; white-space:nowrap; }
+@media (max-width:650px) {
+  #wreckStats { margin-top:32px; }
+  .wreck-score strong { font-size:23px; }
+  #wreckClue { max-width:220px; font-size:11px; }
+  #wreckReturn { font-size:11px; padding:10px 12px; }
+}
+@media (max-width: 650px) {
+  #hud { padding: max(12px, env(safe-area-inset-top)) 12px; }
+  #right button { font-size: 11px; padding: 7px 9px; }
+  #right #nextBtn { display: none; }
+  #now { max-width: 145px; font-size: 10px; }
+  #rallyHud { top: max(15px, env(safe-area-inset-top)); left: 15px; }
+  #rallyHud .brand { font-size: 14px; }
+  #raceStats { min-width: 140px; margin-top: 8px; }
+  #hoopCount { font-size: 26px; }
+  #progress { gap: 3px; }
+  #progress i { width: 9px; }
+  #menu { left: 18px; width: calc(100vw - 36px); max-width: 360px; padding: 21px; bottom: max(72px, calc(env(safe-area-inset-bottom) + 60px)); }
+  #menu h1 { font-size: 37px; }
+  #menu p { font-size: 14px; margin-bottom: 14px; }
+  #hint { bottom: 80px; max-width: 80vw; width: max-content; }
+  #depth { right: 16px; bottom: max(29px, env(safe-area-inset-bottom)); font-size: 17px; }
+  #rallyControls { left: 15px; }
+  #boostBtn { padding: 11px 17px; font-size: 13px; }
+  #rescueBtn { max-width: 106px; font-size: 11px; }
+}
+@media (max-height: 540px) {
+  #menu { bottom: 66px; padding: 17px 22px; width: 360px; }
+  #menu h1 { font-size: 30px; margin: 0 0 8px; }
+  #menu p { font-size: 12px; margin: 8px 0 12px; }
+  #menuHelp { display: none; }
+  #raceStats { margin-top: 6px; }
+  #toast { top: 20%; }
+}
+@media (prefers-reduced-motion: reduce) { #toast, #hint { transition: none; } }
