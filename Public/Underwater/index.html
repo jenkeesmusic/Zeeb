@@ -121,6 +121,8 @@ import { createSwimControls } from './touch-controls.js';
 import { CRUISE_SPEED, stepScooter } from './scooter-handling.js';
 import { makeKelpGeometry, causticGLSL } from './reef-garden.js';
 import { wreckFloor, inWreckFootprint } from './wreck-layout.js';
+import { reefDetail, renderRatio, createQualityController, createFrameClock } from './reef-performance.js';
+import { tileFloor } from './reef-chunks.js';
 
 /* ----------------------------------------------------------------- layout */
 
@@ -169,10 +171,14 @@ function floorY(x, z) {
 
 const canvas = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
+const performanceQuality = createQualityController({
+  coarse: matchMedia('(pointer: coarse)').matches,
+  onChange: applyQuality
+});
+renderer.setPixelRatio(renderRatio(performanceQuality.profile, innerWidth, innerHeight, devicePixelRatio));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = performanceQuality.profile.shadows;
 renderer.shadowMap.type = THREE.VSMShadowMap;
 renderer.shadowMap.autoUpdate = false;
 
@@ -198,6 +204,7 @@ const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400 * COURSE_SCALE);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
+  renderer.setPixelRatio(renderRatio(performanceQuality.profile, w, h, devicePixelRatio));
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -293,6 +300,7 @@ const timeUniform = { value: 0 };
     emissive: 0xe6bd72, emissiveIntensity: .09 });
   mat.onBeforeCompile = shader => {
     shader.uniforms.reefTime = timeUniform;
+    shader.uniforms.reefDetail = reefDetail;
     shader.vertexShader = 'varying vec3 sandWorld;\n' + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n sandWorld=(modelMatrix*vec4(transformed,1.)).xyz;');
     shader.fragmentShader = 'varying vec3 sandWorld;\nuniform float reefTime;\n' + causticGLSL + shader.fragmentShader;
@@ -304,8 +312,7 @@ const timeUniform = { value: 0 };
     `);
   };
   mat.customProgramCacheKey = () => 'storybook-sand';
-  const floor = new THREE.Mesh(geo, mat); floor.receiveShadow = true;
-  scene.add(floor);
+  scene.add(tileFloor(geo, SEG, mat));
 }
 
 /* ------------------------------------------------------------ the surface */
@@ -364,6 +371,7 @@ let surfaceMat;
       }`
   });
   surfaceMat.uniforms.uTime = timeUniform;
+  surfaceMat.uniforms.reefDetail = reefDetail;
   const surface = new THREE.Mesh(geo, surfaceMat);
   surface.renderOrder = -10;
   surface.position.y = SURFACE_Y;
@@ -535,7 +543,10 @@ function buildSchools(fishGeo, sizeRange) {
         size: rrange(sizeRange[0], sizeRange[1])
       });
     }
-    mesh.frustumCulled = false;
+    // Instance matrices contain world coordinates; the school bounds follow
+    // its center. Include home offsets, fleeing fish, and the full model size.
+    mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 25);
+    mesh.frustumCulled = true;
     scene.add(mesh);
     const a = rand() * Math.PI * 2, r = rrange(20, 150);
     schools.push({
@@ -1090,6 +1101,45 @@ cameraBtn.addEventListener('click', () => {
 });
 document.getElementById('right').append(cameraBtn); labelCamera();
 
+// Keep the world and controls identical at every setting. Only rendering work
+// changes. Auto measures this device instead of guessing from its model name.
+const graphicsBtn = document.createElement('button');
+graphicsBtn.id = 'graphicsBtn'; graphicsBtn.type = 'button'; graphicsBtn.style.pointerEvents = 'auto';
+graphicsBtn.title = 'Auto adjusts to your device. Click to choose Smooth, Detailed, or Auto.';
+document.getElementById('right').append(graphicsBtn);
+const optionalLights = [];
+scene.traverse(light => {
+  // Keep Zeeb's lamp and the initially-dark treasure reveal at all settings.
+  if (light.isPointLight && light !== headlamp && light.intensity > 0) optionalLights.push({ light, position: new THREE.Vector3(), distance: 0 });
+});
+let lightingTimer = 0;
+function updateLighting() {
+  for (const entry of optionalLights) {
+    entry.light.getWorldPosition(entry.position);
+    entry.distance = entry.position.distanceToSquared(duck.position);
+  }
+  optionalLights.sort((a,b) => a.distance - b.distance);
+  optionalLights.forEach((entry,i) => { entry.light.visible = i < performanceQuality.profile.lights; });
+}
+function applyQuality() {
+  const profile = performanceQuality.profile;
+  reefDetail.value = profile.caustics;
+  renderer.shadowMap.enabled = profile.shadows;
+  renderer.shadowMap.needsUpdate = profile.shadows;
+  ambGeo.setDrawRange(0, profile.bubbles);
+  updateLighting(); resize();
+  graphicsBtn.textContent = `Graphics: ${performanceQuality.mode === 'auto' ? 'Auto' : profile.name}`;
+}
+graphicsBtn.addEventListener('click', () => {
+  const modes = ['auto', 'smooth', 'detailed'];
+  performanceQuality.setMode(modes[(modes.indexOf(performanceQuality.mode) + 1) % modes.length]);
+  try { localStorage.setItem('zeeb-reef-graphics', performanceQuality.mode); } catch {}
+});
+let savedQuality;
+try { savedQuality = localStorage.getItem('zeeb-reef-graphics'); } catch {}
+if (['smooth','detailed'].includes(savedQuality)) performanceQuality.setMode(savedQuality);
+else applyQuality();
+
 /* ---------------------------------------------------------------- the HUD */
 
 const depthEl = document.getElementById('depth');
@@ -1098,7 +1148,11 @@ let lastDepthShown = -1;
 
 /* ------------------------------------------------------------ render loop */
 
-let lastNow = performance.now();
+const frameClock = createFrameClock(performance.now());
+document.addEventListener('visibilitychange', () => {
+  frameClock.reset(performance.now()); performanceQuality.reset();
+});
+const fishFrustum = new THREE.Frustum(), fishViewProjection = new THREE.Matrix4();
 let elapsed = 0;
 let frames = 0, fpsTimer = 0;
 const shallow = new THREE.Color(0x65e7e5), deep = new THREE.Color(0x26b0cc);
@@ -1106,34 +1160,43 @@ const fogNow = new THREE.Color();
 
 function animate() {
   const now = performance.now();
-  const dt = rally.state.mode === 'paused' ? 0 : Math.min((now - lastNow) / 1000, 0.05);
-  lastNow = now;
-  elapsed += dt;
-  const t = elapsed;
-  timeUniform.value = t;
+  const frame = frameClock.sample(now, rally.state.mode === 'paused' || document.hidden);
+  const { dt, realDt } = frame;
+  performanceQuality.sample(realDt, !document.hidden && rally.state.mode !== 'paused');
 
   /* --- Zeeb --- */
-  const inp = rally.beforeStep(readInput(dt), dt);
-  const boosting = rally.state.boost > 0;
+  let inp = { thrust: 0, turn: 0, rise: 0 };
+  // Cover the real elapsed time even at 10–20 FPS. Small physics steps retain
+  // the steering feel and swept hoop/wreck collisions without slow motion.
+  for (let step = 0; step < frame.steps; step++) {
+    const dt = frame.step;
+    elapsed += dt;
+    inp = rally.beforeStep(readInput(dt), dt);
 
-  stepScooter(swim, inp, boosting, dt);
-  fwd.set(Math.sin(swim.yaw), 0, Math.cos(swim.yaw));
+    stepScooter(swim, inp, rally.state.boost > 0, dt);
+    fwd.set(Math.sin(swim.yaw), 0, Math.cos(swim.yaw));
 
-  swimPrevious.copy(duck.position);
-  duck.position.addScaledVector(swim.vel, dt);
-  if(dt>0)reef.wreck.resolveMovement(swimPrevious,duck.position,swim.vel);
+    swimPrevious.copy(duck.position);
+    duck.position.addScaledVector(swim.vel, dt);
+    reef.wreck.resolveMovement(swimPrevious,duck.position,swim.vel);
 
-  // Stay under the surface, above the sand, and inside the world.
-  const sand = floorY(duck.position.x, duck.position.z) + 1.4;
-  if (duck.position.y < sand) { duck.position.y = sand; if (swim.vel.y < 0) swim.vel.y *= -0.2; }
-  if (duck.position.y > SURFACE_Y - 1.2) { duck.position.y = SURFACE_Y - 1.2; if (swim.vel.y > 0) swim.vel.y = 0; }
-  const hr = Math.hypot(duck.position.x, duck.position.z);
-  if (hr > WORLD_R) {
-    tmpV.set(-duck.position.x, 0, -duck.position.z).normalize();
-    swim.vel.addScaledVector(tmpV, (hr - WORLD_R) * 2 * dt);
+    // Stay under the surface, above the sand, and inside the world.
+    const sand = floorY(duck.position.x, duck.position.z) + 1.4;
+    if (duck.position.y < sand) { duck.position.y = sand; if (swim.vel.y < 0) swim.vel.y *= -0.2; }
+    if (duck.position.y > SURFACE_Y - 1.2) { duck.position.y = SURFACE_Y - 1.2; if (swim.vel.y > 0) swim.vel.y = 0; }
+    const hr = Math.hypot(duck.position.x, duck.position.z);
+    if (hr > WORLD_R) {
+      tmpV.set(-duck.position.x, 0, -duck.position.z).normalize();
+      swim.vel.addScaledVector(tmpV, (hr - WORLD_R) * 2 * dt);
+    }
+
+    swim.speed = swim.vel.length();
+    rally.afterStep(dt, elapsed);
   }
-
-  swim.speed = swim.vel.length();
+  const t = elapsed;
+  timeUniform.value = t;
+  if (!frame.steps) rally.afterStep(0, t);
+  const boosting = rally.state.boost > 0;
   const speedFrac = swim.speed / MAX_SPEED;
 
   // Zeeb gently leans into his swim, with a small body wiggle and no craft.
@@ -1154,7 +1217,6 @@ function animate() {
   duckInner.rotation.z = Math.sin(t * 7) * .018 * speedFrac;
   duckInner.rotation.y = pilotView.pilotYaw + Math.sin(t * 6) * .018 * speedFrac;
   duckInner.position.y = SWIM_BODY_Y + Math.sin(t * (2.2 + speedFrac * 3)) * .035;
-  rally.afterStep(dt, t);
   reef.update(dt, t);
 
   // Small breath bubbles and the existing boost trail follow Zeeb himself.
@@ -1177,7 +1239,7 @@ function animate() {
   trailGeo.attributes.aAlpha.needsUpdate = true;
 
   // Ambient bubbles rise and wrap to the floor.
-  for (let i = 0; i < AMBIENT_N; i++) {
+  for (let i = 0; i < performanceQuality.profile.bubbles; i++) {
     ambPos[i * 3 + 1] += ambSpeed[i] * dt;
     ambPos[i * 3] += Math.sin(t * 0.8 + i) * 0.2 * dt;
     if (ambPos[i * 3 + 1] > SURFACE_Y - 0.5) ambPos[i * 3 + 1] = FLOOR_Y + 2;
@@ -1197,42 +1259,6 @@ function animate() {
     }
     r.glow.intensity = 12 + r.hit * 60;
     m.material.emissive = m.material.emissive || new THREE.Color();
-  }
-
-  /* --- fish --- */
-  for (const s of schools) {
-    const ph = t * s.speed + s.phase;
-    s.prev.copy(s.pos);
-    s.pos.set(
-      s.center.x + Math.cos(ph) * s.radius,
-      s.center.y + Math.sin(ph * 2) * s.bob,
-      s.center.z + Math.sin(ph) * s.radius * 0.7
-    );
-    if (s.prev.lengthSq() > 0) {
-      tmpV.subVectors(s.pos, s.prev);
-      if (tmpV.lengthSq() > 1e-8) s.dir.lerp(tmpV.normalize(), 0.2).normalize();
-    }
-    for (let i = 0; i < s.fish.length; i++) {
-      const f = s.fish[i];
-      // World position of this fish: school center plus its home offset plus
-      // its flee offset, with a little bob.
-      fishDummy.position.copy(s.pos).add(f.home).add(f.off);
-      fishDummy.position.y += Math.sin(t * 2 + f.phase) * 0.3;
-      // Flee from Zeeb.
-      tmpV.subVectors(fishDummy.position, duck.position);
-      const d = tmpV.length();
-      if (d < 7) {
-        tmpV.normalize().multiplyScalar((7 - d) * 6 * dt);
-        f.off.add(tmpV);
-      }
-      f.off.multiplyScalar(Math.max(0, 1 - 0.8 * dt)); // ease home
-      fishDummy.lookAt(tmpV.copy(fishDummy.position).add(s.dir));
-      fishDummy.rotation.y += Math.sin(t * 6 + f.phase) * 0.12; // tail wiggle
-      fishDummy.scale.setScalar(f.size);
-      fishDummy.updateMatrix();
-      s.mesh.setMatrixAt(i, fishDummy.matrix);
-    }
-    s.mesh.instanceMatrix.needsUpdate = true;
   }
 
   /* --- jellyfish --- */
@@ -1260,6 +1286,8 @@ function animate() {
     s.position.x = s.userData.baseX + Math.sin(t * 0.15 + s.userData.phase) * 2;
     s.rotation.z = Math.sin(t * 0.1 + s.userData.phase) * 0.1;
   }
+  lightingTimer += dt;
+  if (lightingTimer > .25) { lightingTimer = 0; updateLighting(); }
 
   /* --- water color by depth --- */
   const depthFrac = THREE.MathUtils.clamp(-duck.position.y / 60, 0, 1);
@@ -1309,7 +1337,7 @@ function animate() {
   // The camera never goes into the sand or through the surface either.
   camPos.y = Math.max(camPos.y, floorY(camPos.x, camPos.z) + 1.5);
   camPos.y = Math.min(camPos.y, SURFACE_Y - 0.8);
-  if(dt>0)reef.wreck.clipCamera(cameraOrigin.copy(duck.position).add(new THREE.Vector3(0,.7,0)),camPos);
+  if(dt>0)reef.wreck.clipCamera(cameraOrigin.copy(duck.position).add(tmpV.set(0,.7,0)),camPos);
   camera.position.copy(camPos);
   camera.lookAt(camLook);
   if (!rally.reducedMotion) camera.rotation.z += swim.bank * .08 * (1 - pilotView.amount);
@@ -1319,6 +1347,49 @@ function animate() {
   }
   rally.updateGuide();
 
+  /* --- fish: use this frame's final camera, including fast turns and rescues --- */
+  camera.updateMatrixWorld();
+  fishFrustum.setFromProjectionMatrix(fishViewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  for (const s of schools) {
+    const ph = t * s.speed + s.phase;
+    s.prev.copy(s.pos);
+    s.pos.set(
+      s.center.x + Math.cos(ph) * s.radius,
+      s.center.y + Math.sin(ph * 2) * s.bob,
+      s.center.z + Math.sin(ph) * s.radius * 0.7
+    );
+    if (s.prev.lengthSq() > 0) {
+      tmpV.subVectors(s.pos, s.prev);
+      if (tmpV.lengthSq() > 1e-8) s.dir.lerp(tmpV.normalize(), 0.2).normalize();
+    }
+    s.mesh.boundingSphere.center.copy(s.pos);
+    s.mesh.count = Math.max(8, Math.round(s.fish.length * performanceQuality.profile.fish));
+    // Schools outside the view still follow their analytic paths, but don't
+    // rebuild and upload every fish matrix until they can be seen again.
+    if (dt > 0 && !fishFrustum.intersectsSphere(s.mesh.boundingSphere)) continue;
+    for (let i = 0; i < s.mesh.count; i++) {
+      const f = s.fish[i];
+      // World position of this fish: school center plus its home offset plus
+      // its flee offset, with a little bob.
+      fishDummy.position.copy(s.pos).add(f.home).add(f.off);
+      fishDummy.position.y += Math.sin(t * 2 + f.phase) * 0.3;
+      // Flee from Zeeb.
+      tmpV.subVectors(fishDummy.position, duck.position);
+      const d = tmpV.length();
+      if (d < 7) {
+        tmpV.normalize().multiplyScalar((7 - d) * 6 * dt);
+        f.off.add(tmpV);
+      }
+      f.off.multiplyScalar(Math.max(0, 1 - 0.8 * dt)); // ease home
+      fishDummy.lookAt(tmpV.copy(fishDummy.position).add(s.dir));
+      fishDummy.rotation.y += Math.sin(t * 6 + f.phase) * 0.12; // tail wiggle
+      fishDummy.scale.setScalar(f.size);
+      fishDummy.updateMatrix();
+      s.mesh.setMatrixAt(i, fishDummy.matrix);
+    }
+    s.mesh.instanceMatrix.needsUpdate = true;
+  }
+
   renderer.render(scene, camera);
 
   /* --- HUD --- */
@@ -1327,7 +1398,7 @@ function animate() {
     lastDepthShown = depthFt;
     depthEl.innerHTML = `<small>Depth</small>${depthFt} ft`;
   }
-  frames++; fpsTimer += dt;
+  frames++; fpsTimer += realDt;
   if (fpsTimer >= 0.5) {
     const info = renderer.info.render;
     // The music state rides along so a phone, with no console, still shows
@@ -1336,7 +1407,7 @@ function animate() {
       : music.el.paused ? 'paused'
       : !graphRunning() ? music.ctx.state
       : music.ctx ? 'playing' : 'playing, plain';
-    perfEl.textContent = `${Math.round(frames / fpsTimer)} fps · ${info.calls} draws · music ${audio}`;
+    perfEl.textContent = `${Math.round(frames / fpsTimer)} fps · ${info.calls} draws · ${performanceQuality.profile.name} · music ${audio}`;
     frames = 0; fpsTimer = 0;
   }
 
@@ -1346,6 +1417,7 @@ requestAnimationFrame(animate);
 
 // Debug handle for the console or a driving script.
 window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, music, rally, reef, touch, controls, pilotCamera,
+  performance: performanceQuality, frameClock, schools,
   // Fixed views let artwork iterations be compared at the same camera and time.
   reviewView({ position, yaw = 0, eye, target, hoop = 0, fov = 60 }) {
     keys.clear(); controls.clear();
@@ -1355,7 +1427,7 @@ window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, mus
     duck.position.set(...position); swim.vel.set(0, 0, 0);
     swim.yaw = yaw; swim.yawRate = swim.pitch = swim.bank = swim.speed = 0;
     Object.assign(pilotCamera.state, { phase: 0, amount: 0, orbit: 0, pilotYaw: 0, presentation: 0 });
-    elapsed = 12; timeUniform.value = elapsed;
+    elapsed = 12; timeUniform.value = elapsed; updateLighting();
     camPos.set(...eye); camLook.set(...target); camera.fov = fov; camera.updateProjectionMatrix();
   }
 };

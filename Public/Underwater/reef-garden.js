@@ -3,14 +3,26 @@ import { inWreckFootprint } from './wreck-layout.js';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COURSE, START, COURSE_SCALE } from './reef-course.js';
 import { coralForms, archForm } from './coral-forms.js';
+import { reefDetail } from './reef-performance.js';
+import { mergeSceneryCells } from './reef-chunks.js';
 
 // Sculpted forms and a restrained mineral palette from the generated reef concepts.
 const STONE = [0xb1a5be, 0xa3a6bf, 0xb4b1c2, 0xa39bb9];
 const CORAL = [0xffab84, 0xf5afb0, 0xc49ddd, 0xf0c36b, 0x80cbb8];
 const SHELF = [0x77cdb2, 0xab84c9, 0x80b8c5, 0xbb9ad2];
 export const causticGLSL = `
+  uniform float reefDetail;
   vec2 reefHash(vec2 p) { return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453); }
   float reefCaustic(vec2 p, float t) {
+    if (reefDetail < .5) return 0.;
+    if (reefDetail < 1.5) {
+      // Two crossing ripples keep the moving sunlight at a fraction of the
+      // nine-cell pattern's per-pixel work on older GPUs.
+      vec2 q=p*.42+vec2(t*.09,-t*.07);
+      float a=sin(q.x+sin(q.y*1.3+t*.12)*1.1);
+      float b=sin(q.y+sin(q.x*1.2-t*.1)*1.1);
+      return pow(max(0.,1.-abs(a+b)*2.8),3.)*.65;
+    }
     p *= .28; p += vec2(sin(p.y*1.6+t*.18),cos(p.x*1.4-t*.15))*.72;
     vec2 cell=floor(p), uv=fract(p); float a=9., b=9.;
     for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++) {
@@ -41,6 +53,7 @@ export function makeReefMaterial(timeUniform, { roughness = .58, caustics = .13 
     bumpMap:bumpTexture(), bumpScale:.12 });
   material.onBeforeCompile = shader => {
     shader.uniforms.reefTime = timeUniform;
+    shader.uniforms.reefDetail = reefDetail;
     shader.vertexShader = 'varying vec3 reefWorld;\nvarying vec3 reefNormal;\n' + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n reefWorld = (modelMatrix * vec4(transformed,1.)).xyz; reefNormal=normalize(mat3(modelMatrix)*normal);');
     shader.fragmentShader = 'varying vec3 reefWorld;\nvarying vec3 reefNormal;\nuniform float reefTime;\n' + causticGLSL + shader.fragmentShader;
@@ -305,8 +318,8 @@ export function createSculptedGarden({ scene, floorY, timeUniform, sceneryForms 
     }
   }
   function merged(parts,material,name) {
-    const geo=mergeGeometries(parts);parts.forEach(g=>g.dispose());
-    const mesh=new THREE.Mesh(geo,material);mesh.name=name;mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);return mesh;
+    const group=mergeSceneryCells(parts,material,name,{padding:name.includes('kelp')?1:0});
+    scene.add(group);return group;
   }
   const stoneMesh=merged(rocks,makeReefMaterial(timeUniform,{roughness:.56,caustics:.13}),'Sculpted reef stone');
   const coralMesh=merged(corals,makeReefMaterial(timeUniform,{roughness:.4,caustics:.16}),'Sculpted reef coral');
@@ -315,8 +328,9 @@ export function createSculptedGarden({ scene, floorY, timeUniform, sceneryForms 
   leafMat.onBeforeCompile=shader=>{compile(shader);shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed.x += sin(reefTime*1.1+position.x*.3+position.z*.25)*uv.y*uv.y*.35;');shader.vertexShader='uniform float reefTime;\n'+shader.vertexShader;};
   leafMat.customProgramCacheKey=()=> 'reef-leaf-sway';
   const leafMesh=merged(leaves,leafMat,'Sculpted reef kelp');
-  leafMesh.castShadow=false;
-  const distantMesh=merged(distant,makeReefMaterial(timeUniform,{roughness:1,caustics:0}),'Distant reef');distantMesh.castShadow=false;
+  leafMesh.traverse(mesh=>{mesh.castShadow=false;});
+  const distantMesh=merged(distant,makeReefMaterial(timeUniform,{roughness:1,caustics:0}),'Distant reef');
+  distantMesh.traverse(mesh=>{mesh.castShadow=false;});
   prototypes.forEach(g=>g.dispose());
   return {stoneMesh,coralMesh,leafMesh,distantMesh,islands,fans,patches};
 }

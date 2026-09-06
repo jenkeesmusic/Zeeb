@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeSceneryCells } from './reef-chunks.js';
 import { makeReefMaterial, makeKelpGeometry } from './reef-garden.js';
 import { WRECK, WRECK_ENTRY, WRECK_ROOMS, WRECK_COINS, hullWidth, inWreckFootprint } from './wreck-layout.js';
 import { resolveShipMovement, segmentBoxFraction, createCoinProgress } from './wreck-physics.js';
@@ -240,7 +241,6 @@ export function createColossalWreck({scene,timeUniform,forms,duck,rally,spawnBub
   const meshes=[];
   for(const [kind,list] of Object.entries(parts)) {
     if(!list.length)continue;
-    const geometry=mergeGeometries(list);list.forEach(g=>g.dispose());
     let material;
     if(kind==='glow')material=new THREE.MeshBasicMaterial({vertexColors:true});
     else {
@@ -253,7 +253,7 @@ export function createColossalWreck({scene,timeUniform,forms,duck,rally,spawnBub
         `);};material.customProgramCacheKey=()=> 'colossal-wreck-wood';
       }
     }
-    const mesh=new THREE.Mesh(geometry,material);mesh.name=`Wreck ${kind}`;mesh.castShadow=kind!=='glow';mesh.receiveShadow=true;group.add(mesh);meshes.push(mesh);
+    const cells=mergeSceneryCells(list,material,`Wreck ${kind}`,{castShadow:kind!=='glow'});group.add(cells);meshes.push(...cells.children);
   }
 
   let storage=null;try{if(!new URLSearchParams(location.search).has('wrecktest'))storage=localStorage;}catch{}

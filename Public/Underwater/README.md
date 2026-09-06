@@ -126,8 +126,9 @@ uneven patches. A lone terracotta jar near the moon arch foreshadows the
 colossal wreck inside the course loop. The earlier small cargo cluster has
 been incorporated into the ship. Planting and old stone rings give its hull
 space, while the sandy hoop corridor stays open.
-Scenery geometry is generated once from reusable forms, then merged by material;
-course fans share the existing coral batch. The ship uses five material batches.
+Scenery geometry is generated once from reusable forms, then merged by material
+within spatial cells. Course fans share the coral material. Ship materials are
+also split into cells so an off-screen section can be skipped independently.
 
 The ship's main hull is 190 feet long and 64 feet wide, centered at x=97,
 z=60, with its keel around 64 feet deep. Its bowsprit extends beyond the hull.
@@ -155,9 +156,11 @@ original height is preserved.
 A shallow sand shelf follows the course, about 11 feet below the hoop
 centers, then blends into the deeper ocean. It brings small plants and the
 animated light patterns into view. Surface light patterns, a baked reflection
-dome, and soft local shadows give the forms depth. The shadow map updates
-after six feet of movement; the scenery is merged by material to reduce
-draw calls. Jellyfish, three exploration stone hoops, and bubble vents remain.
+dome, and (in Detailed graphics) soft local shadows give the forms depth.
+When enabled, the shadow map updates after six feet of movement and while the
+treasure opens. Scenery is merged by material within cells; the sea floor is
+tiled without changing its triangles, heights, or normals. Jellyfish, three
+exploration stone hoops, and bubble vents remain.
 The treasure cove has weathered boat ribs, broken planks, a low stone shelf,
 coral, and kelp. The older decorative chest and clam finale have been replaced
 by this single chest with an opening lid. Reef placement uses fixed seeds
@@ -169,6 +172,28 @@ Grace’s original `../Islands/level2/Shark_Grace.png` is tucked inside a rocky
 alcove off the course, around x=175, z=24 near the floor. It is a stationary
 drawing, with no chase or attack behavior. Approaching it reveals a discovery
 message. Its texture is referenced in place, without a duplicate asset.
+
+## Graphics and frame timing
+
+**Graphics: Auto** is the default. Touch devices start at Smooth and other
+devices at Balanced. The controller measures actual frame intervals, reduces
+quality after sustained slow frames, and only tries an upgrade after sustained
+headroom. A tier that proved too expensive is not retried until Auto is selected
+again or the page reloads. Pause and background gaps do not lower quality.
+
+The graphics button cycles through Auto, Smooth, and Detailed and saves that
+choice locally. The internal Light fallback is available to Auto. Profiles cap
+both pixel ratio and total drawing-buffer pixels, reduce decorative light counts,
+fish density and ambient bubbles, and reserve soft shadows and the original
+caustic shader for Detailed. Smooth/Balanced use simpler moving light patterns;
+Light disables those patterns. Zeeb, the course, terrain, ship collision, and
+collectibles stay the same. Off-screen fish schools keep their paths but skip
+per-fish matrix updates until visible.
+
+Swim physics and hoop checks subdivide each frame into steps no larger than
+1/60 second, covering up to 0.25 seconds of elapsed time per frame. This avoids
+the former slow motion below 20 FPS while bounding catch-up after a long stall.
+The debug FPS counter uses uncapped elapsed time, separately from simulation.
 
 ## Music
 
@@ -217,11 +242,15 @@ use a separate audio context unlocked by interaction and follow the music toggle
   model; `fish.glb`: the decimated fish from
   `../../blender/fish_build.py` / `Fish_low.glb`.
 - `vendor/`: local three.js, GLTFLoader, geometry utilities, and meshopt decoder.
+- `reef-performance.js`: quality budgets, automatic quality decisions, shared
+  shader detail uniform, and bounded frame timing; its policy is testable in Node.
+- `reef-chunks.js`: spatial scenery batches and sea-floor tiles that preserve the
+  original geometry and allow independent frustum culling.
 
 ## Check it
 
 Use Firefox DevTools against the local server. `?debug` exposes FPS, draw
-calls, and music state. `?preview` hides the game UI and starts in free swim
+calls, active graphics profile, and music state. `?preview` hides the game UI and starts in free swim
 for footage. `window.__ocean` exposes the scene, renderer, character, controls,
 rally, and reef for inspection.
 `__ocean.reviewView(...)` pauses at a fixed camera, character position, and
@@ -267,3 +296,14 @@ wait 0.6 seconds after release, and recover without missing the opening.
 Physical iPhone/iPad audio and
 touch performance still need a device check. The prior README is archived in
 `../../docs/archive-underwater-2026-09-04/README-v0.1.md` outside the deploy tree.
+
+The performance pass is checked in `../../docs/performance-20260906/`:
+`node docs/performance-20260906/checks.mjs` covers quality decisions, pixel
+budgets, preserved terrain geometry, and travel distance at 10–120 FPS.
+`browser-check.py` records fixed-view geometry counts and screenshots in local
+Firefox. `runtime-check.py` exercises shader compilation, quality changes,
+saved preferences, and real gameplay with deliberately delayed animation frames.
+`touch-check.py` repeats the complete native-touch lap and control checks.
+These scripts use the existing localhost server on port 8000; Python browser
+checks use the Studio Firefox binary and `%TEMP%/geckodriver.exe`.
+Results here are local desktop checks, not measured FPS on the iPhone SE or Fox PC.

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COURSE, START } from './reef-course.js';
 import { makeReefMaterial } from './reef-garden.js';
+import { mergeSceneryCells } from './reef-chunks.js';
 
 const route=[START,...COURSE];
 function pathDistance(x,z) {
@@ -57,7 +57,6 @@ export function createReefScenery({scene,floorY,timeUniform,forms}) {
   const meshes=[];
   for(const [kind,list] of Object.entries(parts)) {
     if(!list.length)continue;
-    const geometry=mergeGeometries(list);list.forEach(g=>g.dispose());
     const material=makeReefMaterial(timeUniform,{roughness:kind==='metal'?.53:.68,caustics:kind==='wood'?.065:.11});
     if(kind==='metal') {
       material.metalness=.32;
@@ -77,7 +76,7 @@ export function createReefScenery({scene,floorY,timeUniform,forms}) {
       `);};
       material.customProgramCacheKey=()=> 'reef-scenery-wood';
     }
-    const mesh=new THREE.Mesh(geometry,material);mesh.name=`Scenery ${kind}`;mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);meshes.push(mesh);
+    const cells=mergeSceneryCells(list,material,`Scenery ${kind}`);scene.add(cells);meshes.push(...cells.children);
   }
   return {placements,meshes};
 }

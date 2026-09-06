@@ -120,3 +120,10 @@ body.preview #touchControls { display:none !important; }
   body.touch-playing #rallyControls { bottom:152px; }
   body.touch-playing #depth { bottom:154px; }
 }
+/* Keep the left-hand progress text clear of the settings on small SE screens. */
+@media (max-width:400px) {
+  #rallyHud { max-width:calc(100vw - 155px); }
+  #raceStats { min-width:0; }
+  #wreckClue { max-width:100%; }
+  .wreck-score { flex-wrap:wrap; gap:4px; }
+}
