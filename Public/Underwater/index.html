@@ -122,7 +122,7 @@ import { CRUISE_SPEED, stepScooter } from './scooter-handling.js';
 import { makeKelpGeometry, causticGLSL } from './reef-garden.js';
 import { wreckFloor, inWreckFootprint } from './wreck-layout.js';
 import { reefDetail, renderRatio, createQualityController, createFrameClock } from './reef-performance.js';
-import { tileFloor } from './reef-chunks.js';
+import { tileFloor, indexExactGeometry } from './reef-chunks.js';
 
 /* ----------------------------------------------------------------- layout */
 
@@ -524,6 +524,7 @@ const coneFishGeo = (() => {
 })();
 const schools = [];
 const fishDummy = new THREE.Object3D();
+let distantFishGeometry = null;
 
 function buildSchools(fishGeo, sizeRange) {
   const tmp = new THREE.Color();
@@ -550,7 +551,7 @@ function buildSchools(fishGeo, sizeRange) {
     scene.add(mesh);
     const a = rand() * Math.PI * 2, r = rrange(20, 150);
     schools.push({
-      mesh, fish,
+      mesh, fish, detailedGeometry: fishGeo, distant: false,
       center: new THREE.Vector3(Math.cos(a) * r, rrange(-48, -8), Math.sin(a) * r),
       radius: rrange(18, 45),
       speed: rrange(0.06, 0.14) * (rand() < 0.5 ? 1 : -1),
@@ -582,10 +583,17 @@ function bakeSceneToGeometry(root) {
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     parts.push(tint(g, mats[0].color ? mats[0].color.getHex() : 0x808080));
   });
-  return mergeGeometries(parts);
+  const geometry = indexExactGeometry(mergeGeometries(parts));
+  parts.forEach(g => g.dispose());
+  return geometry;
 }
 
 const fishLoader = new GLTFLoader();
+// The same fish, with fewer faces in its distant silhouette. Load independently:
+// either asset can arrive first, and a missing LOD retains the original fish.
+fishLoader.load('./fish-distant.glb', (gltf) => {
+  distantFishGeometry = bakeSceneToGeometry(gltf.scene);
+}, undefined, () => {});
 fishLoader.load('./fish.glb', (gltf) => {
   const geo = bakeSceneToGeometry(gltf.scene);
   // The model is about 2.8 ft nose to tail; these sizes keep the fish
@@ -1350,6 +1358,7 @@ function animate() {
   /* --- fish: use this frame's final camera, including fast turns and rescues --- */
   camera.updateMatrixWorld();
   fishFrustum.setFromProjectionMatrix(fishViewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  reef.wreck.updateView(camera, fishFrustum, performanceQuality.profile);
   for (const s of schools) {
     const ph = t * s.speed + s.phase;
     s.prev.copy(s.pos);
@@ -1364,6 +1373,12 @@ function animate() {
     }
     s.mesh.boundingSphere.center.copy(s.pos);
     s.mesh.count = Math.max(8, Math.round(s.fish.length * performanceQuality.profile.fish));
+    // Keep full detail when the nearest part of the school is close. A four-foot
+    // hysteresis band prevents repeated swaps while hovering at the boundary.
+    const detailDistance = performanceQuality.profile.fishDetail + 14;
+    const distance = camera.position.distanceTo(s.pos);
+    s.distant = !!distantFishGeometry && distance > detailDistance + (s.distant ? 0 : 4);
+    s.mesh.geometry = s.distant ? distantFishGeometry : s.detailedGeometry;
     // Schools outside the view still follow their analytic paths, but don't
     // rebuild and upload every fish matrix until they can be seen again.
     if (dt > 0 && !fishFrustum.intersectsSphere(s.mesh.boundingSphere)) continue;

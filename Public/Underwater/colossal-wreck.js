@@ -268,7 +268,10 @@ export function createColossalWreck({scene,timeUniform,forms,duck,rally,spawnBub
   const stampsGeo=mergeGeometries(stampParts.map(g=>g.index?g.toNonIndexed():g));stampParts.forEach(g=>g.dispose());
   const coins=new THREE.InstancedMesh(coinGeo,coinMat,WRECK_COINS.length),stamps=new THREE.InstancedMesh(stampsGeo,stampMat,WRECK_COINS.length);
   coins.name='Collectible wreck coins';stamps.name='Coin engravings';coins.frustumCulled=stamps.frustumCulled=false;scene.add(coins,stamps);
+  coins.count=stamps.count=0;
+  coins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);stamps.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const dummy=new THREE.Object3D(),previous=duck.position.clone(),temp=new THREE.Vector3();
+  const coinBounds=new THREE.Sphere(new THREE.Vector3(),1);
   const $=id=>document.getElementById(id);
   $('rallyHud').insertAdjacentHTML('beforeend','<div id="wreckStats" hidden><div id="wreckRoom">The colossal wreck</div><div class="wreck-score"><i aria-hidden="true"></i><strong id="wreckCount"></strong><span>coins found</span></div><div id="wreckClue"></div></div>');
   $('menu').querySelector('.menu-actions').insertAdjacentHTML('beforeend','<button id="wreckBtn" type="button">Explore the wreck</button>');
@@ -307,11 +310,6 @@ export function createColossalWreck({scene,timeUniform,forms,duck,rally,spawnBub
       else if(milestone>lastMilestone)rally.announce(`${progress.found.size} coins found! Keep exploring.`,2);
       lastMilestone=milestone;
     }
-    WRECK_COINS.forEach((c,i)=> {
-      const collected=progress.found.has(c.id);
-      dummy.position.set(c.x,c.y+(reducedMotion?0:Math.sin(coinClock*1.8+i)*.2),c.z);
-      dummy.rotation.set(0,reducedMotion?i*.7:coinClock*.9+i*.7,0);dummy.scale.setScalar(collected?0:1);dummy.updateMatrix();coins.setMatrixAt(i,dummy.matrix);stamps.setMatrixAt(i,dummy.matrix);
-    });coins.instanceMatrix.needsUpdate=stamps.instanceMatrix.needsUpdate=true;
     uiTimer+=dt;
     if(uiTimer>.15||!dt) {
       uiTimer=0;const nearby=near(duck.position),exploring=rally.state.mode==='explore';
@@ -327,5 +325,26 @@ export function createColossalWreck({scene,timeUniform,forms,duck,rally,spawnBub
       }
     }
   }
-  return {group,meshes,colliders,coins:WRECK_COINS,progress,rooms:WRECK_ROOMS,near,enter,roomAt,resolveMovement,clipCamera,update};
+  // Rendering follows the final camera; collection still checks every coin,
+  // including offscreen ones. Compact instances so collected/hidden coins do
+  // not continue submitting zero-scale geometry to the GPU.
+  function updateView(camera,frustum,profile) {
+    let coinCount=0,stampCount=0;
+    WRECK_COINS.forEach((c,i)=> {
+      if(progress.found.has(c.id))return;
+      coinBounds.center.set(c.x,c.y,c.z);
+      if(!frustum.intersectsSphere(coinBounds))return;
+      dummy.position.set(c.x,c.y+(reducedMotion?0:Math.sin(coinClock*1.8+i)*.2),c.z);
+      dummy.rotation.set(0,reducedMotion?i*.7:coinClock*.9+i*.7,0);dummy.updateMatrix();
+      coins.setMatrixAt(coinCount++,dummy.matrix);
+      if(camera.position.distanceToSquared(coinBounds.center)<profile.coinDetail**2)stamps.setMatrixAt(stampCount++,dummy.matrix);
+    });
+    coins.count=coinCount;stamps.count=stampCount;
+    for(const mesh of [coins,stamps])if(mesh.count) {
+      mesh.instanceMatrix.clearUpdateRanges();
+      mesh.instanceMatrix.addUpdateRange(0,mesh.count*16);
+      mesh.instanceMatrix.needsUpdate=true;
+    }
+  }
+  return {group,meshes,colliders,coins:WRECK_COINS,progress,rooms:WRECK_ROOMS,near,enter,roomAt,resolveMovement,clipCamera,update,updateView};
 }

@@ -1,6 +1,52 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
+// Reuse bit-identical triangle corners, including normals, paint and UVs.
+// Integer hashing preserves seams without millions of temporary string keys.
+export function indexExactGeometry(geometry) {
+  if (geometry.index) return geometry;
+  const attributes = Object.entries(geometry.attributes);
+  if (attributes.some(([, a]) => a.isInterleavedBufferAttribute || !(a.array instanceof Float32Array))) return geometry;
+  const count = geometry.attributes.position.count;
+  if (!count) return geometry;
+  const bits = attributes.map(([, a]) => new Uint32Array(a.array.buffer, a.array.byteOffset, a.array.length));
+  let capacity = 1;
+  while (capacity < count * 2) capacity *= 2;
+  const slots = new Uint32Array(capacity), remap = new Uint32Array(count), originals = new Uint32Array(count);
+  let unique = 0;
+  for (let i = 0; i < count; i++) {
+    let hash = 2166136261;
+    for (let a = 0; a < attributes.length; a++) {
+      const size = attributes[a][1].itemSize;
+      for (let k = 0; k < size; k++) hash = Math.imul(hash ^ bits[a][i * size + k], 16777619);
+    }
+    hash ^= hash >>> 16;
+    let slot = hash & (capacity - 1), same = false;
+    while (slots[slot]) {
+      const previous = originals[slots[slot] - 1];
+      same = true;
+      for (let a = 0; a < attributes.length && same; a++) {
+        const size = attributes[a][1].itemSize;
+        for (let k = 0; k < size; k++) if (bits[a][i * size + k] !== bits[a][previous * size + k]) { same = false; break; }
+      }
+      if (same) break;
+      slot = (slot + 1) & (capacity - 1);
+    }
+    if (!same) { originals[unique] = i; slots[slot] = ++unique; }
+    remap[i] = slots[slot] - 1;
+  }
+  for (const [name, attr] of attributes) {
+    const compact = new Float32Array(unique * attr.itemSize);
+    for (let i = 0; i < unique; i++) {
+      const from = originals[i] * attr.itemSize;
+      compact.set(attr.array.subarray(from, from + attr.itemSize), i * attr.itemSize);
+    }
+    geometry.setAttribute(name, new THREE.BufferAttribute(compact, attr.itemSize, attr.normalized));
+  }
+  geometry.setIndex(new THREE.BufferAttribute(unique <= 65536 ? new Uint16Array(remap) : remap, 1));
+  return geometry;
+}
+
 // Partition already-positioned scenery, preserving every triangle and its
 // original normals/colors. Whole formations stay together at cell boundaries.
 export function mergeSceneryCells(parts, material, name, { cellSize = 72, castShadow = true, padding = 0 } = {}) {
@@ -17,6 +63,7 @@ export function mergeSceneryCells(parts, material, name, { cellSize = 72, castSh
     const geometry = mergeGeometries(geometries);
     if (!geometry) throw new Error(`Cannot merge ${name} cell ${cell}`);
     geometries.forEach(g => g.dispose());
+    indexExactGeometry(geometry);
     geometry.computeBoundingSphere(); geometry.boundingSphere.radius += padding;
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `${name} / ${cell}`; mesh.castShadow = castShadow; mesh.receiveShadow = true;

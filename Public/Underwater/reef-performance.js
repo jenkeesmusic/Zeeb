@@ -2,10 +2,10 @@
 // Keep this module free of browser/Three dependencies so slow-device behavior is testable.
 export const reefDetail = { value: 1 };
 export const QUALITY = [
-  { name: 'Light', ratio: .65, pixels: 400000, caustics: 0, lights: 0, shadows: false, bubbles: 120, fish: .28 },
-  { name: 'Smooth', ratio: .85, pixels: 650000, caustics: 1, lights: 2, shadows: false, bubbles: 220, fish: .45 },
-  { name: 'Balanced', ratio: 1, pixels: 1000000, caustics: 1, lights: 4, shadows: false, bubbles: 350, fish: .7 },
-  { name: 'Detailed', ratio: 1.5, pixels: 1800000, caustics: 2, lights: Infinity, shadows: true, bubbles: 500, fish: 1 }
+  { name: 'Light', ratio: .65, pixels: 400000, caustics: 0, lights: 0, shadows: false, bubbles: 120, fish: .28, fishDetail: 14, coinDetail: 48 },
+  { name: 'Smooth', ratio: .85, pixels: 650000, caustics: 1, lights: 2, shadows: false, bubbles: 220, fish: .45, fishDetail: 22, coinDetail: 60 },
+  { name: 'Balanced', ratio: 1, pixels: 1000000, caustics: 1, lights: 4, shadows: false, bubbles: 350, fish: .7, fishDetail: 30, coinDetail: 72 },
+  { name: 'Detailed', ratio: 1.5, pixels: 1800000, caustics: 2, lights: Infinity, shadows: true, bubbles: 500, fish: 1, fishDetail: 55, coinDetail: 96 }
 ];
 
 export function renderRatio(profile, width, height, dpr = 1) {
