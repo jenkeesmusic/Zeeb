@@ -46,9 +46,13 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
 
 Zeeb turns promptly, follows his nose with very little sideways
 drift, and brakes quickly when you let go in free swimming. Horizontal
-touch steering uses an 86-pixel drag, a soft center, and a gentler maximum
-turn. Vertical finger wobble cannot change depth. Long swipes carry the
-steering origin along, so there is no excess drag to undo. Mouse steering uses
+touch steering uses a 120-pixel drag, a soft center, and a gentler maximum
+turn. Small held-finger corrections have a softer response; direction changes
+use a damped spring to ease both the turn and how quickly it changes.
+Reversing a held finger no longer accelerates the response abruptly.
+Lifting clears the turn and its stored velocity. Vertical finger wobble cannot
+change depth. Long swipes carry the steering origin along, so there is no
+excess drag to undo. Mouse steering uses
 110 pixels horizontally and 150 vertically, with a soft response near the center
 and a small dead zone that ignores hand jitter. Mouse turns ease in, settle
 faster when centering or reversing, and clear immediately on release. The visible
@@ -249,6 +253,10 @@ complete mouse/touch laps at 20, 60 and 144 updates per second.
 `../../docs/swimmer-touch/` records the photo-guided swimmer and touch revision,
 including a complete Firefox course driven by native WebDriver touch pointers,
 simultaneous steering/depth, reverse, release, pause and narrow-layout checks.
+`../../docs/fluid-touch-20260906/` checks continuous held-finger reversals,
+turning acceleration against the previous handling, centering without bounce,
+release, and consistent smoothing at 20–144 updates per second. Its Firefox
+touch run also completes all twelve hoops without lifting the steering finger.
 `node docs/colossal-wreck/checks.mjs` covers deck/wall collision, boosted sweeps,
 open hatches, pause, duplicate pickups, storage failure and saved progress.
 `node docs/colossal-wreck/reachability.mjs` checks the exported final geometry:

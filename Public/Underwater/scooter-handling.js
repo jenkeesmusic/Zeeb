@@ -12,19 +12,26 @@ function smoothstep(lo, hi, value) {
 // Separate travel distances keep mouse corrections precise and touch comfortable.
 export const MOUSE_DRAG_X = 110;
 export const MOUSE_DRAG_Y = 150;
-export const TOUCH_DRAG_X = 86;
+export const TOUCH_DRAG_X = 120;
 function mouseAxis(value, deadZone) {
   const amount = clamp((Math.abs(value) - deadZone) / (1 - deadZone), 0, 1);
   return Math.sign(value) * Math.pow(amount, 1.4);
 }
 export function stepPointer(pointer, dt) {
-  if (!pointer.active) { pointer.turn = pointer.rise = 0; return pointer; }
+  if (!pointer.active) { pointer.turn = pointer.turnVelocity = pointer.rise = 0; return pointer; }
   if (pointer.pointerType !== 'mouse') {
     // Depth has its own buttons. Vertical finger wobble cannot start a dive.
-    const target = mouseAxis(pointer.dx, .11) * .8;
-    const current = pointer.turn || 0;
-    const settling = current * target <= 0 || Math.abs(target) < Math.abs(current);
-    pointer.turn = current + (target - current) * ease(settling ? 20 : 12, Math.max(0, dt));
+    const amount = clamp((Math.abs(pointer.dx) - .08) / .92, 0, 1);
+    const target = Math.sign(pointer.dx) * Math.pow(amount, 1.6) * .66;
+    // A critically damped spring keeps both the turn and its rate of change
+    // continuous as a held finger sweeps back and forth. Reversing no longer
+    // switches to a faster, abrupt response. This solution is frame-rate independent.
+    const omega = 14, elapsed = Math.max(0, dt), decay = Math.exp(-omega * elapsed);
+    const displacement = (pointer.turn || 0) - target;
+    const velocity = pointer.turnVelocity || 0;
+    const spring = velocity + omega * displacement;
+    pointer.turn = target + (displacement + spring * elapsed) * decay;
+    pointer.turnVelocity = (velocity - omega * spring * elapsed) * decay;
     pointer.rise = 0;
     return pointer;
   }
@@ -65,7 +72,7 @@ export function stepScooter(swim, input, boosting, dt) {
   swim.yaw += swim.yawRate * dt;
   const sin = Math.sin(swim.yaw), cos = Math.cos(swim.yaw);
   let forward = swim.vel.x * sin + swim.vel.z * cos;
-  // High lateral grip lets the scooter follow its nose instead of sliding
+  // High lateral grip lets the swimmer follow its nose instead of sliding
   // past the opening. Keep a trace of glide so it still feels like water.
   const sideways = (swim.vel.x * cos - swim.vel.z * sin) * Math.exp(-18 * dt);
   const cornerSpeed = 1 - .18 * Math.abs(input.turn);

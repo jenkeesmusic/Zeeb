@@ -16,7 +16,7 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
       <div id="touchHint">Slide left or right to turn</div>
     </div>`);
   const $ = id => document.getElementById(id);
-  const pointer = { active: false, pointerId: null, pointerType: 'touch', x0: 0, y0: 0, dx: 0, dy: 0, turn: 0, rise: 0 };
+  const pointer = { active: false, pointerId: null, pointerType: 'touch', x0: 0, y0: 0, dx: 0, dy: 0, turn: 0, turnVelocity: 0, rise: 0 };
   const holds = new Map();
   let surface = null, touchMode = navigator.maxTouchPoints > 0 || matchMedia('(any-pointer: coarse)').matches;
   const playing = () => ['racing', 'explore', 'countdown'].includes(mode());
@@ -25,7 +25,7 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
   if (touchMode) showTouch();
   function resetSteering() {
     const oldSurface = surface, id = pointer.pointerId;
-    Object.assign(pointer, { active: false, pointerId: null, dx: 0, dy: 0, turn: 0, rise: 0 });
+    Object.assign(pointer, { active: false, pointerId: null, dx: 0, dy: 0, turn: 0, turnVelocity: 0, rise: 0 });
     surface = null;
     $('steerPad').hidden = true;
     $('swimKnob').style.transform = 'translate(0, 0)';
@@ -38,7 +38,7 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
     const isPad = e.currentTarget === $('swimPad');
     const type = isPad ? 'touch' : e.pointerType || 'mouse';
     if (type !== 'mouse') showTouch();
-    Object.assign(pointer, { active: true, pointerId: e.pointerId, pointerType: type, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, turn: 0, rise: 0 });
+    Object.assign(pointer, { active: true, pointerId: e.pointerId, pointerType: type, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, turn: 0, turnVelocity: 0, rise: 0 });
     surface = e.currentTarget; surface.setPointerCapture(e.pointerId);
     dismissHint();
     if (e.pointerType === 'mouse') musicStart();
