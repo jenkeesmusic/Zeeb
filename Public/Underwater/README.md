@@ -25,9 +25,11 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
 - Free swimming: arrows or WASD swim and turn. Space/E rises; Shift/Q dives.
 - Mouse: hold and drag on the water. Horizontal movement turns;
   vertical movement controls depth. A visible joystick shows the drag.
+  **Rise**, **Sink**, and **Back** also stay visible on desktop. Explicit
+  keyboard depth input takes priority over a vertical mouse drag.
 - Touch: hold the large swim pad (or the water) to swim, and slide left/right
   to turn. Lift to stop in exploration; the hoop course keeps cruising.
-  Separate **Up**, **Down**, and **Back** buttons control depth and reverse.
+  Separate **Rise**, **Sink**, and **Back** buttons control depth and reverse.
   A second finger can use these while the first keeps steering.
 - B or **Boost** gives a 1.6-second burst, with a five-second refill.
   From hoop three onward, passing a hoop gives a 0.65-second burst without
@@ -40,7 +42,7 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
   help still finishes but does not replace the best time.
 - M or **Music** toggles audio. **Next song** is hidden on narrow screens.
 - Wreck exploration: swim through the broad hull breaches, doorways and deck
-  hatches. Space/E rises; Shift/Q dives. On touch, use Up / Down to change
+  hatches. Space/E rises; Shift/Q dives. On touch, use Rise / Sink to change
   decks. **Back outside** returns to the entrance without losing collected coins.
   The HUD shows the nearest area and how many coins remain there.
 
@@ -58,6 +60,12 @@ and a small dead zone that ignores hand jitter. Mouse turns ease in, settle
 faster when centering or reversing, and clear immediately on release. The visible
 joystick follows that smoothed input. The chase camera keeps up with changes
 of direction; Zeeb's bank is capped.
+
+Turns ease in and settle faster on release or reversal. Yaw integrates the
+easing curve exactly, avoiding an extra turn on a slow frame. Rise/Sink also
+settles faster on release, while retaining the same full-depth speed.
+Body lean anticipates steering intent; pitch and camera zoom use exponential
+smoothing. These visual accents do not change the collision shape.
 
 Successive hoops are 63–80 feet apart, about 40% farther than the prior
 layout and roughly 4–5 seconds apart at cruising speed. This gives more room
@@ -93,19 +101,22 @@ are in `../../blender/swimmer-20260906/`. The prior `zeeb.glb` is preserved;
 `fish.glb` is unchanged. The seven instanced fish schools use Grace’s
 grey fish model. Two schools follow paths close to the rally.
 
-Touch devices default to the steady chase camera. Active touch steering also
-suppresses a turn glance so the view stays predictable under the finger.
-The welcome view shows Zeeb from the front, then moves behind him during the
-countdown. The closer chase camera briefly swings outward during turns while
-Zeeb swivels toward it. The camera swing is smaller on narrow screens and
-near a hoop. Glances have a cooldown so repeated steering does not cause
-constant camera movement. At the finish Zeeb looks back toward the player,
-while a separate finish view frames him beside the open treasure chest.
-Reduced motion uses a fixed cut to this view and skips the flying coins.
-**Camera: Playful / Steady** switches turn
-glances on or off and remembers the choice locally. Reduced motion defaults
-to Steady; explicitly selecting Playful enables these glances while the
-other reduced-motion adjustments remain in effect.
+Touch devices default to the steady chase camera. After swimming in Explore,
+letting Zeeb settle and rest briefly earns a 2.4-second hello: his visual body
+turns toward the player while the chase camera stays behind his swim heading.
+Moving again cancels it. Another swim and a cooldown are required before it
+can repeat; merely entering Explore leaves time to read the help.
+
+**Camera: Playful / Steady** remembers the choice locally. Playful also earns
+a 1.8-second glance after steering settles on a straightaway, with a small
+camera swing (smaller in portrait). Steady keeps the stationary hello.
+Optional greetings/glances are suppressed during active touch steering,
+depth input, boosts, near the wreck, or within 18 feet of the target hoop.
+Reduced motion suppresses both optional poses and camera swings, including
+when Playful is selected. The welcome view shows Zeeb from the front; at the
+finish a separate view frames him beside the open treasure chest. Reduced
+motion cuts to that finish view and skips the flying coins.
+Hoop badges respect scene depth, so they cannot draw through his face.
 
 The environment follows generated storybook reef concepts. Lavender
 stone terraces carry mint and lilac shelf coral, rounded peach and pink

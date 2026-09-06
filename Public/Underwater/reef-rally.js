@@ -64,8 +64,8 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
     g.fillStyle = '#ffe08a'; g.beginPath(); g.arc(64, 64, 50, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#154653'; g.font = 'bold 64px Trebuchet MS'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(i + 1, 64, 68);
     const texture = new THREE.CanvasTexture(badgeCanvas); texture.colorSpace = THREE.SRGBColorSpace;
-    // The active number stays readable against coral and the moon arch.
-    const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthWrite: false, depthTest: false }));
+    // Respect the scene depth so a distant hoop number cannot cover Zeeb's face.
+    const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthWrite: false, depthTest: true }));
     badge.renderOrder = 20;
     badge.position.set(0, HOOP_RADIUS + HOOP_TUBE_RADIUS + 1.3, 0); badge.scale.setScalar(1.7); group.add(badge);
     scene.add(group);

@@ -67,51 +67,66 @@ export function createScooter(parent) {
   };
 }
 
-// The chase camera briefly moves out to the side during a turn. Zeeb swivels
-// toward it, revealing his face while the lens still points down the course.
+// Zeeb can greet the player at rest even with a steady camera. Playful mode
+// also earns a short glance after a turn, once steering has settled again.
 export function createPilotCamera() {
   const state = { phase: 0, side: 1, cooldown: 0, turningFor: 0, pilotYaw: 0,
-    orbit: 0, amount: 0, presentation: 1, lastMode: 'welcome' };
+    orbit: 0, amount: 0, presentation: 1, lastMode: 'welcome',
+    idleFor: 0, movingFor: 0, armed: false, kind: null };
   const ease = (current, target, dt, rate) => current + (target - current) * (1 - Math.exp(-dt * rate));
+  const smooth = value => { const t = Math.max(0, Math.min(1, value)); return t * t * t * (10 + t * (-15 + t * 6)); };
+  function reset() {
+    Object.assign(state, { phase: 0, cooldown: 0, turningFor: 0, idleFor: 0,
+      movingFor: 0, armed: false, kind: null, amount: 0, orbit: 0, pilotYaw: 0 });
+  }
   return {
-    state,
-    update(dt, { mode, yawRate, turn, speed, targetDistance, portrait, reducedMotion }) {
-      if (mode === 'paused') return state;
+    state, reset,
+    update(dt, { mode, yawRate, turn, speed, targetDistance, portrait, reducedMotion,
+      playful = true, activeInput = false, blocked = false }) {
+      if (mode === 'paused' || dt <= 0) return state;
       if (mode !== state.lastMode) {
-        if (mode === 'countdown' || mode === 'welcome') {
-          state.phase = state.cooldown = state.turningFor = 0;
-        }
+        reset();
         state.lastMode = mode;
       }
       const showingOff = mode === 'welcome';
       state.presentation = reducedMotion ? (showingOff ? 1 : 0)
         : ease(state.presentation, showingOff ? 1 : 0, dt, mode === 'countdown' ? 3 : 2.4);
       state.cooldown = Math.max(0, state.cooldown - dt);
-      const canPeek = (mode === 'racing' || mode === 'explore') && speed > 2 && targetDistance > 13;
-      // Accumulate the actual turn, including the brief coasting between key
-      // taps, so gentle steering earns a glance as reliably as holding a key.
-      state.turningFor = canPeek && Math.abs(yawRate) > .2
-        ? state.turningFor + Math.abs(yawRate) * dt : Math.max(0, state.turningFor - dt * .3);
-      if (!reducedMotion && state.phase === 0 && state.cooldown === 0 && state.turningFor > .09) {
-        state.phase = .001; state.side = Math.sign(yawRate); state.cooldown = 3.6;
-        state.turningFor = 0;
+      const playing = mode === 'racing' || mode === 'explore';
+      const safe = playing && !blocked && !reducedMotion && targetDistance > 18;
+      const idle = mode === 'explore' && !activeInput && speed < .25 && Math.abs(yawRate) < .08;
+      state.idleFor = safe && idle ? state.idleFor + dt : 0;
+      state.movingFor = activeInput && speed > 1 ? state.movingFor + dt : 0;
+      if (state.movingFor > .4) state.armed = true;
+      if (safe && speed > 2 && Math.abs(turn) > .08) {
+        state.turningFor = Math.min(.8, state.turningFor + Math.abs(yawRate) * dt);
+        if (state.phase === 0) state.side = Math.sign(turn);
+      } else if (!safe || speed < 2) state.turningFor = 0;
+      const settledTurn = Math.abs(turn) < .025 && Math.abs(yawRate) < .12;
+      const idleHello = state.armed && state.idleFor > .85;
+      const passingGlance = playful && speed > 2 && settledTurn && state.turningFor > .22;
+      if (safe && state.phase === 0 && state.cooldown === 0 && (idleHello || passingGlance)) {
+        state.phase = .001; state.kind = idleHello ? 'hello' : 'glance';
+        state.cooldown = idleHello ? 9 : 7; state.armed = false; state.turningFor = 0;
       }
+      // Input always wins. Returning the visual pose never changes swim yaw,
+      // velocity, touch capture, or the direction of the next movement.
+      const cancelled = !safe || (state.kind === 'hello' ? activeInput || !idle
+        : !playful || !settledTurn || speed < 2);
+      if (cancelled) { state.phase = 0; state.kind = null; }
       let amount = 0;
-      if (reducedMotion) { state.phase = 0; state.turningFor = 0; }
       if (state.phase > 0) {
-        state.phase += dt / 1.25;
-        if (state.phase >= 1) state.phase = 0;
-        else amount = Math.sin(state.phase * Math.PI) ** 2;
+        state.phase += dt / (state.kind === 'hello' ? 2.4 : 1.8);
+        if (state.phase >= 1) { state.phase = 0; state.kind = null; }
+        else amount = smooth(state.phase / .3) * smooth((1 - state.phase) / .3);
       }
       state.amount = amount;
-      const maxOrbit = portrait ? .34 : .70;
-      const safety = THREE.MathUtils.smoothstep(targetDistance, 6, 15);
-      // Near a hoop, narrow the camera swing; the rider can still glance back.
-      const orbit = state.side * maxOrbit * amount * safety;
+      const maxOrbit = portrait ? .18 : .35;
+      const orbit = playful && state.kind === 'glance' ? state.side * maxOrbit * amount : 0;
       state.orbit = ease(state.orbit, orbit, dt, 8);
-      const glanceYaw = -state.side * (Math.PI - Math.abs(state.orbit) - .4) * amount;
+      const glanceYaw = -state.side * (Math.PI - Math.abs(state.orbit) - .28) * amount;
       const pilotTarget = mode === 'finished' ? -2.6 : showingOff || reducedMotion ? 0 : glanceYaw;
-      state.pilotYaw = ease(state.pilotYaw, pilotTarget, dt, mode === 'finished' ? 3 : 14);
+      state.pilotYaw = ease(state.pilotYaw, pilotTarget, dt, mode === 'finished' ? 3 : cancelled ? 18 : 12);
       return state;
     }
   };

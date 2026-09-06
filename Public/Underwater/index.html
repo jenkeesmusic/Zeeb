@@ -54,7 +54,7 @@
     font-size: 28px; font-weight: 700;
   }
 </style>
-<link rel="stylesheet" href="./rally.css?v=20260906-depth">
+<link rel="stylesheet" href="./rally.css?v=20260906-motion">
 </head>
 <body>
 <canvas id="stage"></canvas>
@@ -95,22 +95,22 @@
   "imports": {
     "three": "./vendor/three.module.min.js",
     "three/addons/": "./vendor/addons/",
-    "./colossal-wreck.js": "./colossal-wreck.js?v=20260906-depth",
-    "./coral-forms.js": "./coral-forms.js?v=20260906-depth",
-    "./reef-chunks.js": "./reef-chunks.js?v=20260906-depth",
-    "./reef-course.js": "./reef-course.js?v=20260906-depth",
-    "./reef-garden.js": "./reef-garden.js?v=20260906-depth",
-    "./reef-performance.js": "./reef-performance.js?v=20260906-depth",
-    "./reef-rally.js": "./reef-rally.js?v=20260906-depth",
-    "./reef-scenery.js": "./reef-scenery.js?v=20260906-depth",
-    "./reef-world.js": "./reef-world.js?v=20260906-depth",
-    "./scenery-forms.js": "./scenery-forms.js?v=20260906-depth",
-    "./scooter-handling.js": "./scooter-handling.js?v=20260906-depth",
-    "./touch-controls.js": "./touch-controls.js?v=20260906-depth",
-    "./treasure-cove.js": "./treasure-cove.js?v=20260906-depth",
-    "./wreck-layout.js": "./wreck-layout.js?v=20260906-depth",
-    "./wreck-physics.js": "./wreck-physics.js?v=20260906-depth",
-    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260906-depth"
+    "./colossal-wreck.js": "./colossal-wreck.js?v=20260906-motion",
+    "./coral-forms.js": "./coral-forms.js?v=20260906-motion",
+    "./reef-chunks.js": "./reef-chunks.js?v=20260906-motion",
+    "./reef-course.js": "./reef-course.js?v=20260906-motion",
+    "./reef-garden.js": "./reef-garden.js?v=20260906-motion",
+    "./reef-performance.js": "./reef-performance.js?v=20260906-motion",
+    "./reef-rally.js": "./reef-rally.js?v=20260906-motion",
+    "./reef-scenery.js": "./reef-scenery.js?v=20260906-motion",
+    "./reef-world.js": "./reef-world.js?v=20260906-motion",
+    "./scenery-forms.js": "./scenery-forms.js?v=20260906-motion",
+    "./scooter-handling.js": "./scooter-handling.js?v=20260906-motion",
+    "./touch-controls.js": "./touch-controls.js?v=20260906-motion",
+    "./treasure-cove.js": "./treasure-cove.js?v=20260906-motion",
+    "./wreck-layout.js": "./wreck-layout.js?v=20260906-motion",
+    "./wreck-physics.js": "./wreck-physics.js?v=20260906-motion",
+    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260906-motion"
   }
 }
 </script>
@@ -790,7 +790,7 @@ duck.add(headlamp);
 
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('./zeeb-swimmer.glb?v=20260906-depth', (gltf) => {
+loader.load('./zeeb-swimmer.glb?v=20260906-motion', (gltf) => {
   const model = gltf.scene;
   model.name = 'Zeeb, swimming freely';
   duckInner.add(model);
@@ -1047,9 +1047,9 @@ const keys = new Set();
 const hint = document.getElementById('hint');
 if (new URLSearchParams(location.search).has('preview')) document.body.classList.add('preview');
 if (new URLSearchParams(location.search).has('debug')) document.body.classList.add('debug');
-let hintShown = true;
 function dismissHint() {
-  if (hintShown) { hintShown = false; hint.classList.add('gone'); }
+  // Explore can show this help again after a race or a pause.
+  hint.classList.add('gone');
 }
 window.addEventListener('keydown', (e) => {
   if (e.target.closest?.('button, input, textarea, a') && ['Space', 'Enter'].includes(e.code)) return;
@@ -1105,13 +1105,13 @@ const tmpV = new THREE.Vector3();
 const billPos = new THREE.Vector3();
 
 const rally = createRally({ scene, camera, duck, swim, camPos, camLook, spawnBubble, musicStart, music,
-  clearInput: () => { keys.clear(); controls?.clear(); } });
+  clearInput: () => { keys.clear(); controls?.clear(); pilotCamera.reset(); } });
 controls = createSwimControls({ canvas, mode: () => rally.state.mode, musicStart, dismissHint });
 const touch = controls.pointer;
 const reef = createReef({ scene, floorY, timeUniform, spawnBubble, duck, rally, onDiscover: rally.announce, reducedMotion: rally.reducedMotion });
 const swimPrevious = new THREE.Vector3(), cameraOrigin = new THREE.Vector3();
-// Follow reduced motion by default, but let the player explicitly choose the
-// playful face-reveal camera independently of screen shake and boost zoom.
+// Touch starts with a steady chase view. Zeeb's quiet hello does not orbit
+// the camera; reduced motion disables both optional glances and camera swings.
 let playfulCamera = !rally.reducedMotion && !controls.touchMode;
 try {
   const savedCamera = localStorage.getItem('zeeb-reef-camera');
@@ -1119,13 +1119,13 @@ try {
 } catch {}
 const cameraBtn = document.createElement('button');
 cameraBtn.id = 'cameraBtn'; cameraBtn.type = 'button'; cameraBtn.style.pointerEvents = 'auto';
-cameraBtn.title = 'Playful briefly shows Zeeb’s face during turns. Steady keeps the chase view.';
+cameraBtn.title = 'Playful adds a small camera swing after turns. Steady keeps the chase view. In either mode, Zeeb can say hello when you stop exploring.';
 function labelCamera() {
   cameraBtn.textContent = 'Camera: ' + (playfulCamera ? 'Playful' : 'Steady');
   cameraBtn.setAttribute('aria-pressed', String(playfulCamera));
 }
 cameraBtn.addEventListener('click', () => {
-  playfulCamera = !playfulCamera; pilotCamera.state.phase = 0; pilotCamera.state.cooldown = 0;
+  playfulCamera = !playfulCamera; pilotCamera.reset();
   try { localStorage.setItem('zeeb-reef-camera', playfulCamera ? 'playful' : 'steady'); } catch {}
   labelCamera();
 });
@@ -1208,13 +1208,14 @@ function animate() {
   performanceQuality.sample(realDt, !document.hidden && rally.state.mode !== 'paused');
 
   /* --- Zeeb --- */
-  let inp = { thrust: 0, turn: 0, rise: 0 };
+  let inp = { thrust: 0, turn: 0, rise: 0 }, playerInput = inp;
   // Cover the real elapsed time even at 10–20 FPS. Small physics steps retain
   // the steering feel and swept hoop/wreck collisions without slow motion.
   for (let step = 0; step < frame.steps; step++) {
     const dt = frame.step;
     elapsed += dt;
-    inp = rally.beforeStep(readInput(dt), dt);
+    playerInput = readInput(dt);
+    inp = rally.beforeStep(playerInput, dt);
 
     stepScooter(swim, inp, rally.state.boost > 0, dt);
     fwd.set(Math.sin(swim.yaw), 0, Math.cos(swim.yaw));
@@ -1243,10 +1244,11 @@ function animate() {
   const boosting = rally.state.boost > 0;
   const speedFrac = swim.speed / MAX_SPEED;
 
-  // Zeeb gently leans into his swim, with a small body wiggle and no craft.
+  // The body anticipates intent, then settles with the movement. These small
+  // visual accents never delay steering or change the collision shape.
   const pitchTarget = THREE.MathUtils.clamp(-swim.vel.y * 0.06, -0.6, 0.6) - inp.rise * 0.15;
-  swim.pitch += (pitchTarget - swim.pitch) * Math.min(1, dt * 5);
-  const bankTarget = THREE.MathUtils.clamp(-swim.yawRate * .22 * (.4 + speedFrac), -.58, .58);
+  swim.pitch += (pitchTarget - swim.pitch) * (1 - Math.exp(-dt * 7));
+  const bankTarget = THREE.MathUtils.clamp(-(swim.yawRate * .19 + inp.turn * .09) * (.4 + speedFrac), -.58, .58);
   swim.bank += (bankTarget - swim.bank) * (1 - Math.exp(-dt * 12));
   duck.rotation.y = swim.yaw;
   duckTilt.rotation.x = swim.pitch;
@@ -1257,16 +1259,23 @@ function animate() {
   const pilotView = pilotCamera.update(dt, { mode: rally.state.mode, yawRate: swim.yawRate,
     turn: inp.turn, speed: swim.speed, targetDistance: rally.state.mode === 'racing' && targetRing
       ? duck.position.distanceTo(targetRing.position) : Infinity,
-    portrait, reducedMotion: !playfulCamera || insideWreck || (touch.active && touch.pointerType !== 'mouse') });
+    portrait, reducedMotion: rally.reducedMotion, playful: playfulCamera,
+    activeInput: touch.active || Math.abs(playerInput.thrust) > .01 || Math.abs(playerInput.turn) > .01 || Math.abs(playerInput.rise) > .01,
+    blocked: insideWreck || boosting || Math.abs(inp.rise) > .1 || (touch.active && touch.pointerType !== 'mouse') });
   duckInner.rotation.z = Math.sin(t * 7) * .018 * speedFrac;
   duckInner.rotation.y = pilotView.pilotYaw + Math.sin(t * 6) * .018 * speedFrac;
   duckInner.position.y = SWIM_BODY_Y + Math.sin(t * (2.2 + speedFrac * 3)) * .035;
   reef.update(dt, t);
 
   // Small breath bubbles and the existing boost trail follow Zeeb himself.
-  billPos.copy(duck.position).addScaledVector(fwd, 1.3).add(tmpV.set(0, 0.65, 0));
-  if (speedFrac > 0.15 && Math.random() < speedFrac * 0.1) spawnBubble(billPos, rrange(0.08, 0.14));
-  else if (Math.random() < 0.02) spawnBubble(billPos, 0.18);
+  const breathRate = speedFrac > .15 ? 1.2 + speedFrac * 6 : 1.2;
+  if (dt > 0 && Math.random() < 1 - Math.exp(-breathRate * dt)) {
+    // Follow the animated bill during a hello, with the same breath rate at
+    // every frame rate. Update only the short parent chain when emitting.
+    billPos.set(0, (.65 - SWIM_BODY_Y) / ZEEB_SCALE, 1.3 / ZEEB_SCALE);
+    duckInner.localToWorld(billPos);
+    spawnBubble(billPos, speedFrac > .15 ? rrange(.08, .14) : .18);
+  }
 
   // Trail bubbles rise, wobble, and fade.
   for (let i = 0; i < TRAIL_N; i++) {
@@ -1394,7 +1403,7 @@ function animate() {
   if (!rally.reducedMotion) camera.rotation.z += swim.bank * .08 * (1 - pilotView.amount);
   const targetFov = rally.state.mode === 'finished' ? (portrait ? 58 : 52) : insideWreck ? 68 : THREE.MathUtils.lerp(boosting && !rally.reducedMotion ? 65 : 60, 52, showPilot);
   if (Math.abs(camera.fov - targetFov) > .01) {
-    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix();
+    camera.fov += (targetFov - camera.fov) * (1 - Math.exp(-dt * 3)); camera.updateProjectionMatrix();
   }
   rally.updateGuide();
 
@@ -1486,7 +1495,7 @@ window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, mus
     document.body.classList.add('preview');
     duck.position.set(...position); swim.vel.set(0, 0, 0);
     swim.yaw = yaw; swim.yawRate = swim.pitch = swim.bank = swim.speed = 0;
-    Object.assign(pilotCamera.state, { phase: 0, amount: 0, orbit: 0, pilotYaw: 0, presentation: 0 });
+    pilotCamera.reset(); pilotCamera.state.presentation = 0;
     elapsed = 12; timeUniform.value = elapsed; updateLighting();
     camPos.set(...eye); camLook.set(...target); camera.fov = fov; camera.updateProjectionMatrix();
   }

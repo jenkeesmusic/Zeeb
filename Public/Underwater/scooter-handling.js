@@ -68,8 +68,14 @@ export function rallyInput(input, position, swim, target) {
 
 export function stepScooter(swim, input, boosting, dt) {
   if (dt <= 0) return;
-  swim.yawRate += (input.turn * TURN_RATE - swim.yawRate) * ease(20, dt);
-  swim.yaw += swim.yawRate * dt;
+  const turnTarget = input.turn * TURN_RATE;
+  const settlingTurn = swim.yawRate * turnTarget < 0 || Math.abs(turnTarget) < Math.abs(swim.yawRate);
+  const turnResponse = settlingTurn ? 30 : 12;
+  const previousRate = swim.yawRate;
+  const turnEase = ease(turnResponse, dt);
+  swim.yawRate += (turnTarget - previousRate) * turnEase;
+  // Integrate the easing curve itself: a slow frame must not add a larger turn.
+  swim.yaw += turnTarget * dt + (previousRate - turnTarget) * turnEase / turnResponse;
   const sin = Math.sin(swim.yaw), cos = Math.cos(swim.yaw);
   let forward = swim.vel.x * sin + swim.vel.z * cos;
   // High lateral grip lets the swimmer follow its nose instead of sliding
@@ -82,5 +88,7 @@ export function stepScooter(swim, input, boosting, dt) {
   forward += (target - forward) * ease(braking ? 9 : 6, dt);
   swim.vel.x = sin * forward + cos * sideways;
   swim.vel.z = cos * forward - sin * sideways;
-  swim.vel.y += (input.rise * 7.5 - swim.vel.y) * ease(7, dt);
+  const depthTarget = input.rise * 7.5;
+  const settlingDepth = swim.vel.y * depthTarget < 0 || Math.abs(depthTarget) < Math.abs(swim.vel.y);
+  swim.vel.y += (depthTarget - swim.vel.y) * ease(settlingDepth ? 12 : 7, dt);
 }
