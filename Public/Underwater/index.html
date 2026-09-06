@@ -116,8 +116,9 @@ import { MeshoptDecoder } from './vendor/meshopt_decoder.module.js';
 import { createRally } from './reef-rally.js';
 import { createReef } from './reef-world.js';
 import { COURSE, COURSE_SCALE } from './reef-course.js';
-import { createScooter, createPilotCamera } from './zeeb-scooter.js';
-import { CRUISE_SPEED, stepScooter, stepPointer, MOUSE_DRAG_X, MOUSE_DRAG_Y } from './scooter-handling.js';
+import { createPilotCamera } from './zeeb-scooter.js';
+import { createSwimControls } from './touch-controls.js';
+import { CRUISE_SPEED, stepScooter } from './scooter-handling.js';
 import { makeKelpGeometry, causticGLSL } from './reef-garden.js';
 import { wreckFloor, inWreckFootprint } from './wreck-layout.js';
 
@@ -734,9 +735,7 @@ function spawnBubble(p, size) {
 
 /* ------------------------------------------------------------------- Zeeb */
 
-// Three nested groups: duck owns position and heading (yaw), duckTilt owns
-// pitch and bank for the scooter, duckInner owns the seated pilot's scale,
-// swivel, and gentle movement. The pilot can look back without steering the craft.
+// Heading, swimming tilt, and the photo-guided character move independently.
 const duck = new THREE.Group();
 const duckTilt = new THREE.Group();
 const duckInner = new THREE.Group();
@@ -745,23 +744,20 @@ duck.position.copy(SPAWN);
 scene.add(duck);
 const ZEEB_SCALE = 1.12;
 duckInner.scale.setScalar(ZEEB_SCALE);
-const scooter = createScooter(duckTilt);
 const pilotCamera = createPilotCamera();
-const PILOT_SEAT_Y = .38;
-duckInner.position.y = PILOT_SEAT_Y;
+const SWIM_BODY_Y = -.28;
+duckInner.position.y = SWIM_BODY_Y;
 
 // A small warm light rides with Zeeb so he stays readable in the deep.
-const headlamp = new THREE.PointLight(0xffe2b8, 14, 9, 1.5);
+const headlamp = new THREE.PointLight(0xffe2b8, 4, 9, 1.5);
 headlamp.position.set(0.6, 1.6, 1.4);
 duck.add(headlamp);
 
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('./zeeb.glb', (gltf) => {
+loader.load('./zeeb-swimmer.glb', (gltf) => {
   const model = gltf.scene;
-  model.position.y = -0.09; // Feet on the group origin, same as the waterfall lab.
-  // The original model offset is lifted into the cockpit by duckInner.
-  model.position.y -= 0.35;
+  model.name = 'Zeeb, swimming freely';
   duckInner.add(model);
   document.getElementById('loading').style.display = 'none';
 }, undefined, (err) => {
@@ -1032,54 +1028,10 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
 
-// Touch and mouse: drag from wherever the finger lands. Sideways drag turns,
-// vertical drag climbs or dives, and holding at all swims forward.
-const touch = { active: false, pointerId: null, pointerType: 'touch', x0: 0, y0: 0, dx: 0, dy: 0, turn: 0, rise: 0 };
-canvas.addEventListener('pointerdown', (e) => {
-  if (rally.state.mode === 'paused' || rally.state.mode === 'welcome' || rally.state.mode === 'finished') return;
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if (touch.active) return;
-  touch.pointerId = e.pointerId;
-  touch.pointerType = e.pointerType || 'mouse';
-  touch.turn = touch.rise = 0;
-  touch.active = true; touch.x0 = e.clientX; touch.y0 = e.clientY; touch.dx = 0; touch.dy = 0;
-  canvas.setPointerCapture(e.pointerId);
-  dismissHint();
-  // A mouse press is a user gesture, so desktop music starts on the press.
-  // A finger or pen press is not one yet (the browser cannot tell a tap from
-  // a scroll until it ends); those start on the lift, in endTouch.
-  if (e.pointerType === 'mouse') musicStart();
-  const pad = document.getElementById('steerPad');
-  pad.hidden = false; pad.style.left = e.clientX + 'px'; pad.style.top = e.clientY + 'px';
-  document.getElementById('steerKnob').style.transform = 'translate(0, 0)';
-});
-canvas.addEventListener('pointermove', (e) => {
-  if (!touch.active || e.pointerId !== touch.pointerId) return;
-  if (e.pointerType === 'mouse' && e.buttons === 0) { endTouch(e); return; }
-  const mouse = touch.pointerType === 'mouse';
-  touch.dx = (e.clientX - touch.x0) / (mouse ? MOUSE_DRAG_X : 64);
-  touch.dy = (e.clientY - touch.y0) / (mouse ? MOUSE_DRAG_Y : 90);
-});
-const endTouch = (e) => {
-  if (e.pointerId !== undefined && e.pointerId !== touch.pointerId) return;
-  touch.active = false; touch.dx = 0; touch.dy = 0;
-  touch.turn = touch.rise = 0;
-  touch.pointerId = null;
-  document.getElementById('steerPad').hidden = true;
-  // Lifting a finger or pen is the first moment the browser counts as a
-  // gesture. pointercancel is not one.
-  if (e.type === 'pointerup') musicStart();
-};
-canvas.addEventListener('pointerup', endTouch);
-canvas.addEventListener('pointercancel', endTouch);
-canvas.addEventListener('lostpointercapture', endTouch);
-window.addEventListener('blur', () => endTouch({}));
-document.addEventListener('visibilitychange', () => { if (document.hidden) { keys.clear(); endTouch({}); } });
-// Safety net for a browser that does not deliver pointerup to the canvas.
-canvas.addEventListener('touchend', () => musicStart(), { passive: true });
-
+// Installed after the rally creates its UI; mouse and touch share one owner.
+let controls;
 function readInput(dt) {
-  const pointer = stepPointer(touch, dt);
+  const pointer = controls.read(dt);
   let thrust = 0, turn = 0, rise = 0;
   if (keys.has('ArrowUp') || keys.has('KeyW')) thrust += 1;
   if (keys.has('ArrowDown') || keys.has('KeyS')) thrust -= 0.6;
@@ -1087,18 +1039,16 @@ function readInput(dt) {
   if (keys.has('ArrowRight') || keys.has('KeyD')) turn -= 1;
   if (keys.has('Space') || keys.has('KeyE')) rise += 1;
   if (keys.has('ShiftLeft') || keys.has('ShiftRight') || keys.has('KeyQ')) rise -= 1;
-  if (touch.active) {
-    thrust = Math.max(thrust, 1);
-    turn -= pointer.turn;
-    rise -= pointer.rise;
-    document.getElementById('steerKnob').style.transform = `translate(${pointer.turn * 32}px, ${pointer.rise * 32}px)`;
-  }
+  if (pointer.thrust < 0) thrust = pointer.thrust;
+  else if (pointer.thrust > 0) thrust = Math.max(thrust, pointer.thrust);
+  turn += pointer.turn;
+  rise += pointer.rise;
   return { thrust, turn: THREE.MathUtils.clamp(turn, -1, 1), rise: THREE.MathUtils.clamp(rise, -1, 1) };
 }
 
 /* --------------------------------------------------------- swim physics */
 
-// The scooter responds quickly and grips through corners. Its separate
+// Zeeb responds promptly and follows his heading. Separate
 // depth control and the rally's approach assistance keep hoop runs forgiving.
 const swim = {
   vel: new THREE.Vector3(),
@@ -1114,12 +1064,14 @@ const tmpV = new THREE.Vector3();
 const billPos = new THREE.Vector3();
 
 const rally = createRally({ scene, camera, duck, swim, camPos, camLook, spawnBubble, musicStart, music,
-  clearInput: () => { keys.clear(); endTouch({}); } });
+  clearInput: () => { keys.clear(); controls?.clear(); } });
+controls = createSwimControls({ canvas, mode: () => rally.state.mode, musicStart, dismissHint });
+const touch = controls.pointer;
 const reef = createReef({ scene, floorY, timeUniform, spawnBubble, duck, rally, onDiscover: rally.announce, reducedMotion: rally.reducedMotion });
 const swimPrevious = new THREE.Vector3(), cameraOrigin = new THREE.Vector3();
 // Follow reduced motion by default, but let the player explicitly choose the
 // playful face-reveal camera independently of screen shake and boost zoom.
-let playfulCamera = !rally.reducedMotion;
+let playfulCamera = !rally.reducedMotion && !controls.touchMode;
 try {
   const savedCamera = localStorage.getItem('zeeb-reef-camera');
   if (savedCamera === 'playful' || savedCamera === 'steady') playfulCamera = savedCamera === 'playful';
@@ -1184,30 +1136,28 @@ function animate() {
   swim.speed = swim.vel.length();
   const speedFrac = swim.speed / MAX_SPEED;
 
-  // The scooter banks into turns. Zeeb remains seated and can swivel toward
-  // the camera independently of the craft's heading.
+  // Zeeb gently leans into his swim, with a small body wiggle and no craft.
   const pitchTarget = THREE.MathUtils.clamp(-swim.vel.y * 0.06, -0.6, 0.6) - inp.rise * 0.15;
   swim.pitch += (pitchTarget - swim.pitch) * Math.min(1, dt * 5);
   const bankTarget = THREE.MathUtils.clamp(-swim.yawRate * .22 * (.4 + speedFrac), -.58, .58);
   swim.bank += (bankTarget - swim.bank) * (1 - Math.exp(-dt * 12));
   duck.rotation.y = swim.yaw;
   duckTilt.rotation.x = swim.pitch;
-  duckTilt.rotation.z = swim.bank * .72;
+  duckTilt.rotation.z = swim.bank * .48;
   const targetRing = rally.rings[rally.state.next];
   const portrait = camera.aspect < .85;
   const insideWreck = reef.wreck.near(duck.position);
   const pilotView = pilotCamera.update(dt, { mode: rally.state.mode, yawRate: swim.yawRate,
     turn: inp.turn, speed: swim.speed, targetDistance: rally.state.mode === 'racing' && targetRing
       ? duck.position.distanceTo(targetRing.position) : Infinity,
-    portrait, reducedMotion: !playfulCamera || insideWreck });
+    portrait, reducedMotion: !playfulCamera || insideWreck || (touch.active && touch.pointerType !== 'mouse') });
   duckInner.rotation.z = Math.sin(t * 7) * .018 * speedFrac;
   duckInner.rotation.y = pilotView.pilotYaw + Math.sin(t * 6) * .018 * speedFrac;
-  duckInner.position.y = PILOT_SEAT_Y + Math.sin(t * 2.2) * .025;
+  duckInner.position.y = SWIM_BODY_Y + Math.sin(t * (2.2 + speedFrac * 3)) * .035;
   rally.afterStep(dt, t);
   reef.update(dt, t);
-  scooter.update(dt, swim.speed, boosting, spawnBubble);
 
-  // A few little breath bubbles; the main wake now comes from the propeller.
+  // Small breath bubbles and the existing boost trail follow Zeeb himself.
   billPos.copy(duck.position).addScaledVector(fwd, 1.3).add(tmpV.set(0, 0.65, 0));
   if (speedFrac > 0.15 && Math.random() < speedFrac * 0.1) spawnBubble(billPos, rrange(0.08, 0.14));
   else if (Math.random() < 0.02) spawnBubble(billPos, 0.18);
@@ -1348,7 +1298,7 @@ function animate() {
     const amount=rally.reducedMotion ? 1 : 1-Math.exp(-dt*2.4);
     camPos.lerp(frame.eye,amount);camLook.lerp(frame.look,amount);
   } else {
-    // Carry the camera with the craft, then ease its orbit. Without this,
+    // Carry the camera with Zeeb, then ease its orbit. Without this,
     // translation lag adds several feet during a boost and makes Zeeb tiny.
     camPos.addScaledVector(swim.vel, dt * (1 - showPilot));
     camPos.lerp(tmpV, 1 - Math.exp(-dt * (showPilot > .5 ? 4 : 7.5)));
@@ -1395,10 +1345,10 @@ function animate() {
 requestAnimationFrame(animate);
 
 // Debug handle for the console or a driving script.
-window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, music, rally, reef, touch, scooter, pilotCamera,
+window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, music, rally, reef, touch, controls, pilotCamera,
   // Fixed views let artwork iterations be compared at the same camera and time.
   reviewView({ position, yaw = 0, eye, target, hoop = 0, fov = 60 }) {
-    keys.clear(); endTouch({});
+    keys.clear(); controls.clear();
     rally.state.mode = 'paused'; rally.state.pausedMode = 'explore'; rally.state.next = hoop;
     rally.state.boost = 0; rally.refreshRings();
     document.body.classList.add('preview');

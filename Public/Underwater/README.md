@@ -23,8 +23,12 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
   alignment assist. Holding a turn takes priority over that assistance.
   Tight bends ease the speed so there is time to turn.
 - Free swimming: arrows or WASD swim and turn. Space/E rises; Shift/Q dives.
-- Mouse or touch: hold and drag on the water. Horizontal movement turns;
+- Mouse: hold and drag on the water. Horizontal movement turns;
   vertical movement controls depth. A visible joystick shows the drag.
+- Touch: hold the large swim pad (or the water) to swim, and slide left/right
+  to turn. Lift to stop in exploration; the hoop course keeps cruising.
+  Separate **Up**, **Down**, and **Back** buttons control depth and reverse.
+  A second finger can use these while the first keeps steering.
 - B or **Boost** gives a 1.6-second burst, with a five-second refill.
   From hoop three onward, passing a hoop gives a 0.65-second burst without
   using the boost meter or shortening an existing boost. It preserves
@@ -36,18 +40,20 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
   help still finishes but does not replace the best time.
 - M or **Music** toggles audio. **Next song** is hidden on narrow screens.
 - Wreck exploration: swim through the broad hull breaches, doorways and deck
-  hatches. Space/E rises; Shift/Q dives. On touch, drag vertically to change
+  hatches. Space/E rises; Shift/Q dives. On touch, use Up / Down to change
   decks. **Back outside** returns to the entrance without losing collected coins.
   The HUD shows the nearest area and how many coins remain there.
 
-The scooter turns promptly, follows its nose with very little sideways
+Zeeb turns promptly, follows his nose with very little sideways
 drift, and brakes quickly when you let go in free swimming. Horizontal
-touch steering reaches full lock with a 64-pixel drag. Mouse steering uses
+touch steering uses an 86-pixel drag, a soft center, and a gentler maximum
+turn. Vertical finger wobble cannot change depth. Long swipes carry the
+steering origin along, so there is no excess drag to undo. Mouse steering uses
 110 pixels horizontally and 150 vertically, with a soft response near the center
 and a small dead zone that ignores hand jitter. Mouse turns ease in, settle
 faster when centering or reversing, and clear immediately on release. The visible
 joystick follows that smoothed input. The chase camera keeps up with changes
-of direction; the scooter's bank is capped.
+of direction; Zeeb's bank is capped.
 
 Successive hoops are 63–80 feet apart, about 40% farther than the prior
 layout and roughly 4–5 seconds apart at cruising speed. This gives more room
@@ -73,13 +79,18 @@ is available. The longer course uses its own record, preserving the old one.
 
 ## Grace’s art and the reef
 
-`zeeb.glb` and `fish.glb` are unchanged. Zeeb now sits in an open teal sea
-scooter with a cream cockpit rim, small coral-colored fins, and a guarded
-yellow rear propeller. The propeller speeds up with movement and boost and
-leaves a bubble wake. Zeeb sits above the rim so his face and stripes stay
-visible; no feet were added. The seven instanced fish schools use Grace’s
+Zeeb swims on his own, with no boat or added feet. `zeeb-swimmer.glb` is a
+new Blender model guided by the actual toy photographs `IMG_7711.jpg`
+through `IMG_7714.jpg` in the repository's `img/` folder. It has a round
+head, broad orange bill and lower lobe, tiny close-set eyes, broad black
+ears, a scalloped mane, a rounded scoop tail, and curved tapered stripes.
+The editable master, packed reference photos and reproducible build script
+are in `../../blender/swimmer-20260906/`. The prior `zeeb.glb` is preserved;
+`fish.glb` is unchanged. The seven instanced fish schools use Grace’s
 grey fish model. Two schools follow paths close to the rally.
 
+Touch devices default to the steady chase camera. Active touch steering also
+suppresses a turn glance so the view stays predictable under the finger.
 The welcome view shows Zeeb from the front, then moves behind him during the
 countdown. The closer chase camera briefly swings outward during turns while
 Zeeb swivels toward it. The camera swing is smaller on narrow screens and
@@ -189,14 +200,17 @@ use a separate audio context unlocked by interaction and follow the music toggle
   batches, wood grain, and metal patina.
 - `coral-forms.js`: three Blender coral meshes and the joined stone arch.
   Rebuild locally with `../../docs/reef-art-style/build_coral.py` using Blender.
-- `zeeb-scooter.js`: procedural scooter, rear propeller animation and wake,
-  and the pilot/camera glance controller.
+- `zeeb-scooter.js`: the camera glance controller; the earlier procedural
+  scooter builder is retained but is no longer instantiated.
+- `touch-controls.js`: captured mouse/touch pointers, visible swim pad,
+  independent depth/reverse holds, and release/pause/focus clearing.
 - `scooter-handling.js`: responsive steering, acceleration, lateral grip,
   depth movement, and approach assistance shared with driving checks.
 - `rally.css`: desktop and small-screen game UI, focus styling, and reduced
   motion adjustments. Reduced motion removes camera banking/FOV boosts and
   decorative hoop rotation; normal game movement remains.
-- `zeeb.glb`: meshopt-compressed Zeeb; `fish.glb`: the decimated fish from
+- `zeeb-swimmer.glb`: photo-guided swimming Zeeb; `zeeb.glb`: preserved prior
+  model; `fish.glb`: the decimated fish from
   `../../blender/fish_build.py` / `Fish_low.glb`.
 - `vendor/`: local three.js, GLTFLoader, geometry utilities, and meshopt decoder.
 
@@ -230,13 +244,16 @@ the course with coarse quarter-second steering corrections at 20, 30, 60,
 and 144 updates per second, with and without manual boosts. Run them with
 `node docs/reef-rally-checks/handling-check.mjs` from the repository root.
 `node docs/steering-polish/checks.mjs` checks mouse jitter rejection, response,
-countersteering, release, frame-rate consistency, preserved touch controls and
-complete laps through the smoothed mouse input at 20, 60 and 144 updates per second.
+countersteering, release, frame-rate consistency, independent touch steering and
+complete mouse/touch laps at 20, 60 and 144 updates per second.
+`../../docs/swimmer-touch/` records the photo-guided swimmer and touch revision,
+including a complete Firefox course driven by native WebDriver touch pointers,
+simultaneous steering/depth, reverse, release, pause and narrow-layout checks.
 `node docs/colossal-wreck/checks.mjs` covers deck/wall collision, boosted sweeps,
 open hatches, pause, duplicate pickups, storage failure and saved progress.
 `node docs/colossal-wreck/reachability.mjs` checks the exported final geometry:
 all 142 coins must be collectible from connected swimming space, accounting for
-the scooter's radius, solid decks, terrain and line of sight.
+the swimmer's collision radius, solid decks, terrain and line of sight.
 The opening checks also deliberately steer left and right before hoop three,
 wait 0.6 seconds after release, and recover without missing the opening.
 Physical iPhone/iPad audio and

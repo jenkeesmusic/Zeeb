@@ -322,7 +322,7 @@ export function createColossalWreck({scene,timeUniform,forms,duck,rally,spawnBub
       if(exploring) {
         const r=roomAt(duck.position),room=WRECK_ROOMS[r],remaining=WRECK_COINS.filter(c=>c.room===r&&!progress.found.has(c.id)).length;
         $('wreckRoom').textContent=nearby?room.name:'The colossal wreck';$('wreckCount').textContent=`${progress.found.size} / ${WRECK_COINS.length}`;
-        const verticalHint=matchMedia('(pointer: coarse)').matches?'Drag up / down to change decks':'Space up / Shift down';
+        const verticalHint=document.body.classList.contains('touch-mode')?'Up / Down to change decks':'Space up / Shift down';
         $('wreckClue').textContent=nearby?(remaining?`${remaining} coins nearby · ${verticalHint}`:'This nook is explored. Try another deck!'):(progress.canSave?'Your finds are saved.':'Your finds stay for this visit.');
       }
     }

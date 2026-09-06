@@ -9,9 +9,10 @@ function smoothstep(lo, hi, value) {
   return t * t * (3 - 2 * t);
 }
 
-// A mouse needs more travel and a softer center than a finger joystick.
+// Separate travel distances keep mouse corrections precise and touch comfortable.
 export const MOUSE_DRAG_X = 110;
 export const MOUSE_DRAG_Y = 150;
+export const TOUCH_DRAG_X = 86;
 function mouseAxis(value, deadZone) {
   const amount = clamp((Math.abs(value) - deadZone) / (1 - deadZone), 0, 1);
   return Math.sign(value) * Math.pow(amount, 1.4);
@@ -19,7 +20,12 @@ function mouseAxis(value, deadZone) {
 export function stepPointer(pointer, dt) {
   if (!pointer.active) { pointer.turn = pointer.rise = 0; return pointer; }
   if (pointer.pointerType !== 'mouse') {
-    pointer.turn = clamp(pointer.dx, -1, 1); pointer.rise = clamp(pointer.dy, -1, 1);
+    // Depth has its own buttons. Vertical finger wobble cannot start a dive.
+    const target = mouseAxis(pointer.dx, .11) * .8;
+    const current = pointer.turn || 0;
+    const settling = current * target <= 0 || Math.abs(target) < Math.abs(current);
+    pointer.turn = current + (target - current) * ease(settling ? 20 : 12, Math.max(0, dt));
+    pointer.rise = 0;
     return pointer;
   }
   const targets = { turn: mouseAxis(pointer.dx, .07), rise: mouseAxis(pointer.dy, .09) };

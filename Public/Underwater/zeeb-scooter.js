@@ -97,6 +97,7 @@ export function createPilotCamera() {
         state.turningFor = 0;
       }
       let amount = 0;
+      if (reducedMotion) { state.phase = 0; state.turningFor = 0; }
       if (state.phase > 0) {
         state.phase += dt / 1.25;
         if (state.phase >= 1) state.phase = 0;

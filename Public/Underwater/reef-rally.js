@@ -23,7 +23,7 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
       <h1 id="menuTitle">The lost treasure</h1>
       <p id="menuText">Follow 12 golden hoops to the lost treasure. Or explore a colossal shipwreck, with hidden rooms and coins on every deck.</p>
       <div class="menu-actions"><button class="primary" id="startBtn" type="button">Find the treasure</button><button id="exploreBtn" type="button">Just explore</button></div>
-      <div id="menuHelp">Steer with ← → or A / D. On a touch screen, drag.<br>Aim for gold, then release to glide into line. B gives a boost.</div>
+      <div id="menuHelp">Touch: hold to swim, slide left/right to turn. Up / Down change depth.<br>Keyboard: ← → or A / D steer. Aim for gold, then release to glide into line.</div>
     </section>
     <div id="rallyControls"><button id="boostBtn" type="button" hidden><span id="boostFill"></span><span id="boostLabel">Boost · B</span></button><button id="rescueBtn" type="button" hidden>Back to hoop</button><button id="playBtn" type="button" hidden>Find the treasure</button></div>
     <div id="toast" role="status" aria-live="polite"></div>
@@ -130,7 +130,9 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
     unlockSound(); state.mode = 'explore'; state.boost = 0; $('countdown').hidden = true; $('target').hidden = true;
     if(options.position)resetPosition(options.position,options.direction);
     setPlayUI(); announce(options.message || 'The whole ocean is yours');
-    $('hint').innerHTML = '<b>WASD / arrows</b> swim · <b>Space</b> up · <b>Shift</b> down · <b>B</b> boost';
+    $('hint').innerHTML = document.body.classList.contains('touch-mode')
+      ? 'Hold to swim · slide left/right to turn · lift to stop. Up / Down change depth.'
+      : '<b>WASD / arrows</b> swim · <b>Space</b> up · <b>Shift</b> down · <b>B</b> boost';
     $('hint').classList.remove('gone'); setTimeout(() => $('hint').classList.add('gone'), 8000);
   }
   function pause() {

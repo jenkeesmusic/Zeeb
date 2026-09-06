@@ -93,3 +93,30 @@ body.preview #rallyHud, body.preview #menu, body.preview #rallyControls, body.pr
   #toast { top: 20%; }
 }
 @media (prefers-reduced-motion: reduce) { #toast, #hint { transition: none; } }
+
+#touchControls { position:fixed; inset:0; z-index:7; pointer-events:none; user-select:none; -webkit-user-select:none; }
+#touchControls button { pointer-events:auto; touch-action:none; color:#e9fff6; background:#073e50df; border:2px solid #bdeade95; font:800 15px 'Trebuchet MS',sans-serif; -webkit-tap-highlight-color:transparent; }
+#swimPad { position:absolute; left:max(22px, env(safe-area-inset-left)); bottom:max(30px, env(safe-area-inset-bottom)); width:126px; height:126px; padding:0; border-radius:50%; box-shadow:inset 0 0 25px #8fefe412; }
+#swimKnob { position:absolute; left:42px; top:35px; width:40px; height:40px; border-radius:50%; border:1px solid #e6fff8aa; background:#addfd970; }
+#swimPad .turn-left, #swimPad .turn-right { position:absolute; top:35px; font-size:28px; color:#bbe4df; }
+#swimPad .turn-left { left:12px; } #swimPad .turn-right { right:12px; }
+#swimPad .swim-label { position:absolute; bottom:18px; left:0; width:100%; font-size:12px; }
+#depthButtons { position:absolute; right:max(22px,env(safe-area-inset-right)); bottom:max(26px,env(safe-area-inset-bottom)); display:grid; gap:8px; }
+#depthButtons button { width:82px; min-height:54px; padding:8px; border-radius:19px; }
+#touchControls button.held { border-color:#ffe08a; background:#456f64ee; color:#fff1bb; }
+#touchHint { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); color:#d6eee5; font-size:11px; white-space:nowrap; text-shadow:0 1px 4px #003849; }
+body.touch-playing #rallyControls { bottom:max(214px,calc(env(safe-area-inset-bottom) + 200px)); left:22px; right:128px; flex-wrap:wrap; }
+body.touch-playing #depth { bottom:max(212px,calc(env(safe-area-inset-bottom) + 198px)); right:22px; }
+body.touch-playing #hint { bottom:270px; }
+body.touch-playing #rallyControls #boostBtn { font-size:13px; padding:10px 16px; }
+body.touch-playing #rallyControls #playBtn, body.touch-playing #rallyControls #wreckReturn { font-size:11px; padding:9px 11px; }
+body.preview #touchControls { display:none !important; }
+@media (max-height:540px) {
+  #swimPad { width:112px; height:112px; bottom:22px; }
+  #swimKnob { left:35px; top:28px; } #swimPad .turn-left, #swimPad .turn-right { top:28px; }
+  #depthButtons { grid-template-columns:68px 68px; bottom:24px; }
+  #depthButtons button { width:68px; min-height:50px; }
+  #swimBack { grid-column:1 / 3; justify-self:end; }
+  body.touch-playing #rallyControls { bottom:152px; }
+  body.touch-playing #depth { bottom:154px; }
+}
