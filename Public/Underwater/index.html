@@ -54,7 +54,7 @@
     font-size: 28px; font-weight: 700;
   }
 </style>
-<link rel="stylesheet" href="./rally.css">
+<link rel="stylesheet" href="./rally.css?v=20260906-depth">
 </head>
 <body>
 <canvas id="stage"></canvas>
@@ -62,7 +62,7 @@
 <div id="loading">Diving in...</div>
 
 <div id="hud">
-  <div id="depth"><small>Depth</small>0 ft</div>
+  <div id="depth"><small id="depthLabel">Depth</small><span id="depthValue">0 ft</span></div>
   <div id="right">
     <div class="row">
       <button id="musicBtn" type="button">Music: On</button>
@@ -94,7 +94,23 @@
 {
   "imports": {
     "three": "./vendor/three.module.min.js",
-    "three/addons/": "./vendor/addons/"
+    "three/addons/": "./vendor/addons/",
+    "./colossal-wreck.js": "./colossal-wreck.js?v=20260906-depth",
+    "./coral-forms.js": "./coral-forms.js?v=20260906-depth",
+    "./reef-chunks.js": "./reef-chunks.js?v=20260906-depth",
+    "./reef-course.js": "./reef-course.js?v=20260906-depth",
+    "./reef-garden.js": "./reef-garden.js?v=20260906-depth",
+    "./reef-performance.js": "./reef-performance.js?v=20260906-depth",
+    "./reef-rally.js": "./reef-rally.js?v=20260906-depth",
+    "./reef-scenery.js": "./reef-scenery.js?v=20260906-depth",
+    "./reef-world.js": "./reef-world.js?v=20260906-depth",
+    "./scenery-forms.js": "./scenery-forms.js?v=20260906-depth",
+    "./scooter-handling.js": "./scooter-handling.js?v=20260906-depth",
+    "./touch-controls.js": "./touch-controls.js?v=20260906-depth",
+    "./treasure-cove.js": "./treasure-cove.js?v=20260906-depth",
+    "./wreck-layout.js": "./wreck-layout.js?v=20260906-depth",
+    "./wreck-physics.js": "./wreck-physics.js?v=20260906-depth",
+    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260906-depth"
   }
 }
 </script>
@@ -774,7 +790,7 @@ duck.add(headlamp);
 
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('./zeeb-swimmer.glb', (gltf) => {
+loader.load('./zeeb-swimmer.glb?v=20260906-depth', (gltf) => {
   const model = gltf.scene;
   model.name = 'Zeeb, swimming freely';
   duckInner.add(model);
@@ -1046,6 +1062,11 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
+// Mouse/touch activation should return Space to swimming. Keyboard activation
+// retains focus and normal button semantics for players navigating with Tab.
+document.addEventListener('click', e => {
+  if (e.detail > 0 && ['racing', 'explore'].includes(rally.state.mode)) e.target.closest('button')?.blur();
+});
 
 // Installed after the rally creates its UI; mouse and touch share one owner.
 let controls;
@@ -1061,7 +1082,8 @@ function readInput(dt) {
   if (pointer.thrust < 0) thrust = pointer.thrust;
   else if (pointer.thrust > 0) thrust = Math.max(thrust, pointer.thrust);
   turn += pointer.turn;
-  rise += pointer.rise;
+  const keyboardDepth = ['Space', 'KeyE', 'ShiftLeft', 'ShiftRight', 'KeyQ'].some(key => keys.has(key));
+  if (!keyboardDepth) rise = pointer.rise;
   return { thrust, turn: THREE.MathUtils.clamp(turn, -1, 1), rise: THREE.MathUtils.clamp(rise, -1, 1) };
 }
 
@@ -1116,7 +1138,11 @@ graphicsBtn.id = 'graphicsBtn'; graphicsBtn.type = 'button'; graphicsBtn.style.p
 graphicsBtn.title = 'Auto adjusts to your device. Click to choose Smooth, Detailed, or Auto.';
 document.getElementById('right').append(graphicsBtn);
 const optionalLights = [];
+const reefBumpMaterials = new Map();
 scene.traverse(light => {
+  if (light.isMesh) for (const material of Array.isArray(light.material) ? light.material : [light.material]) {
+    if (material.bumpMap) reefBumpMaterials.set(material, material.bumpMap);
+  }
   // Keep Zeeb's lamp and the initially-dark treasure reveal at all settings.
   if (light.isPointLight && light !== headlamp && light.intensity > 0) optionalLights.push({ light, position: new THREE.Vector3(), distance: 0 });
 });
@@ -1132,6 +1158,12 @@ function updateLighting() {
 function applyQuality() {
   const profile = performanceQuality.profile;
   reefDetail.value = profile.caustics;
+  // Fine surface roughness uses derivative texture sampling on every fragment.
+  // Preserve the sculpted shapes and paint, with this extra shading on higher tiers.
+  for (const [material, texture] of reefBumpMaterials) {
+    const map = profile.bumps ? texture : null;
+    if (material.bumpMap !== map) { material.bumpMap = map; material.needsUpdate = true; }
+  }
   renderer.shadowMap.enabled = profile.shadows;
   renderer.shadowMap.needsUpdate = profile.shadows;
   ambGeo.setDrawRange(0, profile.bubbles);
@@ -1150,9 +1182,12 @@ else applyQuality();
 
 /* ---------------------------------------------------------------- the HUD */
 
-const depthEl = document.getElementById('depth');
+const depthEl = document.getElementById('depthValue');
+const depthLabel = document.getElementById('depthLabel');
 const perfEl = document.getElementById('perf');
 let lastDepthShown = -1;
+let lastDepthMotion = '';
+let audioDepthTimer = 0, lastAudioCutoff = -1, lastAudioFilter = null;
 
 /* ------------------------------------------------------------ render loop */
 
@@ -1203,7 +1238,8 @@ function animate() {
   }
   const t = elapsed;
   timeUniform.value = t;
-  if (!frame.steps) rally.afterStep(0, t);
+  rally.updateVisuals(dt, t);
+  controls.updateUI();
   const boosting = rally.state.boost > 0;
   const speedFrac = swim.speed / MAX_SPEED;
 
@@ -1316,9 +1352,16 @@ function animate() {
   if (reef.treasure.state.opened && reef.treasure.state.time < 3) renderer.shadowMap.needsUpdate = true;
 
   /* --- music muffles with depth: 16 kHz open at the surface, 600 Hz deep --- */
-  if (music.filter && music.ctx && music.ctx.state === 'running') {
+  audioDepthTimer += dt;
+  if (music.on && music.filter && music.ctx && music.ctx.state === 'running' &&
+      (audioDepthTimer >= .1 || music.filter !== lastAudioFilter)) {
     const cutoff = 600 * Math.pow(16000 / 600, 1 - depthFrac);
-    music.filter.frequency.setTargetAtTime(cutoff, music.ctx.currentTime, 0.15);
+    audioDepthTimer = 0;
+    // Web Audio interpolates between targets; unchanged depth needs no new event.
+    if (music.filter !== lastAudioFilter || Math.abs(cutoff-lastAudioCutoff) > 25) {
+      music.filter.frequency.setTargetAtTime(cutoff, music.ctx.currentTime, 0.15);
+      lastAudioCutoff = cutoff; lastAudioFilter = music.filter;
+    }
   }
 
   /* --- camera: close chase, brief turn glances, and a front-facing welcome --- */
@@ -1411,8 +1454,10 @@ function animate() {
   const depthFt = Math.max(0, Math.round(-duck.position.y));
   if (depthFt !== lastDepthShown) {
     lastDepthShown = depthFt;
-    depthEl.innerHTML = `<small>Depth</small>${depthFt} ft`;
+    depthEl.textContent = `${depthFt} ft`;
   }
+  const depthMotion = swim.vel.y > .35 ? 'Rising' : swim.vel.y < -.35 ? 'Sinking' : 'Depth';
+  if (depthMotion !== lastDepthMotion) { depthLabel.textContent = depthMotion; lastDepthMotion = depthMotion; }
   frames++; fpsTimer += realDt;
   if (fpsTimer >= 0.5) {
     const info = renderer.info.render;

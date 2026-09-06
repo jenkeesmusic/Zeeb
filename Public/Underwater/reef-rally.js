@@ -23,7 +23,7 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
       <h1 id="menuTitle">The lost treasure</h1>
       <p id="menuText">Follow 12 golden hoops to the lost treasure. Or explore a colossal shipwreck, with hidden rooms and coins on every deck.</p>
       <div class="menu-actions"><button class="primary" id="startBtn" type="button">Find the treasure</button><button id="exploreBtn" type="button">Just explore</button></div>
-      <div id="menuHelp">Touch: hold to swim, slide left/right to turn. Up / Down change depth.<br>Keyboard: ← → or A / D steer. Aim for gold, then release to glide into line.</div>
+      <div id="menuHelp">Touch: hold to swim, slide left/right to turn. Hold Rise / Sink to change depth.<br>Keyboard: E / Space rise, Q / Shift sink. ← → or A / D steer. Aim for gold, then release to glide into line.</div>
     </section>
     <div id="rallyControls"><button id="boostBtn" type="button" hidden><span id="boostFill"></span><span id="boostLabel">Boost · B</span></button><button id="rescueBtn" type="button" hidden>Back to hoop</button><button id="playBtn" type="button" hidden>Find the treasure</button></div>
     <div id="toast" role="status" aria-live="polite"></div>
@@ -131,8 +131,8 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
     if(options.position)resetPosition(options.position,options.direction);
     setPlayUI(); announce(options.message || 'The whole ocean is yours');
     $('hint').innerHTML = document.body.classList.contains('touch-mode')
-      ? 'Hold to swim · slide left/right to turn · lift to stop. Up / Down change depth.'
-      : '<b>WASD / arrows</b> swim · <b>Space</b> up · <b>Shift</b> down · <b>B</b> boost';
+      ? 'Hold to swim · slide left/right to turn · lift to stop. Hold Rise / Sink to change depth.'
+      : '<b>WASD / arrows</b> swim · <b>E / Space</b> rise · <b>Q / Shift</b> sink · <b>B</b> boost';
     $('hint').classList.remove('gone'); setTimeout(() => $('hint').classList.add('gone'), 8000);
   }
   function pause() {
@@ -200,14 +200,6 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
     return rallyInput(input, duck.position, swim, rings[state.next].position);
   }
   function afterStep(dt, t) {
-    if (toastTime > 0) { toastTime -= dt; if (toastTime <= 0) $('toast').classList.remove('show'); }
-    rings.forEach((r, i) => {
-      r.pulse = Math.max(0, r.pulse - dt * 1.8);
-      r.group.visible = !(state.next === rings.length && i === rings.length - 1);
-      r.group.scale.setScalar(1 + r.pulse * .13);
-      r.beads.rotation.z = reducedMotion ? 0 : t * .22;
-      if (i === state.next) r.mat.emissiveIntensity = .85 + Math.sin(t * 2.5) * .18;
-    });
     const playing = state.mode === 'racing';
     if (playing) {
       state.time += dt;
@@ -228,6 +220,17 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
         if (state.next === rings.length) finish();
       }
     }
+  }
+  let boostBubbles = 0;
+  function updateVisuals(dt, t) {
+    if (toastTime > 0) { toastTime -= dt; if (toastTime <= 0) $('toast').classList.remove('show'); }
+    rings.forEach((r, i) => {
+      r.pulse = Math.max(0, r.pulse - dt * 1.8);
+      r.group.visible = !(state.next === rings.length && i === rings.length - 1);
+      r.group.scale.setScalar(1 + r.pulse * .13);
+      r.beads.rotation.z = reducedMotion ? 0 : t * .22;
+      if (i === state.next) r.mat.emissiveIntensity = .85 + Math.sin(t * 2.5) * .18;
+    });
     const r = rings[state.next];
     breadcrumb.visible = !!r && ['welcome', 'countdown', 'racing'].includes(state.mode);
     if (breadcrumb.visible) {
@@ -240,14 +243,16 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
       breadcrumb.instanceMatrix.needsUpdate = true;
     }
     if (state.boost > 0) {
-      for (let k = 0; k < (reducedMotion ? 1 : 3); k++) spawnBubble(v.copy(duck.position).add(new THREE.Vector3((Math.random() - .5) * 1.2, .3, 0)), .12 + Math.random() * .15);
-    }
+      boostBubbles += dt * (reducedMotion ? 60 : 180);
+      const count = Math.min(12, Math.floor(boostBubbles)); boostBubbles %= 1;
+      for (let k = 0; k < count; k++) spawnBubble(v.copy(duck.position).add(new THREE.Vector3((Math.random() - .5) * 1.2, .3, 0)), .12 + Math.random() * .15);
+    } else boostBubbles = 0;
     uiTime += dt;
     if (uiTime > .1) {
       uiTime = 0; $('raceTime').textContent = formatTime(state.time);
       $('boostFill').style.transform = `scaleX(${state.energy})`;
       $('boostBtn').disabled = state.energy < .98 || !['racing', 'explore'].includes(state.mode);
-      $('boostLabel').textContent = state.energy >= .98 ? 'Boost · B' : `Refilling ${Math.ceil((1 - state.energy) * 5)}s`;
+      $('boostLabel').textContent = state.energy >= .98 ? (document.body.classList.contains('touch-mode') ? 'Boost' : 'Boost · B') : `Refilling ${Math.ceil((1 - state.energy) * 5)}s`;
       if (state.mode === 'racing' && r) {
         const distance = duck.position.distanceTo(r.position), passedPlane = v.subVectors(duck.position, r.position).dot(r.normal) > 3;
         $('rescueBtn').hidden = !(passedPlane || distance > 65 * COURSE_SCALE);
@@ -272,5 +277,5 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
     $('targetArrow').style.transform = `rotate(${angle + Math.PI / 2}rad)`;
     $('targetText').textContent = `Hoop ${state.next + 1} · ${Math.round(duck.position.distanceTo(r.position))} ft`;
   }
-  return { state, rings, beforeStep, afterStep, updateGuide, start, explore, pause, rescue, announce, chime, reducedMotion, refreshRings };
+  return { state, rings, beforeStep, afterStep, updateVisuals, updateGuide, start, explore, pause, rescue, announce, chime, reducedMotion, refreshRings };
 }

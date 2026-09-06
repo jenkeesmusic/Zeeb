@@ -9,18 +9,24 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
         <span id="swimKnob" aria-hidden="true"></span><span class="swim-label">Hold to swim</span>
       </button>
       <div id="depthButtons" aria-label="Swimming controls">
-        <button id="swimUp" type="button" aria-label="Hold to swim up">↑ Up</button>
-        <button id="swimDown" type="button" aria-label="Hold to swim down">↓ Down</button>
+        <button id="swimUp" type="button" aria-label="Hold to rise; E or Space">↑ Rise<small>E / Space</small></button>
+        <button id="swimDown" type="button" aria-label="Hold to sink; Q or Shift">↓ Sink<small>Q / Shift</small></button>
         <button id="swimBack" type="button" aria-label="Hold to swim backward">Back</button>
       </div>
-      <div id="touchHint">Slide left or right to turn</div>
+      <div id="touchHint">Hold Rise / Sink to change depth</div>
     </div>`);
-  const $ = id => document.getElementById(id);
+  const elements = new Map();
+  const $ = id => {
+    if (!elements.has(id)) elements.set(id, document.getElementById(id));
+    return elements.get(id);
+  };
   const pointer = { active: false, pointerId: null, pointerType: 'touch', x0: 0, y0: 0, dx: 0, dy: 0, turn: 0, turnVelocity: 0, rise: 0 };
   const holds = new Map();
   let surface = null, touchMode = navigator.maxTouchPoints > 0 || matchMedia('(any-pointer: coarse)').matches;
   const playing = () => ['racing', 'explore', 'countdown'].includes(mode());
   const buttons = { swimUp: 1, swimDown: -1, swimBack: 'back' };
+  let heldRise = 0, heldDepth = false, heldBack = false, wasPlaying = null, shownMode = null;
+  let lastSteer = '', lastSwim = '';
   function showTouch() { touchMode = true; document.body.classList.add('touch-mode'); }
   if (touchMode) showTouch();
   function resetSteering() {
@@ -69,8 +75,12 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(type, end);
   }
   function paintHolds() {
+    const down = new Set(holds.values());
+    heldRise = (down.has('swimUp') ? 1 : 0) - (down.has('swimDown') ? 1 : 0);
+    heldDepth = down.has('swimUp') || down.has('swimDown');
+    heldBack = down.has('swimBack');
     for (const id of Object.keys(buttons)) {
-      const active = [...holds.values()].includes(id);
+      const active = down.has(id);
       $(id).classList.toggle('held', active); $(id).setAttribute('aria-pressed', String(active));
     }
   }
@@ -78,6 +88,8 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
     const el = $(id);
     el.addEventListener('pointerdown', e => {
       if (!playing() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (e.pointerType !== 'mouse') showTouch();
+      dismissHint();
       e.preventDefault(); holds.set(e.pointerId, id); el.setPointerCapture(e.pointerId); paintHolds();
       if (e.pointerType === 'mouse') musicStart();
     });
@@ -105,17 +117,26 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
   canvas.addEventListener('touchend', () => musicStart(), { passive: true });
   return {
     pointer, clear,
-    read(dt) {
+    updateUI() {
       const active = playing();
-      $('touchControls').hidden = !touchMode || !active;
-      document.body.classList.toggle('touch-playing', touchMode && active);
-      if (!active) clear();
+      if (active !== wasPlaying || touchMode !== shownMode) {
+        $('touchControls').hidden = !active;
+        document.body.classList.toggle('touch-playing', touchMode && active);
+        document.body.classList.toggle('depth-playing', active);
+        if (!active) clear();
+        wasPlaying = active; shownMode = touchMode;
+      }
+      const steer = `translate(${(pointer.turn*32).toFixed(1)}px, ${(pointer.rise*32).toFixed(1)}px)`;
+      const swim = `translate(${(pointer.turn*43).toFixed(1)}px, 0)`;
+      if (steer !== lastSteer) { $('steerKnob').style.transform = steer; lastSteer = steer; }
+      if (swim !== lastSwim) { $('swimKnob').style.transform = swim; lastSwim = swim; }
+    },
+    read(dt) {
+      if (!playing()) return { thrust: 0, turn: 0, rise: 0 };
       stepPointer(pointer, dt);
-      const down = new Set(holds.values());
-      const rise = (down.has('swimUp') ? 1 : 0) - (down.has('swimDown') ? 1 : 0);
-      $('steerKnob').style.transform = `translate(${pointer.turn*32}px, ${pointer.rise*32}px)`;
-      $('swimKnob').style.transform = `translate(${pointer.turn*43}px, 0)`;
-      return { thrust: down.has('swimBack') ? -.6 : pointer.active ? 1 : 0, turn: -pointer.turn, rise: rise*.85-pointer.rise };
+      return { thrust: heldBack ? -.6 : pointer.active ? 1 : 0, turn: -pointer.turn,
+        // A deliberate depth button wins over vertical mouse drag.
+        rise: heldDepth ? heldRise : -pointer.rise };
     },
     get touchMode() { return touchMode; }
   };
