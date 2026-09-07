@@ -199,3 +199,9 @@ body.menu-paused #menuPrimary button { width:100%; }
   body.depth-buttons #swimBack, body:not(.touch-mode) #swimBack { grid-column:2; }
   body.depth-buttons.touch-playing #depth, body.depth-playing:not(.touch-mode) #depth { bottom:128px; }
 }
+
+/* The sky trip is guided: leave the view open and keep Menu available. */
+body.sky-riding #depth, body.sky-riding #rallyHud,
+body.sky-riding #rallyControls, body.sky-riding #touchControls,
+body.sky-riding #steerPad, body.sky-riding #hint { display:none; }
+body.sky-riding:not(.menu-paused) #right { display:flex; }

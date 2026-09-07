@@ -54,7 +54,7 @@
     font-size: 28px; font-weight: 700;
   }
 </style>
-<link rel="stylesheet" href="./rally.css?v=20260907-coin">
+<link rel="stylesheet" href="./rally.css?v=20260907-sky">
 </head>
 <body>
 <canvas id="stage"></canvas>
@@ -95,24 +95,27 @@
   "imports": {
     "three": "./vendor/three.module.min.js",
     "three/addons/": "./vendor/addons/",
-    "./colossal-wreck.js": "./colossal-wreck.js?v=20260907-coin",
-    "./coral-forms.js": "./coral-forms.js?v=20260907-coin",
-    "./reef-chunks.js": "./reef-chunks.js?v=20260907-coin",
-    "./grace-coin.js": "./grace-coin.js?v=20260907-coin",
-    "./quiet-hud.js": "./quiet-hud.js?v=20260907-coin",
-    "./reef-course.js": "./reef-course.js?v=20260907-coin",
-    "./reef-garden.js": "./reef-garden.js?v=20260907-coin",
-    "./reef-performance.js": "./reef-performance.js?v=20260907-coin",
-    "./reef-rally.js": "./reef-rally.js?v=20260907-coin",
-    "./reef-scenery.js": "./reef-scenery.js?v=20260907-coin",
-    "./reef-world.js": "./reef-world.js?v=20260907-coin",
-    "./scenery-forms.js": "./scenery-forms.js?v=20260907-coin",
-    "./scooter-handling.js": "./scooter-handling.js?v=20260907-coin",
-    "./touch-controls.js": "./touch-controls.js?v=20260907-coin",
-    "./treasure-cove.js": "./treasure-cove.js?v=20260907-coin",
-    "./wreck-layout.js": "./wreck-layout.js?v=20260907-coin",
-    "./wreck-physics.js": "./wreck-physics.js?v=20260907-coin",
-    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260907-coin"
+    "./colossal-wreck.js": "./colossal-wreck.js?v=20260907-sky",
+    "./coral-forms.js": "./coral-forms.js?v=20260907-sky",
+    "./reef-chunks.js": "./reef-chunks.js?v=20260907-sky",
+    "./sky-flight.js": "./sky-flight.js?v=20260907-sky",
+    "./sky-ride.js": "./sky-ride.js?v=20260907-sky",
+    "./grace-rocket.js": "./grace-rocket.js?v=20260907-sky",
+    "./grace-coin.js": "./grace-coin.js?v=20260907-sky",
+    "./quiet-hud.js": "./quiet-hud.js?v=20260907-sky",
+    "./reef-course.js": "./reef-course.js?v=20260907-sky",
+    "./reef-garden.js": "./reef-garden.js?v=20260907-sky",
+    "./reef-performance.js": "./reef-performance.js?v=20260907-sky",
+    "./reef-rally.js": "./reef-rally.js?v=20260907-sky",
+    "./reef-scenery.js": "./reef-scenery.js?v=20260907-sky",
+    "./reef-world.js": "./reef-world.js?v=20260907-sky",
+    "./scenery-forms.js": "./scenery-forms.js?v=20260907-sky",
+    "./scooter-handling.js": "./scooter-handling.js?v=20260907-sky",
+    "./touch-controls.js": "./touch-controls.js?v=20260907-sky",
+    "./treasure-cove.js": "./treasure-cove.js?v=20260907-sky",
+    "./wreck-layout.js": "./wreck-layout.js?v=20260907-sky",
+    "./wreck-physics.js": "./wreck-physics.js?v=20260907-sky",
+    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260907-sky"
   }
 }
 </script>
@@ -137,6 +140,7 @@ import { COURSE, COURSE_SCALE } from './reef-course.js';
 import { createPilotCamera } from './zeeb-scooter.js';
 import { createSwimControls } from './touch-controls.js';
 import { createQuietHud } from './quiet-hud.js';
+import { createSkyRide } from './sky-ride.js';
 import { CRUISE_SPEED, stepScooter } from './scooter-handling.js';
 import { makeKelpGeometry, causticGLSL } from './reef-garden.js';
 import { wreckFloor, inWreckFootprint } from './wreck-layout.js';
@@ -793,7 +797,7 @@ duck.add(headlamp);
 
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('./zeeb-swimmer.glb?v=20260907-coin', (gltf) => {
+loader.load('./zeeb-swimmer.glb?v=20260907-sky', (gltf) => {
   const model = gltf.scene;
   model.name = 'Zeeb, swimming freely';
   duckInner.add(model);
@@ -1183,6 +1187,8 @@ try { savedQuality = localStorage.getItem('zeeb-reef-graphics'); } catch {}
 if (['smooth','detailed'].includes(savedQuality)) performanceQuality.setMode(savedQuality);
 else applyQuality();
 const quietHud = createQuietHud({ rally });
+const skyRide = createSkyRide({scene,camera,duck,swim,camPos,camLook,rally,spawnBubble,
+  clearInput:()=>{keys.clear();controls.clear();pilotCamera.reset();}});
 
 /* ---------------------------------------------------------------- the HUD */
 
@@ -1228,6 +1234,7 @@ function animate() {
     const dt = frame.step;
     elapsed += dt;
     playerInput = readInput(dt);
+    if (skyRide.step(dt,playerInput)) continue;
     inp = rally.beforeStep(playerInput, dt);
 
     stepScooter(swim, inp, rally.state.boost > 0, dt);
@@ -1253,6 +1260,7 @@ function animate() {
   const t = elapsed;
   timeUniform.value = t;
   rally.updateVisuals(dt, t);
+  skyRide.update(dt);
   controls.updateUI();
   quietHud.update();
   const boosting = rally.state.boost > 0;
@@ -1275,15 +1283,16 @@ function animate() {
       ? duck.position.distanceTo(targetRing.position) : Infinity,
     portrait, reducedMotion: rally.reducedMotion, playful: playfulCamera,
     activeInput: touch.active || Math.abs(playerInput.thrust) > .01 || Math.abs(playerInput.turn) > .01 || Math.abs(playerInput.rise) > .01,
-    blocked: insideWreck || boosting || Math.abs(inp.rise) > .1 || (touch.active && touch.pointerType !== 'mouse') });
+    blocked: skyRide.state.active || insideWreck || boosting || Math.abs(inp.rise) > .1 || (touch.active && touch.pointerType !== 'mouse') });
   duckInner.rotation.z = Math.sin(t * 7) * .018 * speedFrac;
   duckInner.rotation.y = pilotView.pilotYaw + Math.sin(t * 6) * .018 * speedFrac;
   duckInner.position.y = SWIM_BODY_Y + Math.sin(t * (2.2 + speedFrac * 3)) * .035;
+  if(skyRide.state.active){duckTilt.rotation.set(0,0,0);duckInner.rotation.y=duckInner.rotation.z=0;}
   reef.update(dt, t);
 
   // Small breath bubbles and the existing boost trail follow Zeeb himself.
   const breathRate = speedFrac > .15 ? 1.2 + speedFrac * 6 : 1.2;
-  if (dt > 0 && Math.random() < 1 - Math.exp(-breathRate * dt)) {
+  if (duck.position.y<0 && dt > 0 && Math.random() < 1 - Math.exp(-breathRate * dt)) {
     // Follow the animated bill during a hello, with the same breath rate at
     // every frame rate. Update only the short parent chain when emitting.
     billPos.set(0, (.65 - SWIM_BODY_Y) / ZEEB_SCALE, 1.3 / ZEEB_SCALE);
@@ -1374,6 +1383,8 @@ function animate() {
 
   if (reef.treasure.state.opened && reef.treasure.state.time < 3) renderer.shadowMap.needsUpdate = true;
 
+  skyRide.applyEnvironment(hemi,sun);
+
   /* --- music muffles with depth: 16 kHz open at the surface, 600 Hz deep --- */
   audioDepthTimer += dt;
   if (music.on && music.filter && music.ctx && music.ctx.state === 'running' &&
@@ -1395,7 +1406,9 @@ function animate() {
   const cameraDistance = THREE.MathUtils.lerp(chaseDistance, portrait ? 6.7 : 5.8, showPilot);
   tmpV.set(-Math.sin(orbitYaw) * cameraDistance, 0, -Math.cos(orbitYaw) * cameraDistance).add(duck.position);
   tmpV.y += THREE.MathUtils.lerp(2.6 - swim.pitch, 1.9, showPilot);
-  if (rally.state.mode === 'finished') {
+  if (skyRide.state.active) {
+    const rideFrame=skyRide.frame(portrait);camPos.copy(rideFrame.eye);camLook.copy(rideFrame.look);
+  } else if (rally.state.mode === 'finished') {
     const frame=reef.treasure.frame(duck.position,portrait);
     const amount=rally.reducedMotion ? 1 : 1-Math.exp(-dt*2.4);
     camPos.lerp(frame.eye,amount);camLook.lerp(frame.look,amount);
@@ -1408,17 +1421,20 @@ function animate() {
     tmpV.y += .5;
     camLook.lerp(tmpV, 1 - Math.exp(-dt * 9));
   }
-  // The camera never goes into the sand or through the surface either.
-  camPos.y = Math.max(camPos.y, floorY(camPos.x, camPos.z) + 1.5);
-  camPos.y = Math.min(camPos.y, SURFACE_Y - 0.8);
-  if(dt>0)reef.wreck.clipCamera(cameraOrigin.copy(duck.position).add(tmpV.set(0,.7,0)),camPos);
+  // Normal swimming stays underwater; only the guided ride crosses the surface.
+  if(!skyRide.state.active){
+    camPos.y = Math.max(camPos.y, floorY(camPos.x, camPos.z) + 1.5);
+    camPos.y = Math.min(camPos.y, SURFACE_Y - 0.8);
+    if(dt>0)reef.wreck.clipCamera(cameraOrigin.copy(duck.position).add(tmpV.set(0,.7,0)),camPos);
+  }
   camera.position.copy(camPos);
   camera.lookAt(camLook);
-  if (!rally.reducedMotion) camera.rotation.z += swim.bank * .08 * (1 - pilotView.amount);
-  const targetFov = rally.state.mode === 'finished' ? (portrait ? 58 : 52) : insideWreck ? 68 : THREE.MathUtils.lerp(boosting && !rally.reducedMotion ? 65 : 60, 52, showPilot);
+  if (!skyRide.state.active && !rally.reducedMotion) camera.rotation.z += swim.bank * .08 * (1 - pilotView.amount);
+  const targetFov = skyRide.state.active ? (portrait?58:54) : rally.state.mode === 'finished' ? (portrait ? 58 : 52) : insideWreck ? 68 : THREE.MathUtils.lerp(boosting && !rally.reducedMotion ? 65 : 60, 52, showPilot);
   if (Math.abs(camera.fov - targetFov) > .01) {
     camera.fov += (targetFov - camera.fov) * (1 - Math.exp(-dt * 3)); camera.updateProjectionMatrix();
   }
+  skyRide.afterCamera();
   rally.updateGuide();
 
   /* --- fish: use this frame's final camera, including fast turns and rescues --- */
@@ -1499,7 +1515,7 @@ function animate() {
 requestAnimationFrame(animate);
 
 // Debug handle for the console or a driving script.
-window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, music, rally, reef, touch, controls, pilotCamera,
+window.__ocean = { scene, camera, renderer, duck, swim, keys, THREE, floorY, music, rally, reef, touch, controls, pilotCamera, skyRide,
   performance: performanceQuality, frameClock, schools,
   // Fixed views let artwork iterations be compared at the same camera and time.
   reviewView({ position, yaw = 0, eye, target, hoop = 0, fov = 60 }) {

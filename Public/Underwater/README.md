@@ -108,6 +108,31 @@ best unassisted time for this course is stored locally when browser storage
 is available. The calmer handling uses its own record (`zeeb-reef-best-v5-calm`), preserving
 records from earlier handling versions.
 
+## The sky whirlpool
+
+Choose **Menu → Find the sky whirlpool**, then hold the swim pad to swim straight
+into the swirling water. It is also discoverable while freely exploring at
+x=-55, z=50, with entry depths between 6 and 48 feet. It never interrupts a hoop lap.
+
+The 43-second guided ride lifts Zeeb out of the water, launches him about 1,000
+feet into a dark star field in a 3D version of Grace's asteroid-game rocket,
+then opens a pastel parachute for a long glide through clouds to splashdown.
+The rocket follows `../astroid-dodger/img/Rocket1.png`: gray body, red fins,
+purple antenna and two portholes. The existing 3D Zeeb appears in its cabin.
+His face stays visible during the glide. A soft ripple and droplets mark the
+return to free swimming at (-27, -22, 28), clear of the whirlpool entrance.
+
+The ride steers itself. Menu/P/Escape and loss of window focus pause it;
+**Return to the ocean** in Menu exits early. Switching to another activity also
+ends the ride cleanly. Reduced motion removes the spiral path, canopy sway and
+rocket flame pulse. A cooldown prevents accidental repeat rides; choosing the
+Menu shortcut explicitly makes another ride available immediately.
+
+The funnel uses shared geometry and one small procedural shader. Stars and
+cloud banks are batched; all sky scenery is hidden outside the ride. The rocket
+and parachute total 2,414 triangles. Swimming controls and the normal underwater
+camera range return after landing or cancellation.
+
 ## Grace’s art and the reef
 
 Zeeb swims on his own, with no boat or added feet. `zeeb-swimmer.glb` is a
@@ -253,6 +278,9 @@ use a separate audio context unlocked by interaction and follow the music toggle
   coin IDs; shared by the ship, seafloor, planting and checks.
 - `wreck-physics.js`: substepped collision, camera clipping, swept pickups and
   persistent coin progress, independent of the renderer.
+- `sky-flight.js`: deterministic lift, launch, float, parachute and landing path.
+- `sky-ride.js`: whirlpool entry, ride lifecycle, sky scenery, camera and menu access.
+- `grace-rocket.js`: Grace's 3D rocket and pastel parachute.
 - `grace-coin.js`: traced original coin silhouette, double-sided raised stroke,
   satin material and a lighter treasure-pile mesh.
 - `treasure-cove.js`: chest and wreck geometry, hinged lid, coins, gems,

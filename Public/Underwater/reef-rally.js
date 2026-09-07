@@ -114,21 +114,22 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
     $('menu').hidden = true; $('hint').classList.add('gone');
     $('exploreBtn').hidden = false;
     $('boostBtn').hidden = false; pauseBtn.hidden = false;
-    $('raceStats').hidden = state.mode === 'explore'; $('playBtn').hidden = state.mode !== 'explore';
+    $('raceStats').hidden = !['countdown','racing'].includes(state.mode); $('playBtn').hidden = state.mode !== 'explore';
     $('rescueBtn').hidden = true;
   }
   function start() {
     clearInput();
     unlockSound();
-    Object.assign(state, { mode: 'countdown', next: 0, time: 0, score: 0, perfect: 0, streak: 0, boost: 0, energy: 1, countdown: 3, assisted: false });
+    Object.assign(state, { mode: 'countdown', pausedMode: null, next: 0, time: 0, score: 0, perfect: 0, streak: 0, boost: 0, energy: 1, countdown: 3, assisted: false });
     lastCountdown = 0; resetPosition(new THREE.Vector3(...START), new THREE.Vector3(0, 0, 1));
     scene.dispatchEvent({ type: 'rallystart' });
     refreshRings(); setPlayUI(); $('raceTime').textContent = '0:00'; $('score').textContent = 'Follow the golden hoop';
     $('countdown').hidden = false; $('menuHelp').hidden = false;
   }
   function explore(options = {}) {
+    scene.dispatchEvent({type:'explorestart'});
     clearInput();
-    unlockSound(); state.mode = 'explore'; state.boost = 0; $('countdown').hidden = true; $('target').hidden = true;
+    unlockSound(); state.mode = 'explore'; state.pausedMode = null; state.boost = 0; $('countdown').hidden = true; $('target').hidden = true;
     if(options.position)resetPosition(options.position,options.direction);
     setPlayUI(); announce(options.message || 'The whole ocean is yours');
     $('hint').innerHTML = document.body.classList.contains('touch-mode')
@@ -142,7 +143,7 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
       state.mode = state.pausedMode; state.pausedMode = null; setPlayUI();
       $('countdown').hidden = state.mode !== 'countdown'; return;
     }
-    if (!['racing', 'countdown', 'explore'].includes(state.mode)) return;
+    if (!['racing', 'countdown', 'explore', 'ride'].includes(state.mode)) return;
     state.pausedMode = state.mode; state.mode = 'paused';
     $('countdown').hidden = true; $('menu').hidden = false; $('menuTitle').textContent = 'Your swim';
     $('menuText').textContent = 'Your swim is right here when you’re ready.';
