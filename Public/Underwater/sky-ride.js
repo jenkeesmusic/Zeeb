@@ -14,7 +14,7 @@ export function createSkyRide({scene,camera,duck,swim,camPos,camLook,rally,clear
       float wave=.5+.5*sin(vUv.x*31.416-vUv.y*26.+time);
       float edges=smoothstep(0.,.04,vUv.y)*(1.-smoothstep(.96,1.,vUv.y));
       vec3 water=mix(vec3(.07,.52,.59),vec3(.6,.98,.9),vUv.y);
-      gl_FragColor=vec4(water,(.035+.12*pow(wave,5.))*edges);
+      gl_FragColor=vec4(water,(.045+.18*pow(wave,5.))*edges);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
     }`});
@@ -32,7 +32,10 @@ export function createSkyRide({scene,camera,duck,swim,camPos,camLook,rally,clear
   gradient.addColorStop(0,'rgba(255,255,255,1)');gradient.addColorStop(.65,'rgba(255,255,255,.8)');gradient.addColorStop(1,'rgba(255,255,255,0)');
   dotContext.fillStyle=gradient;dotContext.fillRect(0,0,32,32);const dotMap=new THREE.CanvasTexture(dotCanvas);
   const bubbles=[];for(let i=0;i<96;i++){const u=random(),a=random()*Math.PI*2,r=3+u*u*7;bubbles.push(Math.cos(a)*r,-53+u*53,Math.sin(a)*r);}
+  const bubbleSeeds=new Float32Array(bubbles);
   const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute(bubbles,3));
+  bg.attributes.position.setUsage(THREE.DynamicDrawUsage);
+  bg.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,-26.5,0),29);
   whirlpool.add(new THREE.Points(bg,new THREE.PointsMaterial({map:dotMap,color:0xe6ffff,size:.28,transparent:true,opacity:.75,depthWrite:false})));
 
   const journey=new THREE.Group();journey.name='Whirlpool sky adventure';journey.visible=false;scene.add(journey);
@@ -84,22 +87,35 @@ export function createSkyRide({scene,camera,duck,swim,camPos,camLook,rally,clear
     }
     state.time=Math.min(FLIGHT_DURATION,state.time+dt);const p=sampleFlight(state.time,state.entry,reduced);state.pose=p;
     const oldY=duck.position.y;duck.position.set(p.x,p.y,p.z);swim.vel.set(0,0,0);swim.yawRate=swim.speed=0;
-    const angle=Math.atan2(Math.sin(state.heading-state.entryYaw),Math.cos(state.heading-state.entryYaw));swim.yaw=state.entryYaw+angle*flightEase(state.time/5);
+    const shortest=Math.atan2(Math.sin(state.heading-state.entryYaw),Math.cos(state.heading-state.entryYaw));
+    // Align in the same direction as the spin, avoiding an initial counter-turn.
+    const angle=(shortest+Math.PI*2)%(Math.PI*2);swim.yaw=state.entryYaw+angle*flightEase(state.time/5)+p.spin;
     const endTurn=Math.atan2(Math.sin(-swim.yaw),Math.cos(-swim.yaw));swim.yaw+=endTurn*flightEase((state.time-40)/3);
     if(p.phase!==state.phase){state.phase=p.phase;if(p.phase==='stars'){rally.announce('Hello, stars.',3);rally.chime([659,784,988]);}if(p.phase==='glide')rally.announce('Floating home.',3);}
     if(!state.splash&&oldY>0&&p.y<=0){state.splash=true;splashAt=state.time;ripple.visible=splash.visible=true;rally.chime([523,392]);for(let i=0;i<24;i++)spawnBubble(duck.position,.12+i*.004);}
     if(p.done)finish();return true;
   }
   function update(dt){
-    visualTime+=dt;whirlpool.rotation.y=reduced?0:visualTime*.22;funnelMat.uniforms.time.value=reduced?0:visualTime*.55;
+    visualTime+=dt;
+    // The funnel itself turns; individual foam dots also rise through its spiral.
+    whirlpool.rotation.y=visualTime*(reduced?.18:1.1);
+    funnelMat.uniforms.time.value=visualTime*(reduced?.2:2.2);
+    if(dt>0&&camera.position.distanceToSquared(whirlpool.position)<160*160){const positions=bg.attributes.position.array;for(let i=0;i<96;i++){
+      const u=((bubbleSeeds[i*3+1]+53)/53+visualTime*(reduced?.015:.075))%1;
+      const angle=Math.atan2(bubbleSeeds[i*3+2],bubbleSeeds[i*3])+u*Math.PI*2,r=3+u*u*7;
+      positions[i*3]=Math.cos(angle)*r;positions[i*3+1]=-53+u*53;positions[i*3+2]=Math.sin(angle)*r;
+    }bg.attributes.position.needsUpdate=true;}
     const ui=state.active+'|'+rally.state.mode;
     if(ui!==lastUI){lastUI=ui;$('findWhirlpool').hidden=state.active;$('leaveSkyRide').hidden=!state.active;document.body.classList.toggle('sky-riding',state.active);}
     if(!state.active)return;
     const p=state.pose;
     const desiredFar=THREE.MathUtils.lerp(normalFar,5000,flightEase(Math.max(0,p.y)/300));
     if(Math.abs(camera.far-desiredFar)>.1){camera.far=desiredFar;camera.updateProjectionMatrix();}
-    journey.position.copy(duck.position);journey.rotation.y=swim.yaw;
-    rocket.visible=p.rocket>.002;rocket.scale.setScalar(Math.max(.001,p.rocket));rocket.userData.flame.scale.y=reduced?1:1+Math.sin(visualTime*8)*.06;
+    journey.position.copy(duck.position);journey.rotation.y=state.heading;
+    // A separate passing rocket crosses behind Zeeb. He never boards it.
+    rocket.visible=p.rocket>.002;rocket.scale.setScalar(Math.max(.001,p.rocket*.6));
+    rocket.position.set(THREE.MathUtils.lerp(-14,14,p.rocketPass),4+Math.sin(p.rocketPass*Math.PI)*1.5,-7);
+    rocket.rotation.set(0,.2,-.65);rocket.userData.flame.scale.y=reduced?1:1+Math.sin(visualTime*8)*.06;
     chute.visible=p.canopy>.002;chute.scale.setScalar(Math.max(.001,p.canopy));chute.rotation.z=reduced?0:Math.sin(state.time*.65)*.055*p.canopy;
     sky.visible=p.y>1;stars.material.opacity=p.space;stars.visible=p.space>.005;sun.visible=p.space<.98;
     if(state.splash){const a=state.time-splashAt;ripple.scale.setScalar(1+a*5);rippleMat.opacity=Math.max(0,.7-a*.22);
@@ -111,9 +127,11 @@ export function createSkyRide({scene,camera,duck,swim,camPos,camLook,rally,clear
   }
   function frame(portrait){
     const t=state.time,p=state.pose,begin=flightEase(t/5),end=flightEase((t-40)/3);
-    const distance=THREE.MathUtils.lerp(7.8,portrait?21:17,begin);
+    const parachuteFrame=flightEase((t-18.4)/1.2);
+    const closeDistance=portrait?12:10;
+    const distance=THREE.MathUtils.lerp(7.8,THREE.MathUtils.lerp(closeDistance,portrait?21:17,parachuteFrame),begin);
     const homeAngle=Math.atan2(Math.sin(Math.PI-state.heading),Math.cos(Math.PI-state.heading));
-    const a=state.heading+homeAngle*end,radius=THREE.MathUtils.lerp(distance,7.8,end);eye.copy(duck.position).add(temp.set(Math.sin(a)*radius,THREE.MathUtils.lerp(2.6,4.3,begin*(1-end)),Math.cos(a)*radius));look.copy(duck.position).add(temp.set(0,THREE.MathUtils.lerp(.5,2.4,begin),0));
+    const a=state.heading+homeAngle*end,radius=THREE.MathUtils.lerp(distance,7.8,end);eye.copy(duck.position).add(temp.set(Math.sin(a)*radius,THREE.MathUtils.lerp(2.6,THREE.MathUtils.lerp(1.8,4.3,parachuteFrame),begin*(1-end)),Math.cos(a)*radius));look.copy(duck.position).add(temp.set(0,THREE.MathUtils.lerp(.5,THREE.MathUtils.lerp(.6,2.4,parachuteFrame),begin),0));
     // Finish on the normal chase side; the swimmer will face away again after landing.
     if(end>0){temp.copy(duck.position);temp.y+=.5;temp.z+=2.2;look.lerp(temp,end);}
     return {eye,look,fov:portrait?58:54};

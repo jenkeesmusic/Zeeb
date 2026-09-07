@@ -115,17 +115,21 @@ into the swirling water. It is also discoverable while freely exploring at
 x=-55, z=50, with entry depths between 6 and 48 feet. It never interrupts a hoop lap.
 
 The 43-second guided ride lifts Zeeb out of the water, launches him about 1,000
-feet into a dark star field in a 3D version of Grace's asteroid-game rocket,
-then opens a pastel parachute for a long glide through clouds to splashdown.
+feet into a dark star field while Zeeb himself spins through six full turns.
+Grace's 3D asteroid-game rocket passes behind him as a separate sky visitor.
+Zeeb starts falling before his pastel parachute pops open, then glides through
+clouds to splashdown. The camera holds a steady bearing during the spin.
 The rocket follows `../astroid-dodger/img/Rocket1.png`: gray body, red fins,
-purple antenna and two portholes. The existing 3D Zeeb appears in its cabin.
+purple antenna and two portholes. Zeeb remains outside it throughout the ride.
 His face stays visible during the glide. A soft ripple and droplets mark the
 return to free swimming at (-27, -22, 28), clear of the whirlpool entrance.
 
 The ride steers itself. Menu/P/Escape and loss of window focus pause it;
 **Return to the ocean** in Menu exits early. Switching to another activity also
-ends the ride cleanly. Reduced motion removes the spiral path, canopy sway and
-rocket flame pulse. A cooldown prevents accidental repeat rides; choosing the
+ends the ride cleanly. Reduced motion uses one slow character turn instead of
+six, and removes the spiral path, canopy sway and rocket flame pulse. The whirlpool still turns gently
+with reduced motion; otherwise it rotates at 1.1 radians per second, with foam
+rising through the spiral. A cooldown prevents accidental repeat rides; choosing the
 Menu shortcut explicitly makes another ride available immediately.
 
 The funnel uses shared geometry and one small procedural shader. Stars and
