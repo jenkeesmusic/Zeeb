@@ -52,16 +52,24 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
 The default touch playfield has four buttons: Menu, Swim, Boost and Back.
 Mission changes, settings, instructions and replay choices live in the paused
 menu. Progress and depth remain compact; touch targets stay at least 44 pixels.
+Keep swimming stays pinned while a paused menu scrolls. The paused ocean
+renders at most ten times per second to reduce GPU work; menu scrolling remains
+native. Resume samples the normal frame clock without catching up paused time.
 
 Zeeb turns promptly, follows his nose with very little sideways
-drift, and brakes quickly when you let go in free swimming. Horizontal
-touch steering uses a 120-pixel drag, a soft center, and a gentler maximum
+drift, and brakes quickly when you let go in free swimming. The thumb pad uses
+44 pixels of travel in either axis, so all four directions fit inside the pad
+and away from the screen edges. Its center stays fixed: return to the center to
+straighten and hold depth. Holding an arrow on the pad also gives directional
+input. Small central movements remain neutral (about 6 pixels horizontally,
+12 vertically). Touch steering on the open water uses a 120-pixel horizontal
+drag, a soft center, and a gentler maximum
 turn. Small held-finger corrections have a softer response; direction changes
 use a damped spring to ease both the turn and how quickly it changes.
 Reversing a held finger no longer accelerates the response abruptly.
-Lifting clears both axes and the stored turning velocity. Touch depth uses
+Lifting clears both axes and the stored turning velocity. Open-water touch depth uses
 a 64-pixel drag with an approximately 12-pixel neutral zone for small wobble.
-Long swipes carry the steering origin along on both axes, so there is no
+On open water, long swipes carry the steering origin along on both axes, so there is no
 excess drag to undo. Mouse steering uses
 110 pixels horizontally and 150 vertically, with a soft response near the center
 and a small dead zone that ignores hand jitter. Mouse turns ease in, settle

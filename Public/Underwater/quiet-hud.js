@@ -8,6 +8,10 @@ export function createQuietHud({ rally }) {
     <div id="menuRace" class="menu-status" hidden></div>
     <details id="menuSettings"><summary>Music &amp; settings</summary><div id="settingButtons"></div></details>
     <details id="controlHelp"><summary>Controls</summary></details>`);
+  const primary = document.createElement('div');
+  primary.id = 'menuPrimary'; primary.className = 'menu-actions';
+  const actions = $('startBtn').parentElement;
+  actions.before(primary); primary.append($('startBtn'));
   for (const id of ['playBtn', 'rescueBtn', 'wreckReturn', 'wreckAgain']) $('menuTrips').append($(id));
   for (const id of ['wreckRoom', 'wreckClue']) $('menuWreck').append($(id));
   for (const id of ['zone', 'score', 'progress']) $('menuRace').append($(id));
@@ -50,6 +54,7 @@ export function createQuietHud({ rally }) {
       const mode = rally.state.mode;
       if (mode === previousMode) return;
       previousMode = mode;
+      document.body.classList.toggle('menu-paused', mode === 'paused');
       $('menuRace').hidden = mode !== 'paused' || rally.state.pausedMode !== 'racing';
       $('pauseBtn').setAttribute('aria-expanded', String(mode === 'paused'));
       if (menu.hidden) {

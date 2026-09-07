@@ -174,7 +174,11 @@ body.depth-buttons.touch-playing #depth, body.depth-playing:not(.touch-mode) #de
 body:not(.touch-mode) #rallyControls { bottom:20px !important; }
 
 /* The same familiar choices now live in one scrollable, paused menu. */
-#menu { top:50%; bottom:auto; left:50%; transform:translate(-50%,-50%); width:min(370px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; overscroll-behavior:contain; padding:22px; border-radius:24px; background:#063847f5; }
+#menu { top:50%; bottom:auto; left:50%; transform:translate(-50%,-50%); width:min(370px,calc(100vw - 32px)); max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px); overflow:auto; overscroll-behavior:contain; padding:22px; border-radius:24px; background:#063847f5; }
+#menuPrimary { margin-bottom:9px; }
+body.menu-paused #menu { scroll-padding-top:72px; }
+body.menu-paused #menuPrimary { position:sticky; top:-22px; z-index:2; padding:12px 0; background:#063847; }
+body.menu-paused #menuPrimary button { width:100%; }
 #menu h1 { font-size:32px; margin:5px 0 12px; }
 #menu p { font-size:14px; margin:10px 0 16px; }
 #menuTrips { margin-top:9px; }
@@ -190,6 +194,7 @@ body:not(.touch-mode) #rallyControls { bottom:20px !important; }
 #controlHelp #menuHelp { display:block; margin:8px 0; font-size:12px; }
 @media (max-height:460px) {
   #menu { padding:16px 20px; }
+  body.menu-paused #menuPrimary { top:-16px; }
   body.depth-buttons.touch-playing #depthButtons, body.depth-playing:not(.touch-mode) #depthButtons { grid-template-columns:72px 72px; }
   body.depth-buttons #swimBack, body:not(.touch-mode) #swimBack { grid-column:2; }
   body.depth-buttons.touch-playing #depth, body.depth-playing:not(.touch-mode) #depth { bottom:128px; }

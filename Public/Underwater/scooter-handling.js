@@ -14,6 +14,8 @@ export const MOUSE_DRAG_X = 110;
 export const MOUSE_DRAG_Y = 150;
 export const TOUCH_DRAG_X = 120;
 export const TOUCH_DRAG_Y = 64;
+export const PAD_DRAG_X = 44;
+export const PAD_DRAG_Y = 44;
 function mouseAxis(value, deadZone) {
   const amount = clamp((Math.abs(value) - deadZone) / (1 - deadZone), 0, 1);
   return Math.sign(value) * Math.pow(amount, 1.4);
@@ -23,7 +25,8 @@ export function stepPointer(pointer, dt) {
   if (pointer.pointerType !== 'mouse') {
     // A short vertical throw fits below a thumb on the swim pad. Its larger
     // dead zone ignores small wobble while leaving deliberate depth input easy.
-    const amount = clamp((Math.abs(pointer.dx) - .08) / .92, 0, 1);
+    const turnDeadZone = pointer.pad ? .14 : .08;
+    const amount = clamp((Math.abs(pointer.dx) - turnDeadZone) / (1 - turnDeadZone), 0, 1);
     const target = Math.sign(pointer.dx) * Math.pow(amount, 1.6) * .66;
     // A critically damped spring keeps both the turn and its rate of change
     // continuous as a held finger sweeps back and forth. Reversing no longer
@@ -34,7 +37,7 @@ export function stepPointer(pointer, dt) {
     const spring = velocity + omega * displacement;
     pointer.turn = target + (displacement + spring * elapsed) * decay;
     pointer.turnVelocity = (velocity - omega * spring * elapsed) * decay;
-    const depthTarget = mouseAxis(pointer.dy, .18);
+    const depthTarget = mouseAxis(pointer.dy, pointer.pad ? .27 : .18);
     const settlingDepth = pointer.rise * depthTarget <= 0 || Math.abs(depthTarget) < Math.abs(pointer.rise);
     pointer.rise += (depthTarget - pointer.rise) * ease(settlingDepth ? 18 : 12, elapsed);
     return pointer;

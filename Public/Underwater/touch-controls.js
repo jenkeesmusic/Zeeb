@@ -1,4 +1,4 @@
-import { stepPointer, MOUSE_DRAG_X, MOUSE_DRAG_Y, TOUCH_DRAG_X, TOUCH_DRAG_Y } from './scooter-handling.js';
+import { stepPointer, MOUSE_DRAG_X, MOUSE_DRAG_Y, TOUCH_DRAG_X, TOUCH_DRAG_Y, PAD_DRAG_X, PAD_DRAG_Y } from './scooter-handling.js';
 
 // One pointer steers; other fingers can hold depth/reverse independently.
 export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
@@ -21,7 +21,7 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
     if (!elements.has(id)) elements.set(id, document.getElementById(id));
     return elements.get(id);
   };
-  const pointer = { active: false, pointerId: null, pointerType: 'touch', x0: 0, y0: 0, dx: 0, dy: 0, turn: 0, turnVelocity: 0, rise: 0 };
+  const pointer = { active: false, pointerId: null, pointerType: 'touch', pad: false, x0: 0, y0: 0, dx: 0, dy: 0, turn: 0, turnVelocity: 0, rise: 0 };
   const holds = new Map();
   let surface = null, touchMode = navigator.maxTouchPoints > 0 || matchMedia('(any-pointer: coarse)').matches;
   const playing = () => ['racing', 'explore', 'countdown'].includes(mode());
@@ -46,6 +46,13 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
     const type = isPad ? 'touch' : e.pointerType || 'mouse';
     if (type !== 'mouse') showTouch();
     Object.assign(pointer, { active: true, pointerId: e.pointerId, pointerType: type, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, turn: 0, turnVelocity: 0, rise: 0 });
+    pointer.pad = isPad;
+    if (isPad) {
+      const rect = $('swimPad').getBoundingClientRect();
+      pointer.x0 = rect.x + rect.width / 2; pointer.y0 = rect.y + rect.height / 2;
+      pointer.dx = Math.max(-1, Math.min(1, (e.clientX - pointer.x0) / PAD_DRAG_X));
+      pointer.dy = Math.max(-1, Math.min(1, (e.clientY - pointer.y0) / PAD_DRAG_Y));
+    }
     surface = e.currentTarget; surface.setPointerCapture(e.pointerId);
     dismissHint();
     if (e.pointerType === 'mouse') musicStart();
@@ -57,14 +64,14 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
   function move(e) {
     if (!pointer.active || e.pointerId !== pointer.pointerId) return;
     if (e.pointerType === 'mouse' && e.buttons === 0) { resetSteering(); return; }
-    const mouse = pointer.pointerType === 'mouse', radius = mouse ? MOUSE_DRAG_X : TOUCH_DRAG_X;
-    // A long swipe carries the touch origin along, so a small move back always
-    // starts easing the turn. There is no invisible excess drag to unwind.
-    if (!mouse && Math.abs(e.clientX-pointer.x0) > radius) pointer.x0 = e.clientX-Math.sign(e.clientX-pointer.x0)*radius;
-    pointer.dx = (e.clientX-pointer.x0)/radius;
-    const depthRadius = mouse ? MOUSE_DRAG_Y : TOUCH_DRAG_Y;
-    if (!mouse && Math.abs(e.clientY-pointer.y0) > depthRadius) pointer.y0 = e.clientY-Math.sign(e.clientY-pointer.y0)*depthRadius;
-    pointer.dy = (e.clientY-pointer.y0)/depthRadius;
+    const mouse = pointer.pointerType === 'mouse', radius = mouse ? MOUSE_DRAG_X : pointer.pad ? PAD_DRAG_X : TOUCH_DRAG_X;
+    // Open-water swipes carry their origin along. The thumb pad stays centered,
+    // so returning to its visible center always straightens and holds depth.
+    if (!mouse && !pointer.pad && Math.abs(e.clientX-pointer.x0) > radius) pointer.x0 = e.clientX-Math.sign(e.clientX-pointer.x0)*radius;
+    pointer.dx = Math.max(-1, Math.min(1, (e.clientX-pointer.x0)/radius));
+    const depthRadius = mouse ? MOUSE_DRAG_Y : pointer.pad ? PAD_DRAG_Y : TOUCH_DRAG_Y;
+    if (!mouse && !pointer.pad && Math.abs(e.clientY-pointer.y0) > depthRadius) pointer.y0 = e.clientY-Math.sign(e.clientY-pointer.y0)*depthRadius;
+    pointer.dy = Math.max(-1, Math.min(1, (e.clientY-pointer.y0)/depthRadius));
     $('steerPad').style.left = pointer.x0 + 'px';
     $('steerPad').style.top = pointer.y0 + 'px';
   }

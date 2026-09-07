@@ -54,7 +54,7 @@
     font-size: 28px; font-weight: 700;
   }
 </style>
-<link rel="stylesheet" href="./rally.css?v=20260907-quiet">
+<link rel="stylesheet" href="./rally.css?v=20260907-se">
 </head>
 <body>
 <canvas id="stage"></canvas>
@@ -95,23 +95,23 @@
   "imports": {
     "three": "./vendor/three.module.min.js",
     "three/addons/": "./vendor/addons/",
-    "./colossal-wreck.js": "./colossal-wreck.js?v=20260907-quiet",
-    "./coral-forms.js": "./coral-forms.js?v=20260907-quiet",
-    "./reef-chunks.js": "./reef-chunks.js?v=20260907-quiet",
-    "./quiet-hud.js": "./quiet-hud.js?v=20260907-quiet",
-    "./reef-course.js": "./reef-course.js?v=20260907-quiet",
-    "./reef-garden.js": "./reef-garden.js?v=20260907-quiet",
-    "./reef-performance.js": "./reef-performance.js?v=20260907-quiet",
-    "./reef-rally.js": "./reef-rally.js?v=20260907-quiet",
-    "./reef-scenery.js": "./reef-scenery.js?v=20260907-quiet",
-    "./reef-world.js": "./reef-world.js?v=20260907-quiet",
-    "./scenery-forms.js": "./scenery-forms.js?v=20260907-quiet",
-    "./scooter-handling.js": "./scooter-handling.js?v=20260907-quiet",
-    "./touch-controls.js": "./touch-controls.js?v=20260907-quiet",
-    "./treasure-cove.js": "./treasure-cove.js?v=20260907-quiet",
-    "./wreck-layout.js": "./wreck-layout.js?v=20260907-quiet",
-    "./wreck-physics.js": "./wreck-physics.js?v=20260907-quiet",
-    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260907-quiet"
+    "./colossal-wreck.js": "./colossal-wreck.js?v=20260907-se",
+    "./coral-forms.js": "./coral-forms.js?v=20260907-se",
+    "./reef-chunks.js": "./reef-chunks.js?v=20260907-se",
+    "./quiet-hud.js": "./quiet-hud.js?v=20260907-se",
+    "./reef-course.js": "./reef-course.js?v=20260907-se",
+    "./reef-garden.js": "./reef-garden.js?v=20260907-se",
+    "./reef-performance.js": "./reef-performance.js?v=20260907-se",
+    "./reef-rally.js": "./reef-rally.js?v=20260907-se",
+    "./reef-scenery.js": "./reef-scenery.js?v=20260907-se",
+    "./reef-world.js": "./reef-world.js?v=20260907-se",
+    "./scenery-forms.js": "./scenery-forms.js?v=20260907-se",
+    "./scooter-handling.js": "./scooter-handling.js?v=20260907-se",
+    "./touch-controls.js": "./touch-controls.js?v=20260907-se",
+    "./treasure-cove.js": "./treasure-cove.js?v=20260907-se",
+    "./wreck-layout.js": "./wreck-layout.js?v=20260907-se",
+    "./wreck-physics.js": "./wreck-physics.js?v=20260907-se",
+    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260907-se"
   }
 }
 </script>
@@ -792,7 +792,7 @@ duck.add(headlamp);
 
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('./zeeb-swimmer.glb?v=20260907-quiet', (gltf) => {
+loader.load('./zeeb-swimmer.glb?v=20260907-se', (gltf) => {
   const model = gltf.scene;
   model.name = 'Zeeb, swimming freely';
   duckInner.add(model);
@@ -1200,6 +1200,7 @@ document.addEventListener('visibilitychange', () => {
 });
 const fishFrustum = new THREE.Frustum(), fishViewProjection = new THREE.Matrix4();
 let elapsed = 0;
+let lastRenderAt = 0, lastRenderMode;
 let frames = 0, fpsTimer = 0;
 const shallow = new THREE.Color(0x65e7e5), deep = new THREE.Color(0x26b0cc);
 const fogNow = new THREE.Color();
@@ -1209,6 +1210,14 @@ function animate() {
   const frame = frameClock.sample(now, rally.state.mode === 'paused' || document.hidden);
   const { dt, realDt } = frame;
   performanceQuality.sample(realDt, !document.hidden && rally.state.mode !== 'paused');
+  // The paused ocean is still: spare the phone's GPU while menus scroll at
+  // the browser's normal rate. Sampling the clock above prevents resume catch-up.
+  const renderMode = rally.state.mode;
+  if (renderMode === 'paused' && lastRenderMode === renderMode &&
+      !document.body.classList.contains('preview') && now - lastRenderAt < 100) {
+    requestAnimationFrame(animate); return;
+  }
+  lastRenderAt = now; lastRenderMode = renderMode;
 
   /* --- Zeeb --- */
   let inp = { thrust: 0, turn: 0, rise: 0 }, playerInput = inp;
