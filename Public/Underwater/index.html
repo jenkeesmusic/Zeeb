@@ -54,7 +54,7 @@
     font-size: 28px; font-weight: 700;
   }
 </style>
-<link rel="stylesheet" href="./rally.css?v=20260906-motion">
+<link rel="stylesheet" href="./rally.css?v=20260907-quiet">
 </head>
 <body>
 <canvas id="stage"></canvas>
@@ -95,22 +95,23 @@
   "imports": {
     "three": "./vendor/three.module.min.js",
     "three/addons/": "./vendor/addons/",
-    "./colossal-wreck.js": "./colossal-wreck.js?v=20260906-motion",
-    "./coral-forms.js": "./coral-forms.js?v=20260906-motion",
-    "./reef-chunks.js": "./reef-chunks.js?v=20260906-motion",
-    "./reef-course.js": "./reef-course.js?v=20260906-motion",
-    "./reef-garden.js": "./reef-garden.js?v=20260906-motion",
-    "./reef-performance.js": "./reef-performance.js?v=20260906-motion",
-    "./reef-rally.js": "./reef-rally.js?v=20260906-motion",
-    "./reef-scenery.js": "./reef-scenery.js?v=20260906-motion",
-    "./reef-world.js": "./reef-world.js?v=20260906-motion",
-    "./scenery-forms.js": "./scenery-forms.js?v=20260906-motion",
-    "./scooter-handling.js": "./scooter-handling.js?v=20260906-motion",
-    "./touch-controls.js": "./touch-controls.js?v=20260906-motion",
-    "./treasure-cove.js": "./treasure-cove.js?v=20260906-motion",
-    "./wreck-layout.js": "./wreck-layout.js?v=20260906-motion",
-    "./wreck-physics.js": "./wreck-physics.js?v=20260906-motion",
-    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260906-motion"
+    "./colossal-wreck.js": "./colossal-wreck.js?v=20260907-quiet",
+    "./coral-forms.js": "./coral-forms.js?v=20260907-quiet",
+    "./reef-chunks.js": "./reef-chunks.js?v=20260907-quiet",
+    "./quiet-hud.js": "./quiet-hud.js?v=20260907-quiet",
+    "./reef-course.js": "./reef-course.js?v=20260907-quiet",
+    "./reef-garden.js": "./reef-garden.js?v=20260907-quiet",
+    "./reef-performance.js": "./reef-performance.js?v=20260907-quiet",
+    "./reef-rally.js": "./reef-rally.js?v=20260907-quiet",
+    "./reef-scenery.js": "./reef-scenery.js?v=20260907-quiet",
+    "./reef-world.js": "./reef-world.js?v=20260907-quiet",
+    "./scenery-forms.js": "./scenery-forms.js?v=20260907-quiet",
+    "./scooter-handling.js": "./scooter-handling.js?v=20260907-quiet",
+    "./touch-controls.js": "./touch-controls.js?v=20260907-quiet",
+    "./treasure-cove.js": "./treasure-cove.js?v=20260907-quiet",
+    "./wreck-layout.js": "./wreck-layout.js?v=20260907-quiet",
+    "./wreck-physics.js": "./wreck-physics.js?v=20260907-quiet",
+    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260907-quiet"
   }
 }
 </script>
@@ -134,6 +135,7 @@ import { createReef } from './reef-world.js';
 import { COURSE, COURSE_SCALE } from './reef-course.js';
 import { createPilotCamera } from './zeeb-scooter.js';
 import { createSwimControls } from './touch-controls.js';
+import { createQuietHud } from './quiet-hud.js';
 import { CRUISE_SPEED, stepScooter } from './scooter-handling.js';
 import { makeKelpGeometry, causticGLSL } from './reef-garden.js';
 import { wreckFloor, inWreckFootprint } from './wreck-layout.js';
@@ -790,7 +792,7 @@ duck.add(headlamp);
 
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('./zeeb-swimmer.glb?v=20260906-motion', (gltf) => {
+loader.load('./zeeb-swimmer.glb?v=20260907-quiet', (gltf) => {
   const model = gltf.scene;
   model.name = 'Zeeb, swimming freely';
   duckInner.add(model);
@@ -1052,7 +1054,7 @@ function dismissHint() {
   hint.classList.add('gone');
 }
 window.addEventListener('keydown', (e) => {
-  if (e.target.closest?.('button, input, textarea, a') && ['Space', 'Enter'].includes(e.code)) return;
+  if (e.target.closest?.('button, input, textarea, a, summary') && ['Space', 'Enter'].includes(e.code)) return;
   keys.add(e.code);
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   dismissHint();
@@ -1179,6 +1181,7 @@ let savedQuality;
 try { savedQuality = localStorage.getItem('zeeb-reef-graphics'); } catch {}
 if (['smooth','detailed'].includes(savedQuality)) performanceQuality.setMode(savedQuality);
 else applyQuality();
+const quietHud = createQuietHud({ rally });
 
 /* ---------------------------------------------------------------- the HUD */
 
@@ -1241,6 +1244,7 @@ function animate() {
   timeUniform.value = t;
   rally.updateVisuals(dt, t);
   controls.updateUI();
+  quietHud.update();
   const boosting = rally.state.boost > 0;
   const speedFrac = swim.speed / MAX_SPEED;
 

@@ -1,19 +1,20 @@
-import { stepPointer, MOUSE_DRAG_X, MOUSE_DRAG_Y, TOUCH_DRAG_X } from './scooter-handling.js';
+import { stepPointer, MOUSE_DRAG_X, MOUSE_DRAG_Y, TOUCH_DRAG_X, TOUCH_DRAG_Y } from './scooter-handling.js';
 
 // One pointer steers; other fingers can hold depth/reverse independently.
 export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
   document.body.insertAdjacentHTML('beforeend', `
     <div id="touchControls" hidden>
-      <button id="swimPad" type="button" aria-label="Hold to swim, slide left or right to turn">
+      <button id="swimPad" type="button" aria-label="Hold to swim; slide left or right to turn, up to rise, down to sink">
         <span class="turn-left" aria-hidden="true">‹</span><span class="turn-right" aria-hidden="true">›</span>
-        <span id="swimKnob" aria-hidden="true"></span><span class="swim-label">Hold to swim</span>
+        <span class="turn-up" aria-hidden="true">↑</span><span class="turn-down" aria-hidden="true">↓</span>
+        <span id="swimKnob" aria-hidden="true"></span><span class="swim-label">Swim</span>
       </button>
       <div id="depthButtons" aria-label="Swimming controls">
         <button id="swimUp" type="button" aria-label="Hold to rise; E or Space">↑ Rise<small>E / Space</small></button>
         <button id="swimDown" type="button" aria-label="Hold to sink; Q or Shift">↓ Sink<small>Q / Shift</small></button>
         <button id="swimBack" type="button" aria-label="Hold to swim backward">Back</button>
       </div>
-      <div id="touchHint">Hold Rise / Sink to change depth</div>
+      <div id="touchHint">Slide up to rise, down to sink</div>
     </div>`);
   const elements = new Map();
   const $ = id => {
@@ -49,7 +50,7 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
     dismissHint();
     if (e.pointerType === 'mouse') musicStart();
     $('swimPad').classList.add('held');
-    const pad = $('steerPad'); pad.hidden = isPad;
+    const pad = $('steerPad'); pad.hidden = isPad || type !== 'mouse';
     pad.style.left = e.clientX + 'px'; pad.style.top = e.clientY + 'px';
     $('steerKnob').style.transform = 'translate(0, 0)';
   }
@@ -61,8 +62,11 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
     // starts easing the turn. There is no invisible excess drag to unwind.
     if (!mouse && Math.abs(e.clientX-pointer.x0) > radius) pointer.x0 = e.clientX-Math.sign(e.clientX-pointer.x0)*radius;
     pointer.dx = (e.clientX-pointer.x0)/radius;
-    pointer.dy = mouse ? (e.clientY-pointer.y0)/MOUSE_DRAG_Y : 0;
+    const depthRadius = mouse ? MOUSE_DRAG_Y : TOUCH_DRAG_Y;
+    if (!mouse && Math.abs(e.clientY-pointer.y0) > depthRadius) pointer.y0 = e.clientY-Math.sign(e.clientY-pointer.y0)*depthRadius;
+    pointer.dy = (e.clientY-pointer.y0)/depthRadius;
     $('steerPad').style.left = pointer.x0 + 'px';
+    $('steerPad').style.top = pointer.y0 + 'px';
   }
   function end(e) {
     if (e.pointerId !== pointer.pointerId) return;
@@ -123,11 +127,12 @@ export function createSwimControls({ canvas, mode, musicStart, dismissHint }) {
         $('touchControls').hidden = !active;
         document.body.classList.toggle('touch-playing', touchMode && active);
         document.body.classList.toggle('depth-playing', active);
+        document.body.classList.toggle('playing', active);
         if (!active) clear();
         wasPlaying = active; shownMode = touchMode;
       }
       const steer = `translate(${(pointer.turn*32).toFixed(1)}px, ${(pointer.rise*32).toFixed(1)}px)`;
-      const swim = `translate(${(pointer.turn*43).toFixed(1)}px, 0)`;
+      const swim = `translate(${(pointer.turn*35).toFixed(1)}px, ${(pointer.rise*23).toFixed(1)}px)`;
       if (steer !== lastSteer) { $('steerKnob').style.transform = steer; lastSteer = steer; }
       if (swim !== lastSwim) { $('swimKnob').style.transform = swim; lastSwim = swim; }
     },

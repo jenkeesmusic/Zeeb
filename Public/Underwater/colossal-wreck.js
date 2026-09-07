@@ -312,15 +312,16 @@ export function createColossalWreck({scene,timeUniform,forms,duck,rally,spawnBub
     }
     uiTimer+=dt;
     if(uiTimer>.15||!dt) {
-      uiTimer=0;const nearby=near(duck.position),exploring=rally.state.mode==='explore';
+      uiTimer=0;const nearby=near(duck.position),exploring=(rally.state.mode==='paused'?rally.state.pausedMode:rally.state.mode)==='explore';
       $('wreckStats').hidden=!exploring||(!nearby&&!progress.found.size);
-      $('wreckReturn').hidden=!exploring||!nearby;$('playBtn').hidden=!exploring||nearby;
+      if($('menuWreck'))$('menuWreck').hidden=$('wreckStats').hidden;
+      $('wreckReturn').hidden=!exploring||!nearby;$('playBtn').hidden=!exploring;
       $('wreckAgain').hidden=!exploring||progress.found.size!==WRECK_COINS.length;
-      $('wreckBtn').hidden=rally.state.mode==='paused';
+      $('wreckBtn').hidden=rally.state.mode==='paused'&&nearby;
       if(exploring) {
         const r=roomAt(duck.position),room=WRECK_ROOMS[r],remaining=WRECK_COINS.filter(c=>c.room===r&&!progress.found.has(c.id)).length;
         $('wreckRoom').textContent=nearby?room.name:'The colossal wreck';$('wreckCount').textContent=`${progress.found.size} / ${WRECK_COINS.length}`;
-        const verticalHint=document.body.classList.contains('touch-mode')?'Hold Rise / Sink to change decks':'E / Space rise · Q / Shift sink';
+        const verticalHint=document.body.classList.contains('touch-mode')?'Slide up / down to change decks':'E / Space rise · Q / Shift sink';
         $('wreckClue').textContent=nearby?(remaining?`${remaining} coins nearby · ${verticalHint}`:'This nook is explored. Try another deck!'):(progress.canSave?'Your finds are saved.':'Your finds stay for this visit.');
       }
     }

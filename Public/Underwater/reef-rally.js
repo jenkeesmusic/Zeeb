@@ -23,7 +23,7 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
       <h1 id="menuTitle">The lost treasure</h1>
       <p id="menuText">Follow 12 golden hoops to the lost treasure. Or explore a colossal shipwreck, with hidden rooms and coins on every deck.</p>
       <div class="menu-actions"><button class="primary" id="startBtn" type="button">Find the treasure</button><button id="exploreBtn" type="button">Just explore</button></div>
-      <div id="menuHelp">Touch: hold to swim, slide left/right to turn. Hold Rise / Sink to change depth.<br>Keyboard: E / Space rise, Q / Shift sink. ← → or A / D steer. Aim for gold, then release to glide into line.</div>
+      <div id="menuHelp">Hold the swim pad or water. Slide left/right to turn, up to rise, down to sink. Center your thumb to hold depth; lift to stop exploring.<br>Keyboard: WASD / arrows swim. E / Space rise, Q / Shift sink. Depth buttons are optional in settings.</div>
     </section>
     <div id="rallyControls"><button id="boostBtn" type="button" hidden><span id="boostFill"></span><span id="boostLabel">Boost · B</span></button><button id="rescueBtn" type="button" hidden>Back to hoop</button><button id="playBtn" type="button" hidden>Find the treasure</button></div>
     <div id="toast" role="status" aria-live="polite"></div>
@@ -112,6 +112,7 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
   }
   function setPlayUI() {
     $('menu').hidden = true; $('hint').classList.add('gone');
+    $('exploreBtn').hidden = false;
     $('boostBtn').hidden = false; pauseBtn.hidden = false;
     $('raceStats').hidden = state.mode === 'explore'; $('playBtn').hidden = state.mode !== 'explore';
     $('rescueBtn').hidden = true;
@@ -131,7 +132,7 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
     if(options.position)resetPosition(options.position,options.direction);
     setPlayUI(); announce(options.message || 'The whole ocean is yours');
     $('hint').innerHTML = document.body.classList.contains('touch-mode')
-      ? 'Hold to swim · slide left/right to turn · lift to stop. Hold Rise / Sink to change depth.'
+      ? 'Hold to swim · slide left/right to turn · up/down for depth · lift to stop.'
       : '<b>WASD / arrows</b> swim · <b>E / Space</b> rise · <b>Q / Shift</b> sink · <b>B</b> boost';
     $('hint').classList.remove('gone'); setTimeout(() => $('hint').classList.add('gone'), 8000);
   }
@@ -143,16 +144,20 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
     }
     if (!['racing', 'countdown', 'explore'].includes(state.mode)) return;
     state.pausedMode = state.mode; state.mode = 'paused';
-    $('countdown').hidden = true; $('menu').hidden = false; $('menuTitle').textContent = 'Taking a breather';
+    $('countdown').hidden = true; $('menu').hidden = false; $('menuTitle').textContent = 'Your swim';
     $('menuText').textContent = 'Your swim is right here when you’re ready.';
-    $('startBtn').textContent = 'Keep swimming'; $('exploreBtn').textContent = 'Just explore'; $('menuHelp').hidden = true;
-    $('rescueBtn').hidden = true;
+    $('startBtn').textContent = 'Keep swimming'; $('exploreBtn').textContent = 'Just explore'; $('menuHelp').hidden = false;
+    $('exploreBtn').hidden = state.pausedMode === 'explore';
+    $('rescueBtn').hidden = state.pausedMode !== 'racing';
   }
   function boost() {
     if (!['racing', 'explore'].includes(state.mode) || state.energy < .98) return;
     unlockSound(); state.energy = 0; state.boost = 1.6; chime([330, 495, 660]);
   }
   function rescue() {
+    if (state.mode === 'paused' && state.pausedMode === 'racing') {
+      state.mode = 'racing'; state.pausedMode = null; setPlayUI();
+    }
     if (state.mode !== 'racing') return;
     clearInput();
     const r = rings[state.next]; resetPosition(r.position.clone().addScaledVector(r.normal, -14), r.normal);
@@ -252,7 +257,8 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
       uiTime = 0; $('raceTime').textContent = formatTime(state.time);
       $('boostFill').style.transform = `scaleX(${state.energy})`;
       $('boostBtn').disabled = state.energy < .98 || !['racing', 'explore'].includes(state.mode);
-      $('boostLabel').textContent = state.energy >= .98 ? (document.body.classList.contains('touch-mode') ? 'Boost' : 'Boost · B') : `Refilling ${Math.ceil((1 - state.energy) * 5)}s`;
+      $('boostLabel').textContent = state.energy >= .98 ? 'Boost' : `${Math.ceil((1 - state.energy) * 5)}s`;
+      $('boostBtn').setAttribute('aria-label', state.energy >= .98 ? 'Boost; B key' : `Boost refills in ${Math.ceil((1 - state.energy) * 5)} seconds`);
       if (state.mode === 'racing' && r) {
         const distance = duck.position.distanceTo(r.position), passedPlane = v.subVectors(duck.position, r.position).dot(r.normal) > 3;
         $('rescueBtn').hidden = !(passedPlane || distance > 65 * COURSE_SCALE);

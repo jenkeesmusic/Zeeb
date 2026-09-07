@@ -25,26 +25,33 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
 - Free swimming: arrows or WASD swim and turn. Space/E rises; Shift/Q dives.
 - Mouse: hold and drag on the water. Horizontal movement turns;
   vertical movement controls depth. A visible joystick shows the drag.
-  **Rise**, **Sink**, and **Back** also stay visible on desktop. Explicit
+  **Rise**, **Sink**, and **Back** also stay visible on mouse-only devices. Explicit
   keyboard depth input takes priority over a vertical mouse drag.
 - Touch: hold the large swim pad (or the water) to swim, and slide left/right
-  to turn. Lift to stop in exploration; the hoop course keeps cruising.
-  Separate **Rise**, **Sink**, and **Back** buttons control depth and reverse.
-  A second finger can use these while the first keeps steering.
+  to turn and up/down to rise/sink. Center your thumb to hold depth. Lift to
+  stop in exploration; the hoop course keeps cruising. **Back** reverses.
+  Optional **Rise** and **Sink** buttons can be enabled under **Menu → Music &
+  settings → Touch depth buttons**. A second finger can use them while steering.
 - B or **Boost** gives a 1.6-second burst, with a five-second refill.
   From hoop three onward, passing a hoop gives a 0.65-second burst without
   using the boost meter or shortening an existing boost. It preserves
   Zeeb's heading and velocity. The first two passes leave the speed alone.
-- P, Escape, or **Pause** pauses. Switching tabs or losing window focus also
+- P, Escape, or **Menu** pauses. Switching tabs or losing window focus also
   pauses and clears held inputs. Resume with **Keep swimming**.
-- **Back to hoop** appears when the target is behind Zeeb or far away. It
+- **Back to hoop** is available in the paused race menu. It
   returns him to the approach without taking points away. A lap using this
   help still finishes but does not replace the best time.
-- M or **Music** toggles audio. **Next song** is hidden on narrow screens.
+- M or **Music** toggles audio. Music, Next song, camera and graphics choices
+  are under **Menu → Music & settings**, including on narrow screens.
 - Wreck exploration: swim through the broad hull breaches, doorways and deck
-  hatches. Space/E rises; Shift/Q dives. On touch, use Rise / Sink to change
-  decks. **Back outside** returns to the entrance without losing collected coins.
-  The HUD shows the nearest area and how many coins remain there.
+  hatches. Space/E rises; Shift/Q dives. On touch, slide up/down to change
+  decks. **Back outside** in Menu returns to the entrance without losing coins.
+  A compact coin total stays on screen; Menu shows the nearest area and clue,
+  plus **Find coins again** after all coins are collected.
+
+The default touch playfield has four buttons: Menu, Swim, Boost and Back.
+Mission changes, settings, instructions and replay choices live in the paused
+menu. Progress and depth remain compact; touch targets stay at least 44 pixels.
 
 Zeeb turns promptly, follows his nose with very little sideways
 drift, and brakes quickly when you let go in free swimming. Horizontal
@@ -52,8 +59,9 @@ touch steering uses a 120-pixel drag, a soft center, and a gentler maximum
 turn. Small held-finger corrections have a softer response; direction changes
 use a damped spring to ease both the turn and how quickly it changes.
 Reversing a held finger no longer accelerates the response abruptly.
-Lifting clears the turn and its stored velocity. Vertical finger wobble cannot
-change depth. Long swipes carry the steering origin along, so there is no
+Lifting clears both axes and the stored turning velocity. Touch depth uses
+a 64-pixel drag with an approximately 12-pixel neutral zone for small wobble.
+Long swipes carry the steering origin along on both axes, so there is no
 excess drag to undo. Mouse steering uses
 110 pixels horizontally and 150 vertically, with a soft response near the center
 and a small dead zone that ignores hand jitter. Mouse turns ease in, settle
@@ -243,7 +251,9 @@ use a separate audio context unlocked by interaction and follow the music toggle
 - `zeeb-scooter.js`: the camera glance controller; the earlier procedural
   scooter builder is retained but is no longer instantiated.
 - `touch-controls.js`: captured mouse/touch pointers, visible swim pad,
-  independent depth/reverse holds, and release/pause/focus clearing.
+  two-axis touch steering, optional depth/reverse holds, and release/pause clearing.
+- `quiet-hud.js`: paused menu organization, optional touch depth-button preference,
+  and menu keyboard focus handling.
 - `scooter-handling.js`: responsive steering, acceleration, lateral grip,
   depth movement, and approach assistance shared with driving checks.
 - `rally.css`: desktop and small-screen game UI, focus styling, and reduced
