@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createGraceCoinGeometry, createGraceCoinMaterial, mergeGraceCoinGeometry } from './grace-coin.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COURSE } from './reef-course.js';
 import { coralForms } from './coral-forms.js';
@@ -35,7 +36,7 @@ export function createTreasureCove({ scene, floorY, spawnBubble, reducedMotion =
   const wreckWood=new THREE.MeshStandardMaterial({color:0x85806a,roughness:.85});
   wreckWood.onBeforeCompile=wood.onBeforeCompile;
   const stone=new THREE.MeshStandardMaterial({color:0xa89cbd,roughness:.7});
-  const gold=new THREE.MeshStandardMaterial({color:0xffc947,metalness:.64,roughness:.27,emissive:0xf8a821,emissiveIntensity:.1});
+  const gold=createGraceCoinMaterial();
   const bodyParts=new Map(),lidParts=new Map(),wreckParts=[];
   function roundedBox(w,h,d,r=.09) {
     r=Math.min(r,w*.2,h*.2,d*.42);
@@ -97,7 +98,7 @@ export function createTreasureCove({ scene, floorY, spawnBubble, reducedMotion =
   const slot=new THREE.Mesh(new THREE.PlaneGeometry(.12,.27),hole.material);slot.position.set(0,-.12,.135);latch.add(slot);
 
   // Batched coins keep the reward inexpensive even while the reef is visible.
-  const coinGeo=new THREE.CylinderGeometry(.29,.29,.075,18),coins=new THREE.InstancedMesh(coinGeo,gold,224);
+  const coinGeo=mergeGraceCoinGeometry(createGraceCoinGeometry(.58,{simple:true})).rotateX(-Math.PI/2),coins=new THREE.InstancedMesh(coinGeo,gold,224);
   coins.name='Treasure coins';chest.add(coins);coins.receiveShadow=true;
   const dummy=new THREE.Object3D();
   for(let i=0;i<224;i++) {

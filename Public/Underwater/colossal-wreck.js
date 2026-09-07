@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createGraceCoinGeometry, createGraceCoinMaterial } from './grace-coin.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mergeSceneryCells } from './reef-chunks.js';
 import { makeReefMaterial, makeKelpGeometry } from './reef-garden.js';
@@ -258,14 +259,8 @@ export function createColossalWreck({scene,timeUniform,forms,duck,rally,spawnBub
 
   let storage=null;try{if(!new URLSearchParams(location.search).has('wrecktest'))storage=localStorage;}catch{}
   const progress=createCoinProgress(WRECK_COINS,storage);
-  const coinMat=new THREE.MeshStandardMaterial({color:0xffc748,metalness:.55,roughness:.3,emissive:0xdb861a,emissiveIntensity:.28});
-  const stampMat=new THREE.MeshStandardMaterial({color:0xffedab,metalness:.4,roughness:.4,emissive:0xffcc61,emissiveIntensity:.2});
-  const coinGeo=new THREE.CylinderGeometry(.68,.68,.18,24).rotateX(Math.PI/2);
-  const stampParts=[new THREE.TorusGeometry(.51,.045,6,24).translate(0,0,.105),new THREE.TorusGeometry(.51,.045,6,24).translate(0,0,-.105)];
-  const star=new THREE.Shape();for(let j=0;j<10;j++){const a=j*Math.PI/5,r=j%2?.16:.34;const x=Math.sin(a)*r,y=Math.cos(a)*r;if(j)star.lineTo(x,y);else star.moveTo(x,y);}star.closePath();
-  for(const z of [-.12,.11])stampParts.push(new THREE.ShapeGeometry(star).translate(0,0,z));
-  stampMat.side=THREE.DoubleSide;
-  const stampsGeo=mergeGeometries(stampParts.map(g=>g.index?g.toNonIndexed():g));stampParts.forEach(g=>g.dispose());
+  const coinMat=createGraceCoinMaterial(),stampMat=coinMat;
+  const {body:coinGeo,relief:stampsGeo}=createGraceCoinGeometry();
   const coins=new THREE.InstancedMesh(coinGeo,coinMat,WRECK_COINS.length),stamps=new THREE.InstancedMesh(stampsGeo,stampMat,WRECK_COINS.length);
   coins.name='Collectible wreck coins';stamps.name='Coin engravings';coins.frustumCulled=stamps.frustumCulled=false;scene.add(coins,stamps);
   coins.count=stamps.count=0;

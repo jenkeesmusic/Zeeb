@@ -168,7 +168,11 @@ the generated galleon concept. Three decks have broad aligned hatches and
 multiple side entrances. The cargo hold contains crates and barrels; the galley
 has pots and a bench; chart tables and a wheel furnish the stern rooms.
 
-Coins are real instanced 3D collectibles, with a generous 3.6-foot pickup radius,
+Coins use Grace's original `../Islands/img/coin.png` as their shape reference:
+a tall asymmetric gold oval, a beveled edge, and her orange stroke raised on
+both faces. The shape is geometry, with no runtime image download. Wreck coins
+keep their instancing and distance-based detail culling; the chest and celebration
+use a simpler merged version. They retain a generous 3.6-foot pickup radius,
 soft chimes and bubbles. A swept pickup catches coins between frames and checks
 walls before awarding them. The ten named areas include the broken bow, cargo
 hold, lantern gallery, galley, hidden cargo, map room, open deck, captain's cabin,
@@ -249,6 +253,8 @@ use a separate audio context unlocked by interaction and follow the music toggle
   coin IDs; shared by the ship, seafloor, planting and checks.
 - `wreck-physics.js`: substepped collision, camera clipping, swept pickups and
   persistent coin progress, independent of the renderer.
+- `grace-coin.js`: traced original coin silhouette, double-sided raised stroke,
+  satin material and a lighter treasure-pile mesh.
 - `treasure-cove.js`: chest and wreck geometry, hinged lid, coins, gems,
   compass, completion/replay animation, and finish camera framing.
 - `reef-garden.js`: sculpted terraces, plants, sand discoveries, arch placement,

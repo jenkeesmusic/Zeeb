@@ -54,7 +54,7 @@
     font-size: 28px; font-weight: 700;
   }
 </style>
-<link rel="stylesheet" href="./rally.css?v=20260907-calm">
+<link rel="stylesheet" href="./rally.css?v=20260907-coin">
 </head>
 <body>
 <canvas id="stage"></canvas>
@@ -95,23 +95,24 @@
   "imports": {
     "three": "./vendor/three.module.min.js",
     "three/addons/": "./vendor/addons/",
-    "./colossal-wreck.js": "./colossal-wreck.js?v=20260907-calm",
-    "./coral-forms.js": "./coral-forms.js?v=20260907-calm",
-    "./reef-chunks.js": "./reef-chunks.js?v=20260907-calm",
-    "./quiet-hud.js": "./quiet-hud.js?v=20260907-calm",
-    "./reef-course.js": "./reef-course.js?v=20260907-calm",
-    "./reef-garden.js": "./reef-garden.js?v=20260907-calm",
-    "./reef-performance.js": "./reef-performance.js?v=20260907-calm",
-    "./reef-rally.js": "./reef-rally.js?v=20260907-calm",
-    "./reef-scenery.js": "./reef-scenery.js?v=20260907-calm",
-    "./reef-world.js": "./reef-world.js?v=20260907-calm",
-    "./scenery-forms.js": "./scenery-forms.js?v=20260907-calm",
-    "./scooter-handling.js": "./scooter-handling.js?v=20260907-calm",
-    "./touch-controls.js": "./touch-controls.js?v=20260907-calm",
-    "./treasure-cove.js": "./treasure-cove.js?v=20260907-calm",
-    "./wreck-layout.js": "./wreck-layout.js?v=20260907-calm",
-    "./wreck-physics.js": "./wreck-physics.js?v=20260907-calm",
-    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260907-calm"
+    "./colossal-wreck.js": "./colossal-wreck.js?v=20260907-coin",
+    "./coral-forms.js": "./coral-forms.js?v=20260907-coin",
+    "./reef-chunks.js": "./reef-chunks.js?v=20260907-coin",
+    "./grace-coin.js": "./grace-coin.js?v=20260907-coin",
+    "./quiet-hud.js": "./quiet-hud.js?v=20260907-coin",
+    "./reef-course.js": "./reef-course.js?v=20260907-coin",
+    "./reef-garden.js": "./reef-garden.js?v=20260907-coin",
+    "./reef-performance.js": "./reef-performance.js?v=20260907-coin",
+    "./reef-rally.js": "./reef-rally.js?v=20260907-coin",
+    "./reef-scenery.js": "./reef-scenery.js?v=20260907-coin",
+    "./reef-world.js": "./reef-world.js?v=20260907-coin",
+    "./scenery-forms.js": "./scenery-forms.js?v=20260907-coin",
+    "./scooter-handling.js": "./scooter-handling.js?v=20260907-coin",
+    "./touch-controls.js": "./touch-controls.js?v=20260907-coin",
+    "./treasure-cove.js": "./treasure-cove.js?v=20260907-coin",
+    "./wreck-layout.js": "./wreck-layout.js?v=20260907-coin",
+    "./wreck-physics.js": "./wreck-physics.js?v=20260907-coin",
+    "./zeeb-scooter.js": "./zeeb-scooter.js?v=20260907-coin"
   }
 }
 </script>
@@ -792,7 +793,7 @@ duck.add(headlamp);
 
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('./zeeb-swimmer.glb?v=20260907-calm', (gltf) => {
+loader.load('./zeeb-swimmer.glb?v=20260907-coin', (gltf) => {
   const model = gltf.scene;
   model.name = 'Zeeb, swimming freely';
   duckInner.add(model);
