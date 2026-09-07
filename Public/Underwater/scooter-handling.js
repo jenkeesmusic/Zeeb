@@ -1,5 +1,5 @@
 // Feet and seconds. Shared by the game and deterministic driving checks.
-export const CRUISE_SPEED = 15;
+export const CRUISE_SPEED = 11;
 export const BOOST_SPEED = 22;
 export const TURN_RATE = 2.65;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -27,11 +27,11 @@ export function stepPointer(pointer, dt) {
     // dead zone ignores small wobble while leaving deliberate depth input easy.
     const turnDeadZone = pointer.pad ? .14 : .08;
     const amount = clamp((Math.abs(pointer.dx) - turnDeadZone) / (1 - turnDeadZone), 0, 1);
-    const target = Math.sign(pointer.dx) * Math.pow(amount, 1.6) * .66;
+    const target = Math.sign(pointer.dx) * Math.pow(amount, 1.8) * .24;
     // A critically damped spring keeps both the turn and its rate of change
     // continuous as a held finger sweeps back and forth. Reversing no longer
     // switches to a faster, abrupt response. This solution is frame-rate independent.
-    const omega = 14, elapsed = Math.max(0, dt), decay = Math.exp(-omega * elapsed);
+    const omega = 9, elapsed = Math.max(0, dt), decay = Math.exp(-omega * elapsed);
     const displacement = (pointer.turn || 0) - target;
     const velocity = pointer.turnVelocity || 0;
     const spring = velocity + omega * displacement;
@@ -59,10 +59,10 @@ export function rallyInput(input, position, swim, target) {
   const error = Math.atan2(Math.sin(angle), Math.cos(angle));
   // Releasing the steering gently finishes an approach. Deliberate steering
   // takes priority, and a hoop behind or well off to the side cannot grab Zeeb.
-  const proximity = 1 - smoothstep(18, 30, distance);
-  const alignment = 1 - smoothstep(.18, .62, Math.abs(error));
-  const released = 1 - smoothstep(.02, .2, Math.abs(input.turn));
-  const nudge = input.thrust < 0 ? 0 : clamp(error * 1.7, -.6, .6) * proximity * alignment * released;
+  const proximity = 1 - smoothstep(20, 45, distance);
+  const alignment = 1 - smoothstep(.25, .95, Math.abs(error));
+  const released = 1 - smoothstep(.005, .045, Math.abs(input.turn));
+  const nudge = input.thrust < 0 ? 0 : clamp(error * .55, -.12, .12) * proximity * alignment * released;
   return { ...input,
     thrust: input.thrust < 0 ? input.thrust : 1,
     turn: clamp(input.turn + nudge, -1, 1),

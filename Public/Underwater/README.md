@@ -33,9 +33,7 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
   Optional **Rise** and **Sink** buttons can be enabled under **Menu → Music &
   settings → Touch depth buttons**. A second finger can use them while steering.
 - B or **Boost** gives a 1.6-second burst, with a five-second refill.
-  From hoop three onward, passing a hoop gives a 0.65-second burst without
-  using the boost meter or shortening an existing boost. It preserves
-  Zeeb's heading and velocity. The first two passes leave the speed alone.
+  Passing a hoop keeps the same pace; speed bursts happen only when chosen.
 - P, Escape, or **Menu** pauses. Switching tabs or losing window focus also
   pauses and clears held inputs. Resume with **Keep swimming**.
 - **Back to hoop** is available in the paused race menu. It
@@ -51,13 +49,17 @@ swimming, or **Explore the wreck** to start beside the ship's open port entrance
 
 The default touch playfield has four buttons: Menu, Swim, Boost and Back.
 Mission changes, settings, instructions and replay choices live in the paused
-menu. Progress and depth remain compact; touch targets stay at least 44 pixels.
+menu. The stopwatch is also in Menu during a lap; the finish still shows the time.
+Progress and depth remain compact; touch targets stay at least 44 pixels.
 Keep swimming stays pinned while a paused menu scrolls. The paused ocean
 renders at most ten times per second to reduce GPU work; menu scrolling remains
 native. Resume samples the normal frame clock without catching up paused time.
 
-Zeeb turns promptly, follows his nose with very little sideways
-drift, and brakes quickly when you let go in free swimming. The thumb pad uses
+Zeeb cruises at 11 feet per second, follows his nose with very little sideways
+drift, and brakes quickly when you let go in free swimming. Touch turning tops
+out at about 36 degrees per second, with an especially soft center and a
+critically damped spring for gentle onset and reversals. Mouse and keyboard
+retain their full turning range; touch depth response is unchanged. The thumb pad uses
 44 pixels of travel in either axis, so all four directions fit inside the pad
 and away from the screen edges. Its center stays fixed: return to the center to
 straighten and hold depth. Holding an arrow on the pad also gives directional
@@ -84,7 +86,7 @@ Body lean anticipates steering intent; pitch and camera zoom use exponential
 smoothing. These visual accents do not change the collision shape.
 
 Successive hoops are 63–80 feet apart, about 40% farther than the prior
-layout and roughly 4–5 seconds apart at cruising speed. This gives more room
+layout and roughly 6–7 seconds apart at cruising speed. This gives more room
 to steer through bends and recover before the next opening. The third hoop keeps a long,
 nearly straight approach at the same depth as hoop two. The moon arch,
 reef outcrops, fish, jellyfish grove, and treasure cove follow the wider route.
@@ -103,7 +105,8 @@ to reveal gold coins, colored gems, and a golden compass. A short coin burst
 celebrates the discovery when reduced motion is off. **Hunt again** closes
 the chest and starts a fresh course;
 best unassisted time for this course is stored locally when browser storage
-is available. The longer course uses its own record, preserving the old one.
+is available. The calmer handling uses its own record (`zeeb-reef-best-v5-calm`), preserving
+records from earlier handling versions.
 
 ## Grace’s art and the reef
 

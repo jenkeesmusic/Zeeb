@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { COURSE, START, ZONES, HOOP_RADIUS, HOOP_TUBE_RADIUS, PASS_RADIUS, PERFECT_RADIUS, COURSE_SCALE, hoopCrossing } from './reef-course.js';
 import { rallyInput } from './scooter-handling.js';
 
-// Each course layout keeps its own times, preserving earlier records.
-const bestTimeKey = 'zeeb-reef-best-v4';
+// Layout and handling revisions keep separate times, preserving earlier records.
+const bestTimeKey = 'zeeb-reef-best-v5-calm';
 
 export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnBubble, musicStart, music, clearInput }) {
   const $ = (id) => document.getElementById(id);
@@ -215,9 +215,7 @@ export function createRally({ scene, camera, duck, swim, camPos, camLook, spawnB
         state.streak = perfect ? state.streak + 1 : 0; if (perfect) state.perfect++;
         const points = 100 + (perfect ? 50 : 0) + Math.min(state.streak, 5) * 10;
         state.score += points; state.next++; r.pulse = 1;
-        // Let players find the steering through the first three hoops before
-        // adding automatic speed bursts. A manually chosen boost still works.
-        if (state.next >= 3) state.boost = Math.max(state.boost, .65);
+        // Passing a hoop keeps the same calm pace. Boost is always a choice.
         for (let i = 0; i < 25; i++) spawnBubble(v.copy(r.position).add(new THREE.Vector3((Math.random() - .5) * 7, (Math.random() - .5) * 7, 0)), .12 + Math.random() * .18);
         chime(perfect ? [660, 880, 1100] : [587, 784]);
         announce(perfect ? `Perfect! +${points}` : `Whoosh! +${points}`, 1.3);

@@ -14,7 +14,7 @@ export function createQuietHud({ rally }) {
   actions.before(primary); primary.append($('startBtn'));
   for (const id of ['playBtn', 'rescueBtn', 'wreckReturn', 'wreckAgain']) $('menuTrips').append($(id));
   for (const id of ['wreckRoom', 'wreckClue']) $('menuWreck').append($(id));
-  for (const id of ['zone', 'score', 'progress']) $('menuRace').append($(id));
+  for (const id of ['zone', 'score', 'progress', 'raceTime']) $('menuRace').append($(id));
   for (const id of ['musicBtn', 'nextBtn', 'cameraBtn', 'graphicsBtn']) $('settingButtons').append($(id));
   const depthToggle = document.createElement('button');
   depthToggle.id = 'depthButtonsToggle'; depthToggle.type = 'button';
